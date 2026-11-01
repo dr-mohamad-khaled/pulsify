@@ -1,0 +1,39 @@
+name: Build Android APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bundle the web app into the APK (offline, no CDN)
+        run: |
+          A=android/app/src/main/assets
+          mkdir -p $A/vendor
+          cp -r index.html manifest.webmanifest icons media $A/
+          for f in build/three.min.js examples/js/environments/RoomEnvironment.js examples/js/objects/Reflector.js; do
+            curl -fsSL "https://cdn.jsdelivr.net/npm/three@0.147.0/$f" -o "$A/vendor/$(basename $f)"
+          done
+          sed -i 's#https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js#vendor/three.min.js#; s#https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/environments/RoomEnvironment.js#vendor/RoomEnvironment.js#; s#https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/objects/Reflector.js#vendor/Reflector.js#' $A/index.html
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v3
+        with: { gradle-version: '8.7' }
+      - name: Build
+        run: gradle -p android assembleDebug --no-daemon
+      - name: Rename
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk pulsify.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: pulsify-apk, path: pulsify.apk }
+      - name: Publish as latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Pulsify build ${{ github.run_number }}
+          make_latest: true
+          files: pulsify.apk
+          body: Install on Android - download pulsify.apk on your phone and open it.
