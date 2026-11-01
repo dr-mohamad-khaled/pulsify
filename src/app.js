@@ -18,7 +18,7 @@ const store={get(k,d){try{const v=localStorage.getItem('pulsify.'+k);return v==n
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),3400)}
 
 /* ---------- catalog ---------- */
-const BUDDIES={mochi:{name:'Mochi',col:'#ff7fb0',tag:'Strawberry-milk jelly cat',make:pv=>new MochiScene(pv),hint:'Poke Mochi, pull it like dough, hold still to pet it. Tap the sky and a star falls for it. While charging it hugs its battery juice — try taking it away.'},
+const BUDDIES={mochi:{name:'Mochi',col:'#ff9ccf',tag:'Cream bean with a glowing antenna',make:pv=>new MochiScene(pv),hint:'Mochi looks wherever you touch. Poke it, pull it like dough, hold to pet. It dances to your music, plays on its phone, sips milk, licks ice cream (take any of them away and it cries and chases you), and watches birds with heart eyes. Try Tricks.'},
   pip:{name:'Pip',col:'#5fd0ff',tag:'Static puffball who lives for music',make:pv=>new PipScene(pv),hint:'Poke Pip to tickle it, pull its fluff, hold to pet. It puts its headphones on when music plays. While charging its fur fills with static — touch it for a zap.'},
   bolt:{name:'Bolt',col:'#5CF2E0',tag:'Squishy robot with an LED face',make:pv=>new BoltScene(pv),hint:'Poke Bolt’s screen, squish it, hold to pet. Its face turns into an equaliser with music. While charging it’s plugged in — pull the plug and watch it panic.'}};
 const BUD_IDS=Object.keys(BUDDIES);
@@ -35,10 +35,10 @@ function catalog(){const L=[];for(const id of BUD_IDS)L.push({id:'b_'+id,kind:'b
 let CATALOG=catalog();
 
 /* ---------- snapshots (rendered once, cached) ---------- */
-const SNAP_V='p2-1';let SNAPS={};try{const c=JSON.parse(localStorage.getItem('pulsify.snaps')||'{}');if(c.v===SNAP_V)SNAPS=c.s||{}}catch(e){}
+const SNAP_V='p3-1';let SNAPS={};try{const c=JSON.parse(localStorage.getItem('pulsify.snaps')||'{}');if(c.v===SNAP_V)SNAPS=c.s||{}}catch(e){}
 function snapSave(){try{localStorage.setItem('pulsify.snaps',JSON.stringify({v:SNAP_V,s:SNAPS}))}catch(e){}}
 function snapshot(it,w,h,frames){const ch=HSTATE.charging;HSTATE.charging=false;const sc=it.make(true);if(sc.isBuddy)sc.force='day';sc.resize(w,h);const holder=$('#snapHold');if(sc.attach)sc.attach(holder);sc.resize(w,h);if(sc.demo)sc.demo();const A={active:false,bass:0,mid:0,treble:0,level:0,beat:false};
-  for(let i=0;i<frames;i++){dtFrame=.05;sc.update(.05,A)}const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,w,h);sc.draw(x);if(sc.gl&&sc.gl.cv)x.drawImage(sc.gl.cv,0,0,w,h);
+  for(let i=0;i<frames;i++){dtFrame=.05;sc.update(.05,A)}const c=document.createElement('canvas');c.width=w;c.height=h;const x=c.getContext('2d');x.fillStyle='#000';x.fillRect(0,0,w,h);const oc=document.createElement('canvas');oc.width=w;oc.height=h;sc.octx=oc.getContext('2d');sc.draw(x);if(sc.gl&&sc.gl.cv)x.drawImage(sc.gl.cv,0,0,w,h);x.drawImage(oc,0,0);
   let url='';try{url=c.toDataURL('image/webp',.86)}catch(e){}if(sc.dispose)sc.dispose();HSTATE.charging=ch;return url}
 async function makeSnaps(){const need=CATALOG.filter(it=>(it.kind==='buddy'||it.kind==='world')&&!SNAPS[it.id]);for(const it of need){await new Promise(r=>setTimeout(r,30));if(view!=='home'||WP)return;try{SNAPS[it.id]=snapshot(it,it.kind==='buddy'?360:420,it.kind==='buddy'?480:560,it.kind==='buddy'?26:30)}catch(e){console.warn(e)}paintThumbs()}snapSave()}
 function paintThumbs(){document.querySelectorAll('[data-snap]').forEach(im=>{const s=SNAPS[im.dataset.snap];if(s&&im.src!==s)im.src=s});setHero()}
@@ -74,8 +74,9 @@ $('#loopFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if
   userLoops.push({id,title:(f.name.replace(/\.[^.]+$/,'')||'My loop').slice(0,28),local:id,glow:'#CDB4FF'});store.set('loops',userLoops);CATALOG=catalog();renderHome();openStudio(id)};
 
 /* ---------- studio ---------- */
-const stage=$('#stage'),sctx=stage.getContext('2d'),ptrs=new Map();let scene=null,cur=null,dpr=1,shuffleWp=store.get('shuffleWp',false);
-function sizeStage(){dpr=Math.min(window.devicePixelRatio||1,WP?1:1.5);stage.width=innerWidth*dpr;stage.height=innerHeight*dpr;if(scene)scene.resize(innerWidth,innerHeight)}
+const stage=$('#stage'),sctx=stage.getContext('2d'),fxc=$('#fx'),fctx=fxc.getContext('2d'),ptrs=new Map();let scene=null,cur=null,dpr=1,shuffleWp=store.get('shuffleWp',false);
+let SW=0,SH=0;function stageWH(){const r=$('#studio').getBoundingClientRect();return[Math.round(r.width)||innerWidth,Math.round(r.height)||innerHeight]}
+function sizeStage(){[SW,SH]=stageWH();dpr=Math.min(window.devicePixelRatio||1,WP?1.25:1.5);for(const c of[stage,fxc]){c.width=Math.round(SW*dpr);c.height=Math.round(SH*dpr)}if(scene)scene.resize(SW,SH)}
 function buildControls(){const box=$('#ctl');box.innerHTML='';const row=lab=>{const r=document.createElement('div');r.className='row';if(lab){const s=document.createElement('span');s.className='micro lbl';s.textContent=lab;r.appendChild(s)}box.appendChild(r);return r};
   const pill=(r,txt,on,fn,cls)=>{const b=document.createElement('button');b.className='pill'+(cls?' '+cls:'');b.innerHTML=txt;if(on!=null)b.setAttribute('aria-pressed',on);b.onclick=()=>fn(b);r.appendChild(b);return b};
   if(scene.isBuddy){const r=row();pill(r,'⤮ Shuffle',null,()=>{const pool=BUD_IDS.filter(x=>x!==scene.id),id=pool[(Math.random()*pool.length)|0];myBuddy=id;store.set('buddy',id);haptic(10);const f=scene.force,c=scene.simCharge;openStudio('b_'+id);scene.force=f;scene.simCharge=c;buildControls()},'acc');
@@ -125,11 +126,11 @@ function wpTick(dt){if(HSTATE.visible&&!wasVisible){const c=wpConfig();if(JSON.s
   const o=HSTATE.offset;if(lastOff==null)lastOff=o;const ov=(o-lastOff)/Math.max(dt,1e-3)*4;lastOff=o;offT-=dt;if(scene&&scene.scroll)scene.scroll(ov)}
 
 /* ---------- main loop ---------- */
-let last=performance.now(),poll=0,homeT=0;
+let last=performance.now(),poll=0,homeT=0,sizeT=0;
 function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;dtFrame=dt;const t=now/1000;if(HOST&&(poll^=1))pollHost();
   if(WP&&!HSTATE.visible){requestAnimationFrame(frame);return}
   AE.update(dt,t);if(WP)wpTick(dt);
-  if(view==='studio'&&scene){const w=innerWidth,h=innerHeight;scene.update(dt,AE);sctx.setTransform(dpr,0,0,dpr,0,0);sctx.globalAlpha=1;sctx.globalCompositeOperation='source-over';sctx.fillStyle='#000';sctx.fillRect(0,0,w,h);scene.draw(sctx);
+  if(view==='studio'&&scene){if((sizeT=(sizeT||0)+dt)>.5){sizeT=0;const[a,b]=stageWH();if(a!==SW||b!==SH)sizeStage()}const w=SW,h=SH;scene.update(dt,AE);fctx.setTransform(1,0,0,1,0,0);fctx.clearRect(0,0,fxc.width,fxc.height);fctx.setTransform(dpr,0,0,dpr,0,0);scene.octx=fctx;sctx.setTransform(dpr,0,0,dpr,0,0);sctx.globalAlpha=1;sctx.globalCompositeOperation='source-over';sctx.fillStyle='#000';sctx.fillRect(0,0,w,h);scene.draw(sctx);
     if(!WP){drawSpec();if(scene.isBuddy){const mc=$('#moodChip'),txt=scene.mood==='charge'?scene.chargeText:(MOOD_TEXT[scene.mood]||'');if(mc.textContent!==txt)mc.textContent=txt}if((homeT+=dt)>.5){homeT=0;audioUI()}}}
   else if(view==='home'){if((homeT+=dt)>1){homeT=0;homeText()}}
   requestAnimationFrame(frame)}

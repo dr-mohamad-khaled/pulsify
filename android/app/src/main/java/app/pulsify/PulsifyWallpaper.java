@@ -58,7 +58,8 @@ public class PulsifyWallpaper extends WallpaperService {
             if (pres.getWindow() != null) pres.getWindow().setBackgroundDrawable(new ColorDrawable(Color.BLACK));
             web = new WebView(pres.getContext());
             Web.setup(web, host);
-            pres.setContentView(web);
+            pres.setContentView(web, new android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+            if (pres.getWindow() != null) pres.getWindow().setLayout(android.view.WindowManager.LayoutParams.MATCH_PARENT, android.view.WindowManager.LayoutParams.MATCH_PARENT);
             pres.show();
             web.loadUrl(Web.URL + "?wp=1");
             if (isVisible()) host.startAudio();

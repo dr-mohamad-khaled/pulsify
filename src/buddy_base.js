@@ -32,7 +32,7 @@ void main(){vec3 n=normalize(vN),v=normalize(vV);float ndv=clamp(dot(n,v),0.,1.)
  #include <encodings_fragment>
 }`;
 /* CPU mirror of the shader deformation, for placing ears, feet, juice box and screen effects */
-function mochiDeform(p,u){const l=Math.hypot(p[0],p[1],p[2]),n=[p[0]/l,p[1]/l,p[2]/l];const S=u.S||MOCHI_S;let x=n[0],y=n[1],z=n[2];y=y<0?y*S[1]:y*S[0];const w=1+.08*(1-smoothstepJ(-.6,.8,n[1]));x*=w*S[2];z*=w*.9*S[2];y+=S[3];const h=clamp(y/1.45,0,1);
+function mochiDeform(p,u){const l=Math.hypot(p[0],p[1],p[2]),n=[p[0]/l,p[1]/l,p[2]/l];const S=u.S||MOCHI_S;let x=n[0],y=n[1],z=n[2];y=y<0?y*S[1]:y*S[0];const w=1+(u.bulge||.08)*(1-smoothstepJ(-.6,.8,n[1]));x*=w*S[2];z*=w*.9*S[2];y+=S[3];const h=clamp(y/1.45,0,1);
   y*=1-.55*u.melt;const mw=1+.4*u.melt*(1-h*.4);x*=mw;z*=mw;y*=1-u.sq;x*=1+u.sq*.85;z*=1+u.sq*.85;const br=1+u.breath*.016;x*=br;y*=br;z*=br;
   x+=u.shear[0]*h*h;z+=u.shear[2]*h*h;y+=u.shear[1]*h;const pl=Math.hypot(...u.pull);if(pl>.001){const d=(n[0]*u.pull[0]+(n[1]+.25)*u.pull[1]+n[2]*u.pull[2])/pl/Math.hypot(n[0],n[1]+.25,n[2]);const wg=Math.pow(smoothstepJ(-.25,1,d),2)*(.3+h*.7);x+=u.pull[0]*wg;y+=u.pull[1]*wg;z+=u.pull[2]*wg}
   const zm=lerp(2.5,.5,u.press);if(z>zm){x*=1+(z-zm)*.7;y*=1+(z-zm)*.7;z=zm}return[x,y,z]}
@@ -126,7 +126,7 @@ class Buddy extends Scene{
   scr(p){const q=mochiDeform(p,this.u),s=this.U*this.scale;const c=Math.cos(this.rot),sn=Math.sin(this.rot);const X=q[0]*s*Math.cos(this.yaw),Y=q[1]*s*this.sy;return[this.x+X*c+Y*sn,this.y-this.hov-(Y*c-X*sn)]}
   /* ----- input ----- */
   onBody(x,y){const c=this.scr([0,0,1]),s=this.U;return Math.abs(x-this.x)<s*1.05&&y<this.y-this.hov+s*.1&&y>this.y-this.hov-s*(this.S||MOCHI_S)[0]*1.9}
-  down(p){p.sx=p.x;p.sy=p.y;p.t0=this.t;this.idleT=0;const jc=this.charging&&this.jState==='mochi'&&this.jarScreen();if(jc&&Math.hypot(p.x-jc[0],p.y-jc[1])<this.U*.45){p.juice=true;this.jState='user';this.jGrace=this.t+1.4;this.jx=p.x;this.jy=p.y;this.jvy=0;this.act=null;this.sqv+=1.5;haptic(14);if(!this.preview&&!WP)this.snd.sob();return}p.body=this.onBody(p.x,p.y)&&!this.toss;if(p.body){this.hold={p,t:0,gx:p.x,gy:p.y};this.act=null;this.wakeUp()}else{this.lookAt=[p.x,p.y];if(p.y<this.h*.45)this.spawnFall(p.x,p.y)}}
+  down(p){p.sx=p.x;p.sy=p.y;p.t0=this.t;this.idleT=0;const jc=this.itemOn()&&this.jState==='mochi'&&this.jarScreen();if(jc&&Math.hypot(p.x-jc[0],p.y-jc[1])<this.U*.45){p.juice=true;this.jState='user';this.jGrace=this.t+1.4;this.jx=p.x;this.jy=p.y;this.jvy=0;this.act=null;this.sqv+=1.5;haptic(14);if(!this.preview&&!WP)this.snd.sob();return}p.body=this.onBody(p.x,p.y)&&!this.toss;if(p.body){this.hold={p,t:0,gx:p.x,gy:p.y};this.act=null;this.wakeUp()}else{this.lookAt=[p.x,p.y];if(p.y<this.h*.45)this.spawnFall(p.x,p.y)}}
   move(p){if(p.juice){if(this.jState==='user'){this.jTilt=clamp(-(p.vx||0)*.0004,-.5,.5);this.jx=p.x;this.jy=p.y}return}if(!p.body){const v=(p.vx||0)/this.w;this.scroll(v*.6)}}
   up(p){if(p.juice){if(this.jState==='user'){this.jState='drop';this.jvy=clamp(p.vy||0,-1500,1500)*.3}return}const quick=this.t-p.t0<.25&&Math.hypot(p.x-p.sx,p.y-p.sy)<14;const H=this.hold;this.hold=null;
     if(p.body){if(quick)this.poke(p.x,p.y);else if(H&&H.t>.45&&Math.hypot(p.x-p.sx,p.y-p.sy)<30)this.endPet();else{const v=Math.hypot(p.vx||0,p.vy||0);
@@ -203,7 +203,7 @@ class Buddy extends Scene{
         H.ht=(H.ht||0)+dt;if(H.ht>.8){H.ht=0;this.notes.push({x:this.x+rnd(-U*.3,U*.3),y:this.y-U*1.6,life:1.5,g:'♥'})}}}
     else if(!(ac&&ac.type==='stretch')){for(let i=0;i<3;i++){this.pullv[i]+=(-u.pull[i]*160-this.pullv[i]*9)*dt;u.pull[i]+=this.pullv[i]*dt}}
     // juice taken away: cry, chase, jump to snatch it back
-    const chasing=this.charging&&(this.jState==='user'||this.jState==='drop');
+    const chasing=this.itemOn()&&(this.jState==='user'||this.jState==='drop');
     if(chasing){eye='cry';mouth='open';mo=.7+.25*Math.sin(this.t*18);blush=1.3;brow=-.9;browOn=true;lookT=[clamp((this.jx-this.x)/U,-1,1),clamp((this.jy-(this.y-U))/U,-1,1)];yawT=clamp((this.jx-this.x)/U,-1,1)*.3;
       this.tearT=(this.tearT||0)-dt;if(this.tearT<0){this.tearT=.1;for(const sd of[-1,1]){const c=this.scr([sd*.3,.12,.95]);this.tears.push({x:c[0],y:c[1],vx:sd*rnd(70,150),vy:-rnd(80,180),life:1})}}
       this.sobT=(this.sobT||0)-dt;if(this.sobT<0){this.sobT=rnd(.8,1.2);this.sqv-=1.2;if(!this.preview&&!WP)this.snd.sob()}
@@ -216,7 +216,7 @@ class Buddy extends Scene{
     this.look[0]=lerp(this.look[0],lookT[0],.16);this.look[1]=lerp(this.look[1],lookT[1],.16);
     Object.assign(F,{eye,eyeOpen:lerp(F.eyeOpen,open,.35),mouth,mouthOpen:lerp(F.mouthOpen,mo,.3),brow:lerp(F.brow,brow,.2),browUp,browOn:browOn||Math.abs(F.brow)>.1,blush:lerp(F.blush,blush,.1),sparkle,sweat:lerp(F.sweat,sweat,.05),look:this.look});
     // ----- body physics -----
-    if(!(ac&&ac.type==='hide')&&m!=='sleep'&&m!=='low')u.melt=lerp(u.melt,this.hold&&this.hold.t>.45?.18:0,.08);if(m==='sleep')u.melt=lerp(u.melt,.42,.03);if(m==='low')u.melt=lerp(u.melt,.25,.03);
+    if(!(ac&&ac.type==='hide')&&m!=='sleep'&&m!=='low')u.melt=lerp(u.melt,this.hold&&this.hold.t>.45?.18:0,.08);if(m==='sleep')u.melt=lerp(u.melt,this.sleepMelt!=null?this.sleepMelt:.42,.03);if(m==='low')u.melt=lerp(u.melt,.25,.03);
     if(!(ac&&ac.type==='press'))u.press=lerp(u.press,0,.15);
     if(m==='dance'&&A.beat){this.sqv+=2.2;if(this.beatN%2===0&&this.ground){this.vy=-h*.16;this.ground=false}}
     if(m==='charge'){this.gulpT-=dt;if(this.gulpT<0){this.gulpT=rnd(1,1.5);this.gulp=1;this.sqv-=1.2;if(!this.preview&&!WP&&Math.random()<.4)this.snd.gulp()}this.gulp=Math.max(0,this.gulp-dt*3)}
@@ -228,7 +228,7 @@ class Buddy extends Scene{
     const hx=w/2;if(this.toss){this.vy+=h*2.6*dt;this.x+=this.vx*dt;this.y+=this.vy*dt;this.rot+=this.vr*dt;const r=U*.9;if(this.x<r){this.x=r;this.vx=Math.abs(this.vx)*.5;this.vr*=-.6;this.sqv+=2}if(this.x>w-r){this.x=w-r;this.vx=-Math.abs(this.vx)*.5;this.vr*=-.6;this.sqv+=2}if(this.y-U*1.6<0){this.y=U*1.6;this.vy=Math.abs(this.vy)*.4}
       if(this.y>=this.floor){this.y=this.floor;if(this.vy>h*.4){this.sqv+=3;this.vy=-this.vy*.35}else{this.vy=0;this.toss=false;this.ground=true;this.dz=2.4;haptic(16)}}this.vx*=Math.pow(.6,dt)}
     else{if(!this.ground){this.vy+=h*2.8*dt;this.y+=this.vy*dt;if(this.y>=this.floor){this.y=this.floor;this.sqv+=Math.min(3,this.vy/h*2.2);this.vy=0;this.ground=true}}
-      if(this.charging&&(this.jState==='user'||this.jState==='drop')){const tx=clamp(this.jx,U*.9,w-U*.9),gap=tx-this.x;this.x+=clamp(gap,-w*.42*dt,w*.42*dt);if(this.ground&&Math.abs(gap)>U*.12){this.hopT=(this.hopT||0)-dt;if(this.hopT<0){this.hopT=.26;this.vy=-h*.16;this.ground=false;this.sqv-=1.2}}}else this.x+=(hx-this.x)*Math.min(1,dt*3);this.rot=lerp(this.rot,0,Math.min(1,dt*6))}
+      if(this.itemOn()&&(this.jState==='user'||this.jState==='drop')){const tx=clamp(this.jx,U*.9,w-U*.9),gap=tx-this.x;this.x+=clamp(gap,-w*.42*dt,w*.42*dt);if(this.ground&&Math.abs(gap)>U*.12){this.hopT=(this.hopT||0)-dt;if(this.hopT<0){this.hopT=.26;this.vy=-h*.16;this.ground=false;this.sqv-=1.2}}}else this.x+=(hx-this.x)*Math.min(1,dt*3);this.rot=lerp(this.rot,0,Math.min(1,dt*6))}
     this.dz=Math.max(0,this.dz-dt);this.yaw=lerp(this.yaw,yawT,.08);this.lean=lerp(this.lean||0,lean,.15);
     for(let i=0;i<2;i++)this.earTw[i]*=Math.pow(.02,dt);this.earD=lerp(this.earD||0,earD,.08);
     if(this.say){this.say.life-=dt;if(this.say.life<=0)this.say=null}
@@ -236,6 +236,7 @@ class Buddy extends Scene{
     for(const L of[this.zz,this.notes,this.fog,this.bubbles])for(let i=L.length-1;i>=0;i--){const z=L[i];z.life-=dt;if(z.y!=null&&L!==this.fog&&L!==this.bubbles)z.y-=dt*U*.18;if(z.life<=0)L.splice(i,1)}
     this.sy=1;this.scale=1+this.lean;
     if(this.gl)this.pose(dt,A)}
+  itemOn(){return this.charging}
   fallPos(){const f=this.fall,k=ease.inOut(clamp(f.t/f.dur,0,1)),m=this.scr([0,-.05,1]);return[lerp(f.x0,m[0],k)+Math.sin(k*Math.PI)*this.w*.08,lerp(f.y0,m[1],k)-Math.sin(k*Math.PI)*this.h*.06]}
   bubblePop(){const c=this.scr([0,-.12,1]);this.bubbles.push({x:c[0],y:c[1],life:.45,pop:1});this.sqv-=1.5;if(!this.preview&&!WP)this.snd.pop()}
   /* ----- pose ----- */
@@ -270,7 +271,8 @@ class Buddy extends Scene{
     for(const f of this.fog){const a=Math.min(1,f.life/1.5)*.16;const g2=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,U*.55);g2.addColorStop(0,`rgba(235,240,255,${a})`);g2.addColorStop(1,'rgba(235,240,255,0)');ctx.fillStyle=g2;ctx.beginPath();ctx.ellipse(f.x,f.y,U*.6,U*.38,0,0,TAU);ctx.fill()}
     this.drawFloor(ctx);this.drawSparkles(ctx,false);if(this.under)this.under(ctx);
     // the 3D jelly
-    if(this.gl){this.adapt(dtFrame);this.gl.r.render(this.gl.sc,this.gl.cam)}
+    if(this.gl){this.adapt(dtFrame);this.gl.r.render(this.gl.sc,this.gl.cam);if(this.reflect)this.reflect(ctx)}
+    const bk=ctx;ctx=this.octx||ctx;
     // bubble being blown / snot bubble while sleeping
     const ac=this.act;if(ac&&ac.type==='bubble'){const k=ac.t/ac.dur;if(k<.85){const c=this.scr([0,-.12,1]),r=U*.05+U*.32*ease.inOut(k/.85)+Math.sin(this.t*9)*U*.01;this.drawBubble(ctx,c[0],c[1]+r*.6,r,'255,170,205')}}
     if(this.over)this.over(ctx);
@@ -302,5 +304,3 @@ class Buddy extends Scene{
 }
 function normalize3(v){const l=Math.hypot(...v)||1;return[v[0]/l,v[1]/l,v[2]/l]}
 
-class MochiScene extends Buddy{constructor(pv){super(pv,'mochi');this.col='#ff7fb0';this.chargeText='Drinking battery juice'}
-  build(){return buildMochi()} drawFace(g,F,t){drawMochiFace(g,F,t)} place(dt,A){this.mochiPose(dt,A)}}
