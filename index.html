@@ -1001,7 +1001,7 @@ class BuddyScene extends Scene{
   move(p){}
   up(p){const quick=this.t-p.t0<.25&&Math.hypot(p.x-p.sx,p.y-p.sy)<14,b=this.b;
     if(p.bud){const pet=b.held&&b.held.t>.5&&Math.hypot(p.x-p.sx,p.y-p.sy)<30;b.held=null;if(quick)this.react();else if(pet){this.pet=0;b.act=.6}else{b.vx=clamp(p.vx||0,-3500,3500)*.85;b.vy=clamp(p.vy||0,-3500,3500)*.85;b.vr=b.vx*.003;if(Math.hypot(b.vx,b.vy)>this.h*1.4)b.toss=true}}
-    else{const dx=p.x-p.sx,dy=p.y-p.sy;if(!WP&&Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.2)this.swipe(dx<0?1:-1);else if(quick){this.wakeUp();b.sur=.5;this.startAct('peek')}}}
+    else{const dx=p.x-p.sx,dy=p.y-p.sy;if(!WP&&Math.abs(dx)>60&&Math.abs(p.vx||0)>2600&&Math.abs(dx)>Math.abs(dy)*1.2)this.swipe(dx<0?1:-1);else if(quick){this.wakeUp();b.sur=.5;this.startAct('peek')}}}
   swipe(dir){const b=this.b;if(!b||b.held)return;b.vx=-dir*this.w*rnd(1.6,2.2);b.vy=-this.h*rnd(.55,.9);b.vr=-dir*rnd(8,12);b.toss=true;b.ground=false;b.sur=.8;this.act=null;this.wakeUp();if(!this.preview&&!WP)SFX.whoosh()}
   wakeUp(){if(this.mood==='sleep'||this.wake>0){this.wake=8;if(this.mood==='sleep'){this.yawn=1;this.b&&(this.b.sur=.7)}}}
   dizzy(){const b=this.b;if(b.dz>0)return;b.dz=2.4;b.toss=false;haptic(20);if(!this.preview&&!WP)BSND.dizzy()}
@@ -1115,12 +1115,258 @@ class BuddyScene extends Scene{
   dispose(){this.detach()}
 }
 const THUMBS={};
-function buddyThumbs(){if(!HAS3D)return;const ver='v6';try{const c=JSON.parse(localStorage.getItem('pulsify.thumbs')||'{}');if(c.ver===ver){Object.assign(THUMBS,c.t);return}}catch(e){}
+function buddyThumbs(){if(!HAS3D)return;const ver='v7';try{const c=JSON.parse(localStorage.getItem('pulsify.thumbs')||'{}');if(c.ver===ver){Object.assign(THUMBS,c.t);return}}catch(e){}
   const T=T3;kit();const cv=document.createElement('canvas'),r=new T.WebGLRenderer({canvas:cv,alpha:true,antialias:true,preserveDrawingBuffer:true});r.outputEncoding=T.sRGBEncoding;r.toneMapping=T.ACESFilmicToneMapping;r.setClearColor(0,0);r.setPixelRatio(1);r.setSize(320,320,false);
   const pm=new T.PMREMGenerator(r),env=pm.fromScene(new T.RoomEnvironment(),.04).texture;const cam=new T.PerspectiveCamera(28,1,.1,10);cam.position.set(0,.52,2.5);cam.lookAt(0,.5,0);
-  for(const id of BUD_IDS){const sc=new T.Scene();sc.environment=env;const k1=new T.DirectionalLight('#fff6ea',1.4);k1.position.set(-.5,.9,1.3);const ra=new T.DirectionalLight('#d6c2ff',1.2);ra.position.set(-1,.7,-1);const rb=new T.DirectionalLight('#9ff0ff',1);rb.position.set(1,.5,-1);sc.add(k1,ra,rb,new T.HemisphereLight('#c9b8ff','#0c0816',.26));
+  for(const id of BUD_IDS){if(id==='mochi'){mochiThumb(r,env);THUMBS[id]=cv.toDataURL('image/webp',.9);continue}const sc=new T.Scene();sc.environment=env;const k1=new T.DirectionalLight('#fff6ea',1.4);k1.position.set(-.5,.9,1.3);const ra=new T.DirectionalLight('#d6c2ff',1.2);ra.position.set(-1,.7,-1);const rb=new T.DirectionalLight('#9ff0ff',1);rb.position.set(1,.5,-1);sc.add(k1,ra,rb,new T.HemisphereLight('#c9b8ff','#0c0816',.26));
     const rig=RIG[id](false);for(let i=0;i<8;i++)rig.anim(0,.05,{blink:1,lx:0,ly:0,dz:false,act:.4,open:.18,browUp:.2,bass:0,bands:[0,0,0],ph:0,beat:0,vx:0,vy:0,ground:true,flap:0,spin:0});sc.add(rig.root);r.render(sc,cam);THUMBS[id]=cv.toDataURL('image/webp',.9)}
   r.dispose();try{r.forceContextLoss()}catch(e){}try{localStorage.setItem('pulsify.thumbs',JSON.stringify({ver,t:THUMBS}))}catch(e){}}
+/* ================= MOCHI — a strawberry-milk jelly cat, rebuilt from scratch =================
+   Body: soft-body jelly shader (dents where you poke, stretches like dough, wobbles, melts, presses
+   its face on the glass). Face: hand-drawn every frame onto the jelly, so it can make any expression.
+   Brain: remembers how you treat it (affection), gets grumpy if over-poked, notices shooting stars,
+   eats falling stars, blows bubbles, sneezes, hides and says boo, sleeps with a bubble, drinks juice. */
+const MOCHI_V=`uniform float uT,uSq,uMelt,uPress,uBreath,uPokeT;uniform vec3 uPull,uShear;uniform vec4 uPoke;varying vec3 vN,vV,vP0;
+vec3 shp(vec3 p){vec3 q=p;q.y=p.y<0.?p.y*.58:p.y*.9;float w=1.+.08*(1.-smoothstep(-.6,.8,p.y));q.x*=w;q.z*=w*.9;q.y+=.55;return q;}
+vec3 deform(vec3 p){vec3 q=shp(p);float h=clamp(q.y/1.45,0.,1.);
+ q.y*=1.-.55*uMelt;q.xz*=1.+.4*uMelt*(1.-h*.4);
+ q.y*=1.-uSq;q.xz*=1.+uSq*.85;q*=1.+uBreath*.016;
+ q.x+=uShear.x*h*h;q.z+=uShear.z*h*h;q.y+=uShear.y*h;
+ float pl=length(uPull);if(pl>.001){vec3 pd=uPull/pl;float wg=smoothstep(-.25,1.,dot(normalize(p+vec3(0.,.25,0.)),pd));q+=uPull*pow(wg,2.)*(.3+h*.7);}
+ if(uPoke.w>0.){float d=dot(normalize(p),uPoke.xyz);float dent=smoothstep(.78,1.,d);float a=acos(clamp(d,-1.,1.));float rip=sin(a*10.-uPokeT*22.)*exp(-uPokeT*5.)*(1.-smoothstep(0.,1.6,a));q-=normalize(p)*(dent*uPoke.w*.2*exp(-uPokeT*3.)+rip*uPoke.w*.03);}
+ float zm=mix(2.5,.5,uPress);if(q.z>zm){q.xy*=1.+(q.z-zm)*.7;q.z=zm;}
+ return q;}
+void main(){vP0=position;vec3 q=deform(position);vec3 n=normalize(position);vec3 t1=normalize(cross(n,abs(n.y)<.99?vec3(0.,1.,0.):vec3(1.,0.,0.)));vec3 t2=cross(n,t1);
+ vec3 a=deform(normalize(position+t1*.02)),b=deform(normalize(position+t2*.02));vec3 N=normalize(cross(a-q,b-q));if(dot(N,n)<0.)N=-N;
+ vec4 mv=modelViewMatrix*vec4(q,1.);vN=normalize(normalMatrix*N);vV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;}`;
+const MOCHI_F=`uniform sampler2D uFace;uniform vec3 uTop,uBot,uRim,uKey,uTint,uFill,uStarC;uniform float uT,uFillLv,uFillA,uStar,uGlow;varying vec3 vN,vV,vP0;
+void main(){vec3 n=normalize(vN),v=normalize(vV);float ndv=clamp(dot(n,v),0.,1.),fr=1.-ndv;
+ vec3 base=mix(uBot,uTop,smoothstep(-.9,.9,vP0.y));vec3 col=mix(base,vec3(1.,.78,.88),pow(fr,1.8)*.35);
+ vec3 L=normalize(uKey);col*=(max(dot(n,L),0.)*.45+.55)*uTint;
+ col+=vec3(1.,.55,.7)*pow(max(dot(n,vec3(0.,-.6,-.8)),0.),2.)*.12;
+ if(uFillA>.01){float lv=mix(-1.,.55,uFillLv)+sin(vP0.x*7.+uT*3.)*.035+sin(vP0.z*5.-uT*2.)*.02;float inF=smoothstep(lv+.03,lv-.03,vP0.y);col=mix(col,uFill*(.55+.45*ndv),inF*uFillA*.7);col+=uFill*inF*uFillA*.18;}
+ if(uStar>.01){float d=length(vP0-vec3(.05,-.35,.75));col+=uStarC*uStar*(exp(-d*d*9.)*1.1+exp(-d*d*2.)*.25);}
+ vec2 fu=vec2(vP0.x*.5+.5,vP0.y*.5+.5);float front=smoothstep(.08,.4,vP0.z);vec4 f=texture2D(uFace,fu);col=mix(col,f.rgb,f.a*front);
+ vec3 H=normalize(L+v);float sp=pow(max(dot(n,H),0.),110.)*.8;float w1=smoothstep(.972,.985,dot(n,normalize(vec3(-.58,.68,.45))))*.55;float w2=smoothstep(.993,.997,dot(n,normalize(vec3(.5,.3,.81))))*.35;
+ col+=vec3(sp*.7+w1+w2)+uRim*pow(fr,3.)*.45+uGlow*vec3(1.,.6,.8)*.15;
+ gl_FragColor=vec4(col,1.);
+ #include <tonemapping_fragment>
+ #include <encodings_fragment>
+}`;
+/* CPU mirror of the shader deformation, for placing ears, feet, juice box and screen effects */
+function mochiDeform(p,u){const l=Math.hypot(p[0],p[1],p[2]),n=[p[0]/l,p[1]/l,p[2]/l];let x=n[0],y=n[1],z=n[2];y=y<0?y*.58:y*.9;const w=1+.08*(1-smoothstepJ(-.6,.8,n[1]));x*=w;z*=w*.9;y+=.55;const h=clamp(y/1.45,0,1);
+  y*=1-.55*u.melt;const mw=1+.4*u.melt*(1-h*.4);x*=mw;z*=mw;y*=1-u.sq;x*=1+u.sq*.85;z*=1+u.sq*.85;const br=1+u.breath*.016;x*=br;y*=br;z*=br;
+  x+=u.shear[0]*h*h;z+=u.shear[2]*h*h;y+=u.shear[1]*h;const pl=Math.hypot(...u.pull);if(pl>.001){const d=(n[0]*u.pull[0]+(n[1]+.25)*u.pull[1]+n[2]*u.pull[2])/pl/Math.hypot(n[0],n[1]+.25,n[2]);const wg=Math.pow(smoothstepJ(-.25,1,d),2)*(.3+h*.7);x+=u.pull[0]*wg;y+=u.pull[1]*wg;z+=u.pull[2]*wg}
+  const zm=lerp(2.5,.5,u.press);if(z>zm){x*=1+(z-zm)*.7;y*=1+(z-zm)*.7;z=zm}return[x,y,z]}
+function smoothstepJ(a,b,x){const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)}
+const MOCHI_SND={squish(){SFX.tone('sine',260,520,.16,.18)},boing(){SFX.tone('sine',180,640,.22,.2);SFX.tone('triangle',360,900,.12,.05,.05)},giggle(){for(let i=0;i<4;i++)SFX.tone('sine',900+i*90,1250+i*90,.06,.09,i*.08)},
+  pop(){SFX.tone('sine',700,1600,.06,.16)},achoo(){SFX.tone('sine',500,900,.35,.08);SFX.hiss(2400,.25,.35,.5);SFX.tone('triangle',900,300,.18,.15,.5)},gulp(){SFX.tone('sine',220,140,.08,.12)},
+  chomp(){SFX.tone('square',300,220,.05,.06);SFX.tone('sine',1200,2400,.3,.08,.08)},hmph(){SFX.tone('sawtooth',200,150,.15,.05)},boo(){SFX.tone('sine',300,900,.12,.2)},purr(){SFX.hiss(140,.6,.18)}};
+
+/* ---------- face, drawn fresh every frame ---------- */
+const SKIN='#ff9dc1';
+function drawMochiFace(g,F,t){const W=512;g.clearRect(0,0,W,W);const cx=x=>(x*.5+.5)*W,cy=y=>(1-(y*.5+.5))*W;
+  const eyeY=cy(.18),ex=[cx(-.29),cx(.29)],E=W*.066,lx=F.look[0]*E*.55,ly=F.look[1]*E*.4;
+  // blush
+  g.save();for(const x of[cx(-.5),cx(.5)]){const r=g.createRadialGradient(x,cy(.0),0,x,cy(.0),W*.08);r.addColorStop(0,`rgba(255,60,120,${.6*F.blush})`);r.addColorStop(1,'rgba(255,95,140,0)');g.fillStyle=r;g.beginPath();g.ellipse(x,cy(.0),W*.085,W*.055,0,0,TAU);g.fill()}g.restore();
+  g.lineCap='round';g.lineJoin='round';const ink='#3a1630';
+  const drawEye=(x,mode,i)=>{const X=x+lx,Y=eyeY+ly;
+    if(mode==='happy'){g.strokeStyle=ink;g.lineWidth=E*.42;g.beginPath();g.arc(X,Y+E*.35,E*.72,Math.PI*1.12,Math.PI*1.88);g.stroke();return}
+    if(mode==='closed'){g.strokeStyle=ink;g.lineWidth=E*.36;g.beginPath();g.arc(X,Y-E*.2,E*.68,Math.PI*.15,Math.PI*.85);g.stroke();return}
+    if(mode==='squeeze'){g.strokeStyle=ink;g.lineWidth=E*.36;const s=i?-1:1;g.beginPath();g.moveTo(X-E*.6*s,Y-E*.5);g.lineTo(X+E*.45*s,Y);g.lineTo(X-E*.6*s,Y+E*.5);g.stroke();return}
+    if(mode==='heart'){g.fillStyle='#ff3d7f';g.save();g.translate(X,Y);g.scale(E*1.15*(1+.08*Math.sin(t*10)),E*1.15*(1+.08*Math.sin(t*10)));g.beginPath();g.moveTo(0,.45);g.bezierCurveTo(-1.15,-.3,-.5,-1.1,0,-.42);g.bezierCurveTo(.5,-1.1,1.15,-.3,0,.45);g.fill();g.fillStyle='#fff';g.beginPath();g.arc(-.35,-.42,.16,0,TAU);g.fill();g.restore();return}
+    if(mode==='star'){g.fillStyle='#ffd34d';g.save();g.translate(X,Y);g.rotate(t*.8);g.beginPath();for(let k=0;k<10;k++){const r=k%2?E*.45:E*1.05,a=k*Math.PI/5-Math.PI/2;k?g.lineTo(Math.cos(a)*r,Math.sin(a)*r):g.moveTo(Math.cos(a)*r,Math.sin(a)*r)}g.fill();g.restore();return}
+    if(mode==='spiral'){g.strokeStyle=ink;g.lineWidth=E*.18;g.beginPath();for(let a=0;a<TAU*2.6;a+=.2){const r=a*E*.065,aa=a+t*9*(i?-1:1);g.lineTo(X+Math.cos(aa)*r,Y+Math.sin(aa)*r)}g.stroke();return}
+    if(mode==='note'){g.fillStyle=ink;g.font=`900 ${E*2.2}px system-ui,sans-serif`;g.textAlign='center';g.textBaseline='middle';g.fillText(i?'♪':'♫',X,Y);return}
+    const big=mode==='wow'?1.22:1,open=clamp(F.eyeOpen,0,1);if(open<.12){g.strokeStyle=ink;g.lineWidth=E*.34;g.beginPath();g.moveTo(X-E*.62,Y);g.quadraticCurveTo(X,Y+E*.25,X+E*.62,Y);g.stroke();return}
+    const rx=E*.74*big,ry=E*.98*big*open;let gr=g.createLinearGradient(X,Y-ry,X,Y+ry);gr.addColorStop(0,'#1a0a1a');gr.addColorStop(.62,'#2a1030');gr.addColorStop(1,'#7a2f6a');g.fillStyle=gr;g.beginPath();g.ellipse(X,Y,rx,ry,0,0,TAU);g.fill();
+    g.save();g.beginPath();g.ellipse(X,Y,rx,ry,0,0,TAU);g.clip();g.fillStyle='#fff';const hx=-lx*.35,hy=-ly*.3;g.beginPath();g.ellipse(X-rx*.32+hx,Y-ry*.38+hy,rx*.34,rx*.3*Math.min(1,open*1.6),-.4,0,TAU);g.fill();g.beginPath();g.arc(X+rx*.3+hx,Y+ry*.32+hy,rx*.14,0,TAU);g.fill();
+    if(mode==='wow'||F.sparkle>0){g.globalAlpha=Math.max(F.sparkle,mode==='wow'?1:0);g.beginPath();g.arc(X+rx*.42,Y-ry*.1,rx*.09,0,TAU);g.arc(X-rx*.05,Y+ry*.5,rx*.07,0,TAU);g.fill();g.globalAlpha=1}g.restore();
+    if(mode==='side'){g.fillStyle=SKIN;g.beginPath();g.rect(X-rx*1.1,Y-ry*1.1,rx*2.2,ry*.95);g.fill();g.strokeStyle=ink;g.lineWidth=E*.16;g.beginPath();g.moveTo(X-rx*1.05,Y-ry*.15);g.lineTo(X+rx*1.05,Y-ry*.15);g.stroke()}};
+  const em=F.eye;drawEye(ex[0],em==='wink'?'normal':em==='wink2'?'happy':em,0);drawEye(ex[1],em==='wink'?'happy':em==='wink2'?'normal':em,1);
+  if(F.browOn||Math.abs(F.brow)>.3){g.strokeStyle=ink;g.lineWidth=E*.2;for(const[i,x]of ex.entries()){const s=i?1:-1,a=F.brow*.5*s,yb=eyeY-E*1.45-(F.browUp||0)*E*.4;g.beginPath();g.moveTo(x-E*.5*Math.cos(a),yb+E*.5*Math.sin(a)*-1*s*s);g.lineTo(x+E*.5*Math.cos(a),yb-E*.5*Math.sin(a));g.stroke()}}
+  // mouth
+  const mx=cx(0)+F.look[0]*E*.25,my=cy(-.1);const m=F.mouth,o=clamp(F.mouthOpen,0,1);g.strokeStyle=ink;g.lineWidth=E*.24;
+  if((m==='cat'||m==='smile')&&o<.12){if(m==='cat'){g.beginPath();g.arc(mx-E*.32,my,E*.32,0,Math.PI);g.arc(mx+E*.32,my,E*.32,0,Math.PI);g.stroke()}else{g.beginPath();g.arc(mx,my-E*.25,E*.55,Math.PI*.15,Math.PI*.85);g.stroke()}}
+  else if(m==='frown'){g.beginPath();g.arc(mx,my+E*.5,E*.45,Math.PI*1.2,Math.PI*1.8);g.stroke()}
+  else if(m==='pout'){g.beginPath();g.moveTo(mx-E*.35,my+E*.05);g.quadraticCurveTo(mx-E*.1,my-E*.2,mx,my+E*.05);g.quadraticCurveTo(mx+E*.1,my-E*.2,mx+E*.35,my+E*.05);g.stroke()}
+  else if(m==='o'){g.fillStyle='#4a1030';g.beginPath();g.ellipse(mx,my+E*.1,E*.22+o*E*.1,E*.25+o*E*.15,0,0,TAU);g.fill()}
+  else{const ow=E*(.45+o*.25),oh=E*(.12+o*.75);g.fillStyle='#4a1030';g.beginPath();g.ellipse(mx,my+oh*.4,ow,oh,0,0,TAU);g.fill();g.save();g.beginPath();g.ellipse(mx,my+oh*.4,ow,oh,0,0,TAU);g.clip();g.fillStyle='#ff6f97';g.beginPath();g.ellipse(mx,my+oh*1.15,ow*.75,oh*.6,0,0,TAU);g.fill();g.restore()}
+  if(F.sweat>0){g.globalAlpha=F.sweat;g.fillStyle='#8fd8ff';const sx=cx(.62),sy=cy(.38);g.beginPath();g.moveTo(sx,sy-E*.7);g.quadraticCurveTo(sx+E*.45,sy,sx,sy+E*.35);g.quadraticCurveTo(sx-E*.45,sy,sx,sy-E*.7);g.fill();g.globalAlpha=1}}
+
+/* ---------- model (shared by the live scene and the portrait thumbnail) ---------- */
+function buildMochi(){const T=T3,k=kit(),root=new T.Group(),fc=document.createElement('canvas');fc.width=fc.height=512;const ft=new T.CanvasTexture(fc);ft.encoding=T.sRGBEncoding;ft.anisotropy=4;
+  const U={uT:{value:0},uSq:{value:0},uMelt:{value:0},uPress:{value:0},uBreath:{value:0},uPokeT:{value:9},uPull:{value:new T.Vector3()},uShear:{value:new T.Vector3()},uPoke:{value:new T.Vector4(0,0,1,0)},
+    uFace:{value:ft},uTop:{value:new T.Color('#ffa9c9')},uBot:{value:new T.Color('#ff6fa3')},uRim:{value:new T.Color('#ffd9e8')},uKey:{value:new T.Vector3(-.45,.75,.7)},uTint:{value:new T.Color('#ffffff')},
+    uFill:{value:new T.Color('#5dff9e')},uStarC:{value:new T.Color('#ffe08a')},uFillLv:{value:.5},uFillA:{value:0},uStar:{value:0},uGlow:{value:0}};
+  const mat=new T.ShaderMaterial({uniforms:U,vertexShader:MOCHI_V,fragmentShader:MOCHI_F});const body=new T.Mesh(new T.SphereGeometry(1,96,64),mat);root.add(body);
+  const jm=new T.MeshPhysicalMaterial({color:'#ff9cc0',roughness:.22,clearcoat:1,clearcoatRoughness:.08,sheen:.6,sheenColor:new T.Color('#ffe6f0')}),inner=new T.MeshStandardMaterial({color:'#ff8fb5',roughness:.5});
+  const lg=new T.LatheGeometry([[0,0],[.17,.0],[.16,.08],[.11,.19],[.05,.27],[.0,.29]].map(([x,y])=>new T.Vector2(x,y)),28);
+  const ears=[-1,1].map(s=>{const g=new T.Group();const e=new T.Mesh(lg,jm);e.scale.set(1,1,.62);g.add(e);const ie=new T.Mesh(lg,inner);ie.scale.set(.55,.62,.3);ie.position.set(0,.03,.045);g.add(ie);root.add(g);return g});
+  const feet=[-1,1].map(s=>{const f=new T.Mesh(k.SPH,jm);f.scale.set(.17,.09,.15);root.add(f);return f});
+  return{root,body,mat,U,ft,fc,fctx:fc.getContext('2d'),ears,feet}}
+function placeMochiParts(M,u,t,earTw,earDroop){for(const[i,e]of M.ears.entries()){const s=i?1:-1,p=mochiDeform([s*.55,.8,.05],u);e.position.set(p[0],p[1]-.05,p[2]);e.rotation.set(0,0,-s*(.38+earDroop*.7)+s*earTw[i]*.5+Math.sin(t*1.7+i)*.03)}
+  for(const[i,f]of M.feet.entries()){const s=i?1:-1,p=mochiDeform([s*.55,-.95,.45],u);f.position.set(p[0],Math.max(.05,p[1]*.4),p[2]+.04)}}
+
+class MochiScene extends Scene{
+  constructor(pv){super(pv);this.isBuddy=true;this.id='mochi';this.force=null;this.simCharge=false;
+    this.u={sq:0,melt:0,press:0,breath:0,shear:[0,0,0],pull:[0,0,0]};this.sqv=0;this.shv=[0,0,0];this.pullv=[0,0,0];this.pullT=null;this.pokeT=9;this.pokeAmp=0;this.pokeDir=[0,0,1];
+    this.x=0;this.y=0;this.vx=0;this.vy=0;this.rot=0;this.vr=0;this.toss=false;this.yaw=0;this.dz=0;this.ground=true;
+    this.F={eye:'normal',eyeOpen:1,look:[0,0],brow:0,browUp:0,browOn:false,mouth:'cat',mouthOpen:0,blush:.6,sparkle:0,sweat:0};this.look=[0,0];this.sacc=[0,0];this.saccT=1;this.blinkT=2;this.blink=0;
+    this.act=null;this.actT=rnd(3,5);this.idleT=0;this.pokes=[];this.hold=null;this.affection=store.get('mochi.aff',.4);this.star=0;this.fall=null;this.fallT=rnd(25,45);this.shoot=null;this.shootT=rnd(8,16);
+    this.bubbles=[];this.zz=[];this.zT=0;this.fog=[];this.snot=0;this.lastCharging=null;this.wake=0;this.beatN=0;this.earTw=[0,0];this.mood='day';this.gulpT=0;this.gulp=0;this.notes=[];this.say=null;
+    this.scale=1;this.sy=1;this.faceT=0;this.stars=[];for(let i=0;i<200;i++){const r=Math.random();this.stars.push({x:rnd(),y:Math.pow(rnd(),1.3)*.8,s:r<.9?rnd(.5,1.1):rnd(1.2,1.9),a:rnd(.12,.5),ph:rnd(TAU),sp:rnd(.4,1.4),c:r<.7?'#ffffff':r<.85?'#d6deff':'#ffe0ee'})}
+    const last=store.get('mochi.seen',0);this.away=last?(Date.now()-last)/60000:0;store.set('mochi.seen',Date.now());this.gl=null}
+  /* ----- GPU layer ----- */
+  attach(el){if(!HAS3D||this.gl)return;const T=T3;kit();const G=sharedGL();if(G.cv.parentNode!==el)el.insertBefore(G.cv,el.children[1]||null);G.cv.style.display='block';
+    const sc=new T.Scene(),cam=new T.PerspectiveCamera(22,1,1,1e5);sc.environment=G.env;const key=new T.DirectionalLight('#fff',1.25);key.position.set(-.5,.9,1.3);const rim=new T.DirectionalLight('#ffd6e8',.9);rim.position.set(.8,.5,-1);sc.add(key,rim,new T.HemisphereLight('#ffe6f0','#1a0d18',.35));
+    this.M=buildMochi();sc.add(this.M.root);this.gl={r:G.r,cv:G.cv,sc,cam,key,pr:G.pr,maxPr:G.maxPr,juice:null};this.layoutGL()}
+  detach(){if(!this.gl)return;const g=this.gl;g.r.clear();g.cv.style.display='none';GLS.pr=g.pr;g.sc.clear();this.gl=null}
+  layoutGL(){const g=this.gl;if(!g||this.w<2)return;g.r.setPixelRatio(g.pr);g.r.setSize(this.w,this.h,false);GLS.pr=g.pr;g.cv.style.width=this.w+'px';g.cv.style.height=this.h+'px';const d=this.h/2/Math.tan(11*Math.PI/180);g.cam.aspect=this.w/this.h;g.cam.position.set(0,0,d);g.cam.near=d*.2;g.cam.far=d*3;g.cam.updateProjectionMatrix()}
+  resize(w,h){const first=this.w===1;super.resize(w,h);this.U=Math.min(w*.44,h*.5/1.75);this.floor=h*.73;if(first){this.x=w/2;this.y=this.floor}this.layoutGL()}
+  // screen position of a point on Mochi's (deformed) body
+  scr(p){const q=mochiDeform(p,this.u),s=this.U*this.scale;const c=Math.cos(this.rot),sn=Math.sin(this.rot);const X=q[0]*s*Math.cos(this.yaw),Y=q[1]*s*this.sy;return[this.x+X*c+Y*sn,this.y-(Y*c-X*sn)]}
+  /* ----- input ----- */
+  onBody(x,y){const c=this.scr([0,0,1]),s=this.U;return Math.abs(x-this.x)<s*1.05&&y<this.y+s*.1&&y>this.y-s*1.7}
+  down(p){p.sx=p.x;p.sy=p.y;p.t0=this.t;this.idleT=0;p.body=this.onBody(p.x,p.y)&&!this.toss;if(p.body){this.hold={p,t:0,gx:p.x,gy:p.y};this.act=null;this.wakeUp()}else{this.lookAt=[p.x,p.y];if(p.y<this.h*.45)this.spawnFall(p.x,p.y)}}
+  move(p){if(!p.body){const v=(p.vx||0)/this.w;this.scroll(v*.6)}}
+  up(p){const quick=this.t-p.t0<.25&&Math.hypot(p.x-p.sx,p.y-p.sy)<14;const H=this.hold;this.hold=null;
+    if(p.body){if(quick)this.poke(p.x,p.y);else if(H&&H.t>.45&&Math.hypot(p.x-p.sx,p.y-p.sy)<30)this.endPet();else{const v=Math.hypot(p.vx||0,p.vy||0);
+        if(v>3200){this.toss=true;this.ground=false;this.vx=clamp(p.vx,-3500,3500)*.7;this.vy=clamp(p.vy,-3500,3500)*.7-400;this.vr=this.vx*.002;this.u.pull=[0,0,0]}
+        else{this.pullv=[-this.u.pull[0]*4,-this.u.pull[1]*4,0];this.F.eye='normal';if(!this.preview&&!WP)MOCHI_SND.boing();haptic(8)}}}
+    else if(!WP&&Math.abs(p.vx||0)>2600&&Math.abs(p.x-p.sx)>80)this.swipe(Math.sign(p.sx-p.x),Math.abs(p.vx)/this.w)}
+  poke(x,y){const now=this.t;this.pokes=this.pokes.filter(t=>now-t<2.6);this.pokes.push(now);const n=this.pokes.length;
+    const dx=(x-this.x)/(this.U*1.1),dy=(this.y-this.U*.75-y)/(this.U*.9);this.pokeDir=normalize3([dx,dy,Math.sqrt(Math.max(.05,1-dx*dx-dy*dy))]);this.pokeT=0;this.pokeAmp=1;this.sqv+=1.2;haptic(6);
+    if(this.act&&this.act.type==='grumpy'){this.act.t=Math.max(0,this.act.t-1);if(!this.preview&&!WP)MOCHI_SND.hmph();return}
+    if(this.mood==='sleep'){this.wakeUp();return}
+    this.affection=clamp(this.affection-(n>4?.04:0)+(n<=2?.01:0),0,1);
+    if(n>=6){this.startAct('grumpy');if(!this.preview&&!WP)MOCHI_SND.hmph()}else if(n>=2){this.startAct('giggle');if(!this.preview&&!WP)MOCHI_SND.giggle()}else{this.startAct('curious');if(!this.preview&&!WP)MOCHI_SND.squish()}}
+  endPet(){this.affection=clamp(this.affection+.06,0,1);store.set('mochi.aff',this.affection);if(this.act&&this.act.type==='grumpy')this.startAct('forgive');else this.startAct(this.affection>.75?'love':'happy')}
+  scroll(v){if(this.toss)return;this.shv[0]-=v*.9;this.saccT=0;this.sacc=[clamp(v*.8,-1,1),0];if(Math.abs(v)>5.5)this.swipe(Math.sign(v),Math.abs(v))}
+  swipe(dir,speed=8){if(this.toss||speed<5.5)return;this.toss=true;this.ground=false;this.vx=-dir*this.w*rnd(1.5,2);this.vy=-this.h*rnd(.5,.8);this.vr=-dir*rnd(6,9);this.act=null;if(!this.preview&&!WP)SFX.whoosh()}
+  wakeUp(){if(this.mood==='sleep'||this.wake>0){this.wake=10;if(this.mood==='sleep')this.startAct('wake')}}
+  spawnFall(x,y){if(this.fall||this.mood==='sleep')return;this.fall={x0:x,y0:y,t:0,dur:1.6};this.act=null;this.startAct('catch')}
+  /* ----- behaviour ----- */
+  startAct(type){const D={curious:1.4,giggle:1.4,grumpy:6,forgive:1.6,happy:1.6,love:2.4,lookAround:3.2,earTwitch:.6,bubble:3.2,sneeze:2.4,hide:3.4,press:3.2,stargaze:2.6,catch:2.4,wake:3,stretch:2.6,yawn:2.2,nod:3,sigh:2.4,hop:1.1,greet:2.4,smug:4};this.act={type,t:0,dur:D[type]||2,side:Math.random()<.5?-1:1};
+    if(type==='hop'&&this.ground){this.vy=-this.h*.32;this.ground=false}if(type==='greet'&&this.ground){this.vy=-this.h*.38;this.ground=false}}
+  pickAct(){const m=this.mood;let pool={day:['lookAround','earTwitch','bubble','hop','stargaze','lookAround','press','sneeze','hide'],evening:['lookAround','bubble','stargaze','earTwitch','yawn'],wakeup:['stretch','yawn','lookAround','nod'],late:['yawn','nod','stargaze'],low:['sigh']}[m];if(!pool)return;
+    if(this.idleT>24&&(m==='day'||m==='evening')){this.startAct('press');this.idleT=6;return}this.startAct(pool[(Math.random()*pool.length)|0])}
+  onUnlock(){this.wakeUp();if(this.away>30){this.startAct('greet');this.say={g:'♥',life:1.6}}else this.startAct(dayPhase()==='morning'?'stretch':'hop');this.away=0}
+  phaseMood(A){const ph=this.force||dayPhase(),charging=HSTATE.charging||this.simCharge,low=!charging&&HSTATE.battery<.2;
+    if(this.lastCharging!==null&&charging!==this.lastCharging){if(charging){this.act=null;this.startAct('curious');this.wakeUp()}else this.F.eye='wow'}this.lastCharging=charging;this.charging=charging;
+    if(this.dz>0)return'dizzy';if(A.active&&A.level>.08)return'dance';if(ph==='night'&&this.wake<=0)return'sleep';if(charging)return'charge';if(low)return'low';if(ph==='night'||ph==='morning')return'wakeup';return ph==='late'?'late':ph==='evening'?'evening':'day'}
+  update(dt,A){this.t+=dt;this.A=A;const w=this.w,h=this.h,u=this.u,U=this.U;if(A.beat)this.beatN++;this.wake=Math.max(0,this.wake-dt);this.mood=this.phaseMood(A);const m=this.mood;
+    let ac=this.act;if(ac){ac.t+=dt;if(ac.t>=ac.dur){if(ac.type==='catch'&&this.star>.5)this.startAct('smug');else this.act=null;ac=this.act}}
+    const k=ac?ac.t/ac.dur:0,F=this.F;
+    if(!this.hold&&!this.toss&&this.dz<=0&&['day','evening','wakeup','late','low'].includes(m)){this.idleT+=dt;if(!ac){this.actT-=dt;if(this.actT<0){this.pickAct();this.actT=rnd(3,6.5);ac=this.act}}}
+    // shooting stars Mochi notices; occasionally a star falls to it
+    if(this.shoot){this.shoot.t+=dt;if(this.shoot.t>1.1)this.shoot=null}else{this.shootT-=dt;if(this.shootT<0){this.shootT=rnd(10,22);this.shoot={x:rnd(.15,.85),y:rnd(.06,.3),dir:Math.random()<.5?1:-1,t:0};if(!ac&&m!=='sleep'&&m!=='dance')this.startAct('stargaze')}}
+    if(!WP||true){this.fallT-=dt;if(this.fallT<0&&!this.fall&&['day','evening'].includes(m)&&!ac&&!this.hold){this.fallT=rnd(40,80);this.spawnFall(rnd(w*.15,w*.85),h*.05)}}
+    if(this.fall){const f=this.fall;f.t+=dt;if(f.t>=f.dur){this.fall=null;this.star=1;this.sqv+=2.5;haptic(15);if(!this.preview&&!WP)MOCHI_SND.chomp()}}
+    this.star=Math.max(0,this.star-dt/18);
+    // ----- expression targets -----
+    let eye='normal',open=1,mouth='cat',mo=0,brow=0,browUp=0,browOn=false,blush=.55+this.affection*.35,sparkle=0,sweat=0,lookT=[0,0],earD=0,lean=0,yawT=0;
+    const P=this.ptr;if(P){const dx=P.x-this.x,dy=P.y-(this.y-U*.8),d=Math.hypot(dx,dy)+1;lookT=[clamp(dx/d*Math.min(1,d/U),-1,1),clamp(dy/d*Math.min(1,d/U),-1,1)]}
+    else if(this.lookAt){const dx=this.lookAt[0]-this.x,dy=this.lookAt[1]-(this.y-U*.8),d=Math.hypot(dx,dy)+1;lookT=[clamp(dx/d,-1,1)*.9,clamp(dy/d,-1,1)*.9];this.lookAtT=(this.lookAtT||0)+dt;if(this.lookAtT>1.2){this.lookAt=null;this.lookAtT=0}}
+    else{this.saccT-=dt;if(this.saccT<0){this.saccT=rnd(1.2,3.2);this.sacc=Math.random()<.65?[0,0]:[rnd(-.45,.45),rnd(-.25,.2)]}lookT=this.sacc}
+    if(this.shoot&&m!=='sleep'){const sx=(this.shoot.x+this.shoot.dir*this.shoot.t*.4)*w,sy=(this.shoot.y+this.shoot.t*.1)*h,dx=sx-this.x,dy=sy-(this.y-U*.8),d=Math.hypot(dx,dy);lookT=[dx/d,dy/d];sparkle=1;eye='wow'}
+    if(this.fall){const p=this.fallPos();const dx=p[0]-this.x,dy=p[1]-(this.y-U*.8),d=Math.hypot(dx,dy)+1;lookT=[dx/d,dy/d];eye='wow';mouth='open';mo=.3+this.fall.t/this.fall.dur*.7}
+    switch(m){case'sleep':eye='closed';open=0;mouth='cat';lookT=[0,.2];blush=.7;break;case'wakeup':open=.62+.1*Math.sin(this.t*.8);break;case'late':open=.75;break;case'low':open=.6;brow=-.9;browOn=true;mouth='frown';sweat=.8;earD=.8;break;
+      case'charge':eye='happy';mouth='o';mo=.2;blush=.9;break;case'dance':eye=this.beatN%8<2?'note':'happy';mouth='open';mo=clamp(A.mid*1.1,.15,1);blush=.85;break;case'dizzy':eye='spiral';mouth='open';mo=.3;break}
+    if(ac){const T2=ac.type;
+      if(T2==='curious'){eye='wow';mouth='o';mo=.2;browUp=.6;browOn=true;yawT=ac.side*.15}
+      if(T2==='giggle'){eye='happy';mouth='open';mo=.5+.3*Math.sin(ac.t*30);blush=1;this.shv[0]+=Math.sin(ac.t*40)*dt*1.2}
+      if(T2==='grumpy'){eye='side';mouth='pout';brow=.9;browOn=true;blush=1;yawT=-.55*ac.side;lookT=[.9*ac.side,0];u.press=0;earD=.35}
+      if(T2==='forgive'){eye='happy';mouth='smile';blush=1}
+      if(T2==='happy'){eye='happy';mouth='smile';blush=1}
+      if(T2==='love'){eye='heart';mouth='smile';blush=1.2}
+      if(T2==='lookAround'){lookT=[k<.33?-.95:k<.66?.95:0,k<.66?-.1:0];yawT=lookT[0]*.18}
+      if(T2==='earTwitch'){this.earTw[ac.side>0?1:0]=Math.sin(ac.t*30)*(1-k)}
+      if(T2==='bubble'){mouth='o';mo=.15;eye=k>.85?'wow':'normal';open=k>.85?1:.8;if(k>.85&&k-dt/ac.dur<=.85){this.bubblePop()}}
+      if(T2==='sneeze'){if(k<.45){eye='squeeze';mouth='o';mo=k;this.sqv-=dt*6}else if(k<.55){eye='closed';mouth='open';mo=1;if(!ac.done){ac.done=1;this.sqv+=6;this.shv[2]+=1.2;haptic(18);if(!this.preview&&!WP)MOCHI_SND.achoo()}}else{eye='happy';mouth='smile';blush=1.3}}
+      if(T2==='hide'){const mk=k<.3?k/.3:k<.75?1:1-(k-.75)/.25;u.melt=Math.max(u.melt,mk*.9);if(k<.75){open=.7;lookT=[0,-.3]}else{eye='wow';mouth='open';mo=.8;if(!ac.done){ac.done=1;this.sqv-=4;haptic(14);if(!this.preview&&!WP)MOCHI_SND.boo();this.say={g:'!',life:1}}}}
+      if(T2==='press'){const pk=k<.2?ease.inOut(k/.2):k>.8?1-ease.inOut((k-.8)/.2):1;u.press=pk;lean=pk*.22;eye=k<.4?'wow':'happy';mouth=k<.4?'o':'smile';mo=.3;if(k>.35&&!ac.fog){ac.fog=1;const c=this.scr([0,-.05,1]);this.fog.push({x:c[0],y:c[1],life:3.2})}}
+      if(T2==='stargaze'){lookT=this.shoot?lookT:[.2,-.95];sparkle=1;eye='wow';mouth='o';mo=.15}
+      if(T2==='catch'&&!this.fall){eye='happy';mouth='smile'}
+      if(T2==='smug'){eye='wink';mouth='smile';blush=1}
+      if(T2==='wake'){eye=k<.2?'wow':'normal';open=k<.2?1:.55;mouth=k>.25&&k<.7?'open':'cat';mo=k>.25&&k<.7?ease.bell((k-.25)/.45):0;lookT=[0,0]}
+      if(T2==='stretch'){const sk=ease.bell(k);u.pull=[0,sk*.5,0];eye='closed';open=0;mouth='open';mo=sk*.9}
+      if(T2==='yawn'){const yk=ease.bell(k);eye=yk>.3?'closed':'normal';open=1-yk;mouth='open';mo=yk;this.sqv-=yk*dt*3}
+      if(T2==='nod'){open=k<.7?1-k/.7:1;if(k>.7&&!ac.done){ac.done=1;this.sqv-=3;eye='wow'}lean=k<.7?k*.25:0}
+      if(T2==='sigh'){eye='normal';open=.5;mouth='frown';u.melt=Math.max(u.melt,ease.bell(k)*.3)}
+      if(T2==='hop'){eye='happy';mouth='smile'}
+      if(T2==='greet'){eye='heart';mouth='open';mo=.6;blush=1.2}}
+    // holding: pull like dough, or petting
+    if(this.hold){const H=this.hold,p=H.p;H.t+=dt;const dx=(p.x-H.gx)/U,dy=-(p.y-H.gy)/U,dd=Math.hypot(dx,dy);
+      if(dd>.12){const L=Math.min(dd,.75)/dd;u.pull=[dx*L*.9,dy*L*.9,0];eye=dd>.5?'squeeze':'wow';mouth='open';mo=clamp(dd,0,1);blush=1}
+      else if(H.t>.45){eye=this.affection>.75?'heart':'happy';mouth='cat';blush=1.3;u.melt=Math.max(u.melt,.18);this.shv[0]+=Math.sin(this.t*26)*dt*.25;if(!H.purr&&!this.preview&&!WP){H.purr=1;MOCHI_SND.purr()}this.affection=clamp(this.affection+dt*.02,0,1);
+        H.ht=(H.ht||0)+dt;if(H.ht>.8){H.ht=0;this.notes.push({x:this.x+rnd(-U*.3,U*.3),y:this.y-U*1.6,life:1.5,g:'♥'})}}}
+    else if(!(ac&&ac.type==='stretch')){for(let i=0;i<3;i++){this.pullv[i]+=(-u.pull[i]*160-this.pullv[i]*9)*dt;u.pull[i]+=this.pullv[i]*dt}}
+    // blink
+    this.blinkT-=dt;if(this.blinkT<0){this.blinkT=Math.random()<.2?.25:rnd(2,4.5);this.blink=.14}if(this.blink>0){this.blink-=dt;if(eye==='normal'||eye==='wow')open=Math.min(open,Math.abs(this.blink-.07)/.07)}
+    this.look[0]=lerp(this.look[0],lookT[0],.16);this.look[1]=lerp(this.look[1],lookT[1],.16);
+    Object.assign(F,{eye,eyeOpen:lerp(F.eyeOpen,open,.35),mouth,mouthOpen:lerp(F.mouthOpen,mo,.3),brow:lerp(F.brow,brow,.2),browUp,browOn:browOn||Math.abs(F.brow)>.1,blush:lerp(F.blush,blush,.1),sparkle,sweat:lerp(F.sweat,sweat,.05),look:this.look});
+    // ----- body physics -----
+    if(!(ac&&ac.type==='hide')&&m!=='sleep'&&m!=='low')u.melt=lerp(u.melt,this.hold&&this.hold.t>.45?.18:0,.08);if(m==='sleep')u.melt=lerp(u.melt,.42,.03);if(m==='low')u.melt=lerp(u.melt,.25,.03);
+    if(!(ac&&ac.type==='press'))u.press=lerp(u.press,0,.15);
+    if(m==='dance'&&A.beat){this.sqv+=2.2;if(this.beatN%2===0&&this.ground){this.vy=-h*.16;this.ground=false}}
+    if(m==='charge'){this.gulpT-=dt;if(this.gulpT<0){this.gulpT=rnd(1,1.5);this.gulp=1;this.sqv-=1.2;if(!this.preview&&!WP&&Math.random()<.4)MOCHI_SND.gulp()}this.gulp=Math.max(0,this.gulp-dt*3)}
+    this.sqv+=(-u.sq*95-this.sqv*7.5)*dt;u.sq=clamp(u.sq+this.sqv*dt,-.3,.4);
+    const sway=m==='dance'?Math.sin((A.beatPhase||0)*TAU)*.12:m==='evening'?Math.sin(this.t*1.1)*.04:0;
+    for(const i of[0,2]){const tgt=i===0?sway:0;this.shv[i]+=(-(u.shear[i]-tgt)*110-this.shv[i]*6.5)*dt;u.shear[i]+=this.shv[i]*dt}
+    u.breath=Math.sin(this.t*(m==='sleep'?1.3:2.2));this.pokeT+=dt;
+    // stays home in the centre; only a very fast throw sends it flying
+    const hx=w/2;if(this.toss){this.vy+=h*2.6*dt;this.x+=this.vx*dt;this.y+=this.vy*dt;this.rot+=this.vr*dt;const r=U*.9;if(this.x<r){this.x=r;this.vx=Math.abs(this.vx)*.5;this.vr*=-.6;this.sqv+=2}if(this.x>w-r){this.x=w-r;this.vx=-Math.abs(this.vx)*.5;this.vr*=-.6;this.sqv+=2}if(this.y-U*1.6<0){this.y=U*1.6;this.vy=Math.abs(this.vy)*.4}
+      if(this.y>=this.floor){this.y=this.floor;if(this.vy>h*.4){this.sqv+=3;this.vy=-this.vy*.35}else{this.vy=0;this.toss=false;this.ground=true;this.dz=2.4;haptic(16)}}this.vx*=Math.pow(.6,dt)}
+    else{if(!this.ground){this.vy+=h*2.8*dt;this.y+=this.vy*dt;if(this.y>=this.floor){this.y=this.floor;this.sqv+=Math.min(3,this.vy/h*2.2);this.vy=0;this.ground=true}}
+      this.x+=(hx-this.x)*Math.min(1,dt*3);this.rot=lerp(this.rot,0,Math.min(1,dt*6))}
+    this.dz=Math.max(0,this.dz-dt);this.yaw=lerp(this.yaw,yawT,.08);this.lean=lerp(this.lean||0,lean,.15);
+    for(let i=0;i<2;i++)this.earTw[i]*=Math.pow(.02,dt);this.earD=lerp(this.earD||0,earD,.08);
+    if(this.say){this.say.life-=dt;if(this.say.life<=0)this.say=null}
+    if(m==='sleep'){this.zT-=dt;if(this.zT<0){this.zT=1.4;const c=this.scr([.4,.7,.6]);this.zz.push({x:c[0],y:c[1],life:3.2,s:rnd(.7,1.1)})}this.snot=(this.snot+dt)%3.2}
+    for(const L of[this.zz,this.notes,this.fog,this.bubbles])for(let i=L.length-1;i>=0;i--){const z=L[i];z.life-=dt;if(z.y!=null&&L!==this.fog&&L!==this.bubbles)z.y-=dt*U*.18;if(z.life<=0)L.splice(i,1)}
+    this.sy=1;this.scale=1+this.lean;
+    if(this.gl)this.pose(dt,A)}
+  fallPos(){const f=this.fall,k=ease.inOut(clamp(f.t/f.dur,0,1)),m=this.scr([0,-.05,1]);return[lerp(f.x0,m[0],k)+Math.sin(k*Math.PI)*this.w*.08,lerp(f.y0,m[1],k)-Math.sin(k*Math.PI)*this.h*.06]}
+  bubblePop(){const c=this.scr([0,-.12,1]);this.bubbles.push({x:c[0],y:c[1],life:.45,pop:1});this.sqv-=1.5;if(!this.preview&&!WP)MOCHI_SND.pop()}
+  /* ----- pose ----- */
+  pose(dt,A){const g=this.gl,M=this.M,U=this.U,u=this.u,w=this.w,h=this.h,m=this.mood;const ph=this.force||dayPhase();const L=PHASE_LIGHT[ph];
+    g.key.color.set(L.key);g.key.intensity=L.ki*.95;g.r.toneMappingExposure=L.exp;M.U.uTint.value.set(ph==='night'?'#c9d0ff':ph==='evening'?'#ffe2cf':ph==='morning'?'#fff0e2':'#ffffff');
+    const s=U*this.scale;M.root.position.set(this.x-w/2,h/2-this.y,0);M.root.scale.set(s,s,s);M.root.rotation.set(this.lean*.6,this.yaw,-this.rot+(this.dz>0?Math.sin(this.t*9)*.12:0));
+    const Uf=M.U;Uf.uT.value=this.t;Uf.uSq.value=u.sq;Uf.uMelt.value=u.melt;Uf.uPress.value=u.press;Uf.uBreath.value=u.breath;Uf.uPull.value.set(...u.pull);Uf.uShear.value.set(...u.shear);
+    Uf.uPoke.value.set(this.pokeDir[0],this.pokeDir[1],this.pokeDir[2],this.pokeT<1.2?this.pokeAmp:0);Uf.uPokeT.value=this.pokeT;
+    Uf.uFillA.value=lerp(Uf.uFillA.value,this.charging?1:0,.05);Uf.uFillLv.value=HSTATE.charging?HSTATE.battery:.35+.55*((this.t*.02)%1);Uf.uStar.value=this.star*(.8+.2*Math.sin(this.t*5));Uf.uGlow.value=A.active?A.bass*.6:0;
+    if(this.t-this.faceT>1/40){this.faceT=this.t;drawMochiFace(M.fctx,this.F,this.t);M.ft.needsUpdate=true}placeMochiParts(M,u,this.t,this.earTw,this.earD);
+    if(this.charging&&!g.juice){g.juice=BuddyScene.prototype.makeJuice.call(this);M.root.add(g.juice)}
+    if(g.juice){const J=g.juice,mp=mochiDeform([0,-.1,1],u);J.userData.s=lerp(J.userData.s||0,this.charging?1:0,.1);J.visible=J.userData.s>.02;J.scale.setScalar(1.6*ease.outBack(clamp(J.userData.s,0,1)));
+      const bx=mp[0]+.5,by=mp[1]-.3+this.gulp*.015,bz=mp[2]+.15;J.position.set(bx,by,bz);J.rotation.z=-.15;const st=J.userData.straw,sc=1.6,top=new T3.Vector3(-.03,.12,0),tgt=new T3.Vector3((mp[0]+.02-bx)/sc,(mp[1]-by)/sc,(mp[2]-bz+.02)/sc).applyAxisAngle(new T3.Vector3(0,0,1),.15),dv=tgt.clone().sub(top),len=dv.length();
+      st.scale.set(1,len,1);st.position.copy(top).addScaledVector(dv,.5);st.quaternion.setFromUnitVectors(new T3.Vector3(0,1,0),dv.normalize());const lv=Math.round(Uf.uFillLv.value*100)/100;if(lv!==J.userData.lv){J.userData.lv=lv;J.userData.draw(lv)}
+      if(!this.charging&&J.userData.s<.02){M.root.remove(J);g.juice=null}}}
+  /* ----- draw ----- */
+  draw(ctx){const w=this.w,h=this.h,U=this.U;const A=this.A||{active:false},night=(this.force||dayPhase())==='night',tw=A.active?A.treble:0;
+    for(const s of this.stars){ctx.globalAlpha=s.a*(night?1:.7)*(.55+.45*Math.sin(this.t*s.sp*(1+tw*3)+s.ph));ctx.fillStyle=s.c;ctx.fillRect(s.x*w,s.y*h,s.s,s.s)}ctx.globalAlpha=1;
+    if(this.shoot){const sh=this.shoot,k=sh.t/1.1,x=(sh.x+sh.dir*k*.4)*w,y=(sh.y+k*.1)*h,tx=x-sh.dir*w*.11,ty=y-h*.03,gr=ctx.createLinearGradient(tx,ty,x,y);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(1,`rgba(255,255,255,${.7*(1-k)})`);ctx.strokeStyle=gr;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(x,y);ctx.stroke()}
+    if(this.fall){const p=this.fallPos(),r=4+3*Math.sin(this.t*12);ctx.globalCompositeOperation='lighter';glow(ctx,'#ffe08a',p[0],p[1],r*5,.8);ctx.globalCompositeOperation='source-over';drawShape(ctx,'stars',p[0],p[1],r*1.6,this.t*4,'#fff3c4',1)}
+    for(const f of this.fog){const a=Math.min(1,f.life/1.5)*.16;const g2=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,U*.55);g2.addColorStop(0,`rgba(235,240,255,${a})`);g2.addColorStop(1,'rgba(235,240,255,0)');ctx.fillStyle=g2;ctx.beginPath();ctx.ellipse(f.x,f.y,U*.6,U*.38,0,0,TAU);ctx.fill()}
+    // the 3D jelly
+    if(this.gl){this.adapt(dtFrame);this.gl.r.render(this.gl.sc,this.gl.cam)}
+    // bubble being blown / snot bubble while sleeping
+    const ac=this.act;if(ac&&ac.type==='bubble'){const k=ac.t/ac.dur;if(k<.85){const c=this.scr([0,-.12,1]),r=U*.05+U*.32*ease.inOut(k/.85)+Math.sin(this.t*9)*U*.01;this.drawBubble(ctx,c[0],c[1]+r*.6,r,'255,170,205')}}
+    if(this.mood==='sleep'){const c=this.scr([.12,.05,1]),k=this.snot/3.2,r=U*(.04+.11*Math.sin(k*Math.PI));this.drawBubble(ctx,c[0]+r*.7,c[1]-r*.2,r,'200,220,255')}
+    for(const b of this.bubbles){const k=1-b.life/.45;ctx.strokeStyle=`rgba(255,200,225,${1-k})`;ctx.lineWidth=2;for(let i=0;i<8;i++){const a=i*TAU/8,r1=U*.15+k*U*.3,r0=r1-U*.06;ctx.beginPath();ctx.moveTo(b.x+Math.cos(a)*r0,b.y+Math.sin(a)*r0);ctx.lineTo(b.x+Math.cos(a)*r1,b.y+Math.sin(a)*r1);ctx.stroke()}}
+    ctx.textAlign='center';ctx.textBaseline='middle';for(const z of this.zz){ctx.globalAlpha=Math.min(.8,z.life*.6,(3.2-z.life)*2);ctx.fillStyle='#d9c9ff';ctx.font=`800 ${U*.2*z.s*(1.4-z.life*.12)}px "Plus Jakarta Sans",system-ui,sans-serif`;ctx.fillText('z',z.x,z.y)}
+    for(const n of this.notes){ctx.globalAlpha=Math.min(1,n.life);drawShape(ctx,'hearts',n.x,n.y,U*.07,0,'#ff7fae',Math.min(1,n.life))}ctx.globalAlpha=1;
+    if(this.dz>0){const c=this.scr([0,1,0]);for(let i=0;i<4;i++){const a=this.t*5+i*TAU/4;drawShape(ctx,'stars',c[0]+Math.cos(a)*U*.7,c[1]-U*.15+Math.sin(a)*U*.15,U*.07,a,i%2?'#FFE29A':'#FFFFFF',.9)}}
+    if(this.say){const c=this.scr([.5,.95,0]),r=U*.18,a=Math.min(1,this.say.life*3);ctx.globalAlpha=a;ctx.fillStyle='rgba(255,255,255,.95)';ctx.beginPath();ctx.roundRect?ctx.roundRect(c[0]-r,c[1]-r*.85-U*.15,r*2,r*1.7,r*.7):ctx.rect(c[0]-r,c[1]-r,r*2,r*1.7);ctx.fill();ctx.fillStyle=this.say.g==='♥'?'#ff3d7f':'#5B2BB5';ctx.font=`800 ${r*1.1}px system-ui,sans-serif`;ctx.fillText(this.say.g,c[0],c[1]-U*.15);ctx.globalAlpha=1}}
+  drawBubble(ctx,x,y,r,rgb){const g=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r);g.addColorStop(0,`rgba(255,255,255,.35)`);g.addColorStop(.7,`rgba(${rgb},.18)`);g.addColorStop(1,`rgba(${rgb},.45)`);ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.strokeStyle=`rgba(255,255,255,.55)`;ctx.lineWidth=1.2;ctx.stroke();ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.ellipse(x-r*.4,y-r*.42,r*.18,r*.1,-.6,0,TAU);ctx.fill()}
+  adapt(dt){const g=this.gl;g.fa=lerp(g.fa||16,dt*1000,.05);g.cool=(g.cool||0)-dt;if(g.cool>0)return;if(g.fa>21&&g.pr>.75){g.pr=Math.max(.75,g.pr-.15);g.cool=1.5;this.layoutGL()}else if(g.fa<15&&g.pr<g.maxPr){g.pr=Math.min(g.maxPr,g.pr+.1);g.cool=3;this.layoutGL()}}
+  shuffle(){return'mochi'}
+  dispose(){store.set('mochi.aff',this.affection);store.set('mochi.seen',Date.now());this.detach()}
+}
+function normalize3(v){const l=Math.hypot(...v)||1;return[v[0]/l,v[1]/l,v[2]/l]}
+function mochiThumb(r,env){const T=T3,sc=new T.Scene();sc.environment=env;const k1=new T.DirectionalLight('#fff6ea',1.3);k1.position.set(-.5,.9,1.3);const rim=new T.DirectionalLight('#ffd6e8',.9);rim.position.set(.8,.5,-1);sc.add(k1,rim,new T.HemisphereLight('#ffe6f0','#1a0d18',.35));
+  const M=buildMochi();const u={sq:0,melt:0,press:0,breath:0,shear:[0,0,0],pull:[0,0,0]};drawMochiFace(M.fctx,{eye:'normal',eyeOpen:1,look:[0,0],brow:0,browUp:0,browOn:false,mouth:'cat',mouthOpen:0,blush:.8,sparkle:1,sweat:0},0);M.ft.needsUpdate=true;placeMochiParts(M,u,0,[0,0],0);
+  M.root.position.set(0,-.05,0);M.root.rotation.y=.15;sc.add(M.root);const cam=new T.PerspectiveCamera(28,1,.1,20);cam.position.set(0,.8,4.4);cam.lookAt(0,.75,0);r.render(sc,cam)}
 /* ================= APP v5 ================= */
 const HOST=window.PulsifyHost||null;const WP=!!(HOST&&HOST.isWallpaper&&HOST.isWallpaper());
 const APK_URL='https://github.com/dr-mohamad-khaled/pulsify/releases/latest/download/pulsify.apk';
@@ -1155,8 +1401,9 @@ const CAT=[
 ];
 const KIND={video:'LOOP',super:'SUPER',photo:'LIVE',code:'LIVE',instrument:'PLAY',buddy:'BUDDY'};
 const BUDDY_HINT='Tap your buddy for its trick, drag and fling it, swipe the empty space to change page. It sleeps at night, wakes up in the morning, cheers when you charge and dances when music plays.';
+const MOCHI_HINT='Poke Mochi to see it react, pull it like dough, hold still on it to pet it. Tap the sky and a star falls for it to catch. Leave it alone and see what it gets up to.';
 const CATALOG=[
-  ...BUD_IDS.map(id=>({id:'b_'+id,buddy:id,kind:'buddy',cats:['buddies'],title:BUDS[id].name,over:'Buddy',make:pv=>new BuddyScene(pv,id),hint:BUDDY_HINT})),
+  ...BUD_IDS.map(id=>({id:'b_'+id,buddy:id,kind:'buddy',cats:['buddies'],title:BUDS[id].name,over:'Buddy',make:pv=>id==='mochi'?new MochiScene(pv):new BuddyScene(pv,id),hint:id==='mochi'?MOCHI_HINT:BUDDY_HINT})),
   {id:'orbit',kind:'super',cats:['super','space'],title:'Orbit Unlock',over:'Super · Lock → Home',make:pv=>new SuperScene(pv,{far:'media/planet-far.jpg',near:'media/planet-near.jpg',unlock:'media/planet-unlock.mp4',loop:'media/planet-loop.mp4'}),hint:'As a wallpaper it shows the distant planet on your lock screen and flies into it each time you unlock.',vlabel:'Screen'},
   {id:'aurora',kind:'video',cats:['video','space'],title:'Aurora World',over:'Loop · 8s',make:pv=>new VideoScene(pv,{src:'media/planet-loop.mp4',poster:'media/planet-near.jpg'}),hint:'A seamless 8-second loop that glows with the bass.'},
   {id:'hypercar',kind:'photo',cats:['cars','interactive'],title:'Midnight Hypercar',over:'Cars · Xenon',make:pv=>new Hypercar(pv),hint:'Tap the car to start the lights, tap the background for high beams. The lights strobe to the bass.',vlabel:'Glow'},
@@ -1204,7 +1451,7 @@ render();
 const stage=$('#stage'),sctx=stage.getContext('2d'),ptrs=new Map();let scene=null,cur=null,dpr=1,shuffleWp=store.get('shuffleWp',false);
 function sizeStage(){dpr=Math.min(window.devicePixelRatio||1,WP?1:1.5);stage.width=innerWidth*dpr;stage.height=innerHeight*dpr;if(scene)scene.resize(innerWidth,innerHeight)}
 function opts(){const r=$('#opts');r.innerHTML='';const add=(txt,on,fn,cls)=>{const b=document.createElement('button');b.className='pill'+(cls?' '+cls:'');b.innerHTML=txt;if(on!=null)b.setAttribute('aria-pressed',on);b.onclick=()=>{fn(b)};r.appendChild(b);return b};const sep=()=>{const s=document.createElement('span');s.className='vsep';r.appendChild(s)};
-  if(scene.isBuddy){add('⤮ Shuffle',null,()=>{const id=scene.shuffle();myBuddy=id;store.set('buddy',id);setHero();$('#sTitle').textContent=BUDS[id].name;haptic(10)},'acc');
+  if(scene.isBuddy){add('⤮ Shuffle',null,()=>{const pool=BUD_IDS.filter(x=>x!==scene.id),id=pool[(Math.random()*pool.length)|0];myBuddy=id;store.set('buddy',id);setHero();haptic(10);const f=scene.force,c=scene.simCharge;openStudio('b_'+id);scene.force=f;scene.simCharge=c},'acc');
     add('Shuffle on unlock',shuffleWp,b=>{shuffleWp=!shuffleWp;store.set('shuffleWp',shuffleWp);b.setAttribute('aria-pressed',shuffleWp);toast(shuffleWp?'A new buddy will greet you each time you turn the screen on':'Your buddy stays the same')});sep();
     const ph=[['Auto',null],['☀ Morning','morning'],['Day','day'],['Evening','evening'],['☾ Night','night']];const bs=[];ph.forEach(([t,v])=>bs.push(add(t,scene.force===v,b=>{scene.force=v;bs.forEach(x=>x.setAttribute('aria-pressed',x===b))})));
     if(!HOST){sep();add('⚡ Charging',false,b=>{scene.simCharge=!scene.simCharge;b.setAttribute('aria-pressed',scene.simCharge)})}}
@@ -1246,10 +1493,10 @@ let wpCfg=null,lastOff=null,offT=0,lastUnlocks=0,lastOffs=0,wasVisible=true;
 function wpConfig(){let c={};try{c=JSON.parse(HOST.config()||'{}')}catch(e){}return c}
 function wpOpen(c){wpCfg=c;const id=c.id&&CATALOG.find(x=>x.id===c.id)?c.id:'b_pip';openStudio(id);$('#studio').classList.add('bare','wp');if(scene.isBuddy&&c.buddy&&BUDS[c.buddy])scene.setBuddy(c.buddy,true);if(c.variant&&scene.setVariant&&!scene.isBuddy)scene.setVariant(c.variant);if(scene instanceof SuperScene){scene.noClock=true}}
 function wpTick(dt){if(HSTATE.visible&&!wasVisible){const c=wpConfig();if(JSON.stringify(c)!==JSON.stringify(wpCfg))wpOpen(c)}wasVisible=HSTATE.visible;
-  if(HSTATE.screenOffs!==lastOffs){lastOffs=HSTATE.screenOffs;if(scene instanceof SuperScene)scene.setVariant('Lock screen');if(scene&&scene.isBuddy&&wpCfg&&wpCfg.shuffle)scene.shuffle()}
-  if(HSTATE.unlocks!==lastUnlocks){lastUnlocks=HSTATE.unlocks;if(scene instanceof SuperScene)scene.unlock();if(scene&&scene.isBuddy){scene.wakeUp();scene.b.act=.8;scene.say(dayPhase()==='morning'?'☀':'♥')}}
+  if(HSTATE.screenOffs!==lastOffs){lastOffs=HSTATE.screenOffs;if(scene instanceof SuperScene)scene.setVariant('Lock screen');if(scene&&scene.isBuddy&&wpCfg&&wpCfg.shuffle){const pool=BUD_IDS.filter(x=>x!==scene.id),id=pool[(Math.random()*pool.length)|0];wpOpen(Object.assign({},wpCfg,{id:'b_'+id,buddy:id}))}}
+  if(HSTATE.unlocks!==lastUnlocks){lastUnlocks=HSTATE.unlocks;if(scene instanceof SuperScene)scene.unlock();if(scene&&scene.onUnlock)scene.onUnlock();else if(scene&&scene.isBuddy){scene.wakeUp();scene.b.act=.8;scene.say(dayPhase()==='morning'?'☀':'♥')}}
   // home-screen page swipes arrive as wallpaper offsets
-  const o=HSTATE.offset;if(lastOff==null)lastOff=o;offT-=dt;if(Math.abs(o-lastOff)>.08&&offT<=0&&scene&&scene.swipe){scene.swipe(o>lastOff?1:-1);offT=.7;lastOff=o}if(offT<=0)lastOff=lerp(lastOff,o,.3)}
+  const o=HSTATE.offset;if(lastOff==null)lastOff=o;const ov=(o-lastOff)/Math.max(dt,1e-3)*4;lastOff=o;offT-=dt;if(scene&&scene.scroll)scene.scroll(ov);else if(Math.abs(ov)>5.5&&offT<=0&&scene&&scene.swipe){scene.swipe(Math.sign(ov));offT=.8}}
 
 /* ---------- main loop ---------- */
 let last=performance.now(),poll=0,homeT=0;
