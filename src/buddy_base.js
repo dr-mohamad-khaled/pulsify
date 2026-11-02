@@ -265,7 +265,7 @@ class Buddy extends Scene{
   grabBack(){this.jState='mochi';this.act=null;this.startAct('happy');this.say={g:'♥',life:1.4};this.tears.length=0;haptic(18);if(!this.preview&&!WP)this.snd.yay()}
   /* ----- draw ----- */
   draw(ctx){const w=this.w,h=this.h,U=this.U;const A=this.A||{active:false},night=(this.force||dayPhase())==='night',tw=A.active?A.treble:0;
-    for(const s of this.stars){ctx.globalAlpha=s.a*(night?1:.7)*(.55+.45*Math.sin(this.t*s.sp*(1+tw*3)+s.ph));ctx.fillStyle=s.c;ctx.fillRect(s.x*w,s.y*h,s.s,s.s)}ctx.globalAlpha=1;
+    if(this.drawSky)this.drawSky(ctx);else for(const s of this.stars){ctx.globalAlpha=s.a*(night?1:.7)*(.55+.45*Math.sin(this.t*s.sp*(1+tw*3)+s.ph));ctx.fillStyle=s.c;ctx.fillRect(s.x*w,s.y*h,s.s,s.s)}ctx.globalAlpha=1;
     if(this.shoot){const sh=this.shoot,k=sh.t/1.1,x=(sh.x+sh.dir*k*.4)*w,y=(sh.y+k*.1)*h,tx=x-sh.dir*w*.11,ty=y-h*.03,gr=ctx.createLinearGradient(tx,ty,x,y);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(1,`rgba(255,255,255,${.7*(1-k)})`);ctx.strokeStyle=gr;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(x,y);ctx.stroke()}
     if(this.fall){const p=this.fallPos(),r=4+3*Math.sin(this.t*12);ctx.globalCompositeOperation='lighter';glow(ctx,'#ffe08a',p[0],p[1],r*5,.8);ctx.globalCompositeOperation='source-over';drawShape(ctx,'stars',p[0],p[1],r*1.6,this.t*4,'#fff3c4',1)}
     for(const f of this.fog){const a=Math.min(1,f.life/1.5)*.16;const g2=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,U*.55);g2.addColorStop(0,`rgba(235,240,255,${a})`);g2.addColorStop(1,'rgba(235,240,255,0)');ctx.fillStyle=g2;ctx.beginPath();ctx.ellipse(f.x,f.y,U*.6,U*.38,0,0,TAU);ctx.fill()}
