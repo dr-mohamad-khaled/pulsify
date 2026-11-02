@@ -24,7 +24,7 @@ const BUDDIES={mochi:{name:'Mochi',col:'#ff9ccf',tag:'Cream bean with a glowing 
 const BUD_IDS=Object.keys(BUDDIES);
 const WORLDS=[{id:'cosmos',title:'Cosmic Odyssey',over:'Space · 5 worlds',make:pv=>new CosmicScene(pv),hint:'Swipe to spin, pinch to zoom, tap to fire a solar flare or a supernova. The atmosphere breathes with the melody.',wide:true},
   {id:'obsidian',title:'Liquid Obsidian',over:'Water · Your colours',make:pv=>new ObsidianScene(pv),hint:'Drag to draw ripples, tap to splash. Bass kicks send shockwaves across the surface. Pick colours and brightness below.'},
-  {id:'gloop',title:'Gloop Gang',over:'Jelly crew · 4 friends',make:pv=>new GloopScene(pv),hint:'Grab a gloop and fling it, tap one to tickle it. They bounce to the beat and sing along.'}];
+  {id:'gloop',title:'Gloop Gang',over:'Jelly crew · roam the screen',make:pv=>new GloopScene(pv),hint:'Grab a gloop and fling it, tap one to tickle it. Hold anywhere to drop a candy and watch them race for it. Swipe fast to scare them. They dance and sing to your music, play tag, hug, stack up and do the conga.'}];
 const CARS_BUILTIN=[{id:'car_hyper',title:'Midnight Hypercar',src:'media/car.jpg',focus:[.5,.6],rig:CAR_DEFAULT_RIG}];
 const LOOPS_BUILTIN=[{id:'loop_aurora',title:'Aurora World',src:'media/planet-loop.mp4',poster:'media/planet-near.jpg',glow:'#00F5D4'}];
 let userCars=store.get('cars',[]),userLoops=store.get('loops',[]);
@@ -97,7 +97,8 @@ function openStudio(id){cur=CATALOG.find(x=>x.id===id);if(!cur)return;if(scene&&
 function closeStudio(){view='home';if(scene&&scene.dispose)scene.dispose();scene=null;ptrs.clear();$('#studio').hidden=true;$('#home').hidden=false;$('#studio').classList.remove('bare');$('#showUI').hidden=true;document.querySelectorAll('#home video').forEach(v=>v.play().catch(()=>{}));setHero();setTimeout(makeSnaps,400)}
 $('#back').onclick=closeStudio;$('#hide').onclick=()=>{$('#studio').classList.add('bare');$('#showUI').hidden=false};$('#showUI').onclick=()=>{$('#studio').classList.remove('bare');$('#showUI').hidden=true};
 $('#setWp').onclick=()=>{if(!HOST){const a=document.createElement('a');a.href=APK_URL;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();a.remove();toast('Install the APK on your Android phone, then set any wallpaper from the app');return}
-  const cfg={id:cur.id,buddy:scene.isBuddy?scene.id:null,shuffle:scene.isBuddy?shuffleWp:false,variant:scene.variant||null};if(HOST.hasAudio&&!HOST.hasAudio())HOST.requestAudio();HOST.setWallpaper(JSON.stringify(cfg))};
+  const ls={};try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('pulsify.')&&k!=='pulsify.snaps')ls[k]=localStorage.getItem(k)}}catch(e){}
+  const cfg={id:cur.id,buddy:scene.isBuddy?scene.id:null,shuffle:scene.isBuddy?shuffleWp:false,variant:scene.variant||null,ls,ts:Date.now()};if(HOST.hasAudio&&!HOST.hasAudio())HOST.requestAudio();HOST.setWallpaper(JSON.stringify(cfg))};
 addEventListener('keydown',e=>{if(e.key==='Escape'&&view==='studio'){if($('#studio').classList.contains('bare'))$('#showUI').click();else closeStudio()}});
 addEventListener('resize',()=>{if(view==='studio')sizeStage()});
 function pos(e){const r=stage.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]}
@@ -118,16 +119,16 @@ function drawSpec(){const r=spec.getBoundingClientRect();if(!r.width)return;cons
 
 /* ---------- live wallpaper mode (inside the Android WallpaperService) ---------- */
 let wpCfg=null,lastOff=null,offT=0,lastUnlocks=0,lastOffs=0,wasVisible=true;
-function wpConfig(){let c={};try{c=JSON.parse(HOST.config()||'{}')}catch(e){}return c}
-function wpOpen(c){wpCfg=c;let id=c.id&&CATALOG.find(x=>x.id===c.id)?c.id:'b_mochi';openStudio(id);$('#studio').classList.add('bare','wp');if(c.variant&&scene.setVariant&&scene.variants)scene.setVariant(c.variant)}
-function wpTick(dt){if(HSTATE.visible&&!wasVisible){const c=wpConfig();if(JSON.stringify(c)!==JSON.stringify(wpCfg))wpOpen(c)}wasVisible=HSTATE.visible;
+let wpRaw='';function wpConfig(){let c={};try{wpRaw=HOST.config()||'{}';c=JSON.parse(wpRaw)}catch(e){}return c}
+function wpOpen(c){wpCfg=c;if(c.ls)try{for(const k in c.ls)localStorage.setItem(k,c.ls[k])}catch(e){}let id=c.id&&CATALOG.find(x=>x.id===c.id)?c.id:'b_mochi';openStudio(id);$('#studio').classList.add('bare','wp');if(c.variant&&scene.setVariant&&scene.variants)scene.setVariant(c.variant)}
+let cfgT=0;function wpTick(dt){cfgT-=dt;if(HSTATE.visible&&(!wasVisible||cfgT<0)){cfgT=1;const old=wpRaw,c=wpConfig();if(wpRaw!==old)wpOpen(c)}wasVisible=HSTATE.visible;
   if(HSTATE.screenOffs!==lastOffs){lastOffs=HSTATE.screenOffs;if(scene&&scene.isBuddy&&wpCfg&&wpCfg.shuffle){const pool=BUD_IDS.filter(x=>x!==scene.id),id=pool[(Math.random()*pool.length)|0];wpOpen(Object.assign({},wpCfg,{id:'b_'+id,buddy:id}))}}
   if(HSTATE.unlocks!==lastUnlocks){lastUnlocks=HSTATE.unlocks;if(scene&&scene.onUnlock)scene.onUnlock()}
   const o=HSTATE.offset;if(lastOff==null)lastOff=o;const ov=(o-lastOff)/Math.max(dt,1e-3)*4;lastOff=o;offT-=dt;if(scene&&scene.scroll)scene.scroll(ov)}
 
 /* ---------- main loop ---------- */
 let last=performance.now(),poll=0,homeT=0,sizeT=0;
-function frame(now){const dt=Math.min(.05,(now-last)/1000);last=now;dtFrame=dt;const t=now/1000;if(HOST&&(poll^=1))pollHost();
+let idleSkip=0;function frame(now){if(WP&&view==='studio'&&!ptrs.size&&!(AE.active&&AE.level>.02)&&(now-last)<28){requestAnimationFrame(frame);return}const dt=Math.min(.05,(now-last)/1000);last=now;dtFrame=dt;const t=now/1000;if(HOST&&(poll^=1))pollHost();
   if(WP&&!HSTATE.visible){requestAnimationFrame(frame);return}
   AE.update(dt,t);if(WP)wpTick(dt);
   if(view==='studio'&&scene){if((sizeT=(sizeT||0)+dt)>.5){sizeT=0;const[a,b]=stageWH();if(a!==SW||b!==SH)sizeStage()}const w=SW,h=SH;scene.update(dt,AE);fctx.setTransform(1,0,0,1,0,0);fctx.clearRect(0,0,fxc.width,fxc.height);fctx.setTransform(dpr,0,0,dpr,0,0);scene.octx=fctx;sctx.setTransform(dpr,0,0,dpr,0,0);sctx.globalAlpha=1;sctx.globalCompositeOperation='source-over';sctx.fillStyle='#000';sctx.fillRect(0,0,w,h);scene.draw(sctx);

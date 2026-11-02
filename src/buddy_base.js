@@ -271,7 +271,7 @@ class Buddy extends Scene{
     for(const f of this.fog){const a=Math.min(1,f.life/1.5)*.16;const g2=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,U*.55);g2.addColorStop(0,`rgba(235,240,255,${a})`);g2.addColorStop(1,'rgba(235,240,255,0)');ctx.fillStyle=g2;ctx.beginPath();ctx.ellipse(f.x,f.y,U*.6,U*.38,0,0,TAU);ctx.fill()}
     this.drawFloor(ctx);this.drawSparkles(ctx,false);if(this.under)this.under(ctx);
     // the 3D jelly
-    if(this.gl){this.adapt(dtFrame);this.gl.r.render(this.gl.sc,this.gl.cam);if(this.reflect)this.reflect(ctx)}
+    if(this.gl){this.adapt(dtFrame);if(this.renderGL)this.renderGL();else this.gl.r.render(this.gl.sc,this.gl.cam);if(this.reflect)this.reflect(ctx)}
     const bk=ctx;ctx=this.octx||ctx;
     // bubble being blown / snot bubble while sleeping
     const ac=this.act;if(ac&&ac.type==='bubble'){const k=ac.t/ac.dur;if(k<.85){const c=this.scr([0,-.12,1]),r=U*.05+U*.32*ease.inOut(k/.85)+Math.sin(this.t*9)*U*.01;this.drawBubble(ctx,c[0],c[1]+r*.6,r,'255,170,205')}}

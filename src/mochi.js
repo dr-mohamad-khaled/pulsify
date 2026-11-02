@@ -151,7 +151,7 @@ function drawMochi2Face(g,F,t,O){O=O||{};const W=g.canvas.width,P=W*.625,AX=.801
   g.setTransform(1,0,0,1,0,0)}
 
 /* ---------- model ---------- */
-function buildMochi2(){const T=T3,k=kit(),root=new T.Group(),fc=document.createElement('canvas');fc.width=fc.height=640;const ft=new T.CanvasTexture(fc);ft.encoding=T.sRGBEncoding;ft.anisotropy=4;ft.generateMipmaps=false;ft.minFilter=T.LinearFilter;
+function buildMochi2(){const T=T3,k=kit(),root=new T.Group(),fc=document.createElement('canvas');fc.width=fc.height=512;const ft=new T.CanvasTexture(fc);ft.encoding=T.sRGBEncoding;ft.anisotropy=4;ft.generateMipmaps=false;ft.minFilter=T.LinearFilter;
   const U={uT:{value:0},uSq:{value:0},uMelt:{value:0},uPress:{value:0},uBreath:{value:0},uPokeT:{value:9},uPull:{value:new T.Vector3()},uShear:{value:new T.Vector3()},uPoke:{value:new T.Vector4(0,0,1,0)},uS:{value:new T.Vector4(...MOCHI2_S)},
     uFace:{value:ft},uTop:{value:new T.Color('#fff5ec')},uBot:{value:new T.Color('#ffd6e4')},uRim:{value:new T.Color('#ff9ad6')},uRim2:{value:new T.Color('#8a7bff')},uRimK:{value:1},uGal:{value:0},uKey:{value:new T.Vector3(-.45,.75,.7)},uTint:{value:new T.Color('#ffffff')},
     uFill:{value:new T.Color('#5dff9e')},uStarC:{value:new T.Color('#ffe08a')},uLit:{value:new T.Color(0,0,0)},uBounce:{value:new T.Color('#9d7bff')},uFillLv:{value:.5},uFillA:{value:0},uStar:{value:0},uGlow:{value:0}};
@@ -320,12 +320,12 @@ class MochiScene extends Buddy{
     this.lookTick();Uf.uLit.value.setRGB(...this.lit);const ph=this.force||dayPhase();Uf.uBounce.value.set(this.charging?'#3dff7a':A.active?`hsl(${(this.beatN*40)%360},90%,60%)`:this.pal.glow);Uf.uFillA.value=0;
     M.root.updateMatrixWorld(true);
     // battery-juice jar while charging (3D), held in both arms, straw to the mouth
-    if(this.charging&&!g.jar){g.jar=makeJar();g.sc.add(g.jar.g);this.jState='mochi'}
+    if(this.charging&&!g.jar){g.jar=makeJar();(this.world||g.sc).add(g.jar.g);this.jState='mochi'}
     if(g.jar){const J=g.jar,G=J.g,sz=this.U*this.scale;J.s=lerp(J.s,this.charging?1:0,.1);G.visible=J.s>.02;const kk=ease.outBack(clamp(J.s,0,1));J.setLevel(HSTATE.charging?HSTATE.battery:.45+.4*((this.t*.02)%1),this.t);
       if(this.jState==='mochi'){G.position.copy(M.root.localToWorld(new T.Vector3(0,.04-this.gulp*.015,.72)));G.quaternion.copy(M.root.quaternion);G.scale.setScalar(sz*kk*1.25)}
       else{G.position.set(this.jx-w/2,h/2-this.jy-J.H*.6*sz,sz*1.1);G.rotation.set(0,0,this.jTilt||0);G.scale.setScalar(sz*kk*1.25)}
       G.updateMatrixWorld(true);let end;if(this.jState==='mochi'){const mp=mochiDeform([0,-.06,1],u);end=G.worldToLocal(M.root.localToWorld(new T.Vector3(mp[0],mp[1]-.01,mp[2]+.02)))}else end=new T.Vector3(.14,J.H+.3,0);J.straw(end);
-      if(!this.charging&&J.s<.02){g.sc.remove(G);g.jar=null;this.jState='mochi'}}
+      if(!this.charging&&J.s<.02){(this.world||g.sc).remove(G);g.jar=null;this.jState='mochi'}}
     // where the held prop is on screen (used for grabbing it)
     const p=this.prop;if(p&&p.grab&&this.jState==='mochi'){const hm=this.handsMid(),hr=this.hand(1);p.pos=p.type==='icecream'?(hr?[hr[0],hr[1]-this.U*.2]:null):hm?[hm[0],hm[1]+this.U*(p.type==='juice'?.02:.1)]:null}}
   /* ----- draw: reflection on the glossy floor, grid, props, bird, effects ----- */
@@ -453,9 +453,10 @@ Object.assign(MochiScene.prototype,{
       ctx.globalCompositeOperation='lighter';for(let i=0;i<70;i++){const v=((i*.137)%1),y=hz+(h-hz)*Math.pow(v,1.3),x=((i*.618+t*.02*(1+v))%1)*w,len=(8+v*40)*(.6+.4*Math.sin(t*2+i));ctx.strokeStyle=hexA(i%3?'#38c8ff':this.pal.rim,.12+.18*(1-v)*(.5+.5*Math.sin(t*3+i*1.7)));ctx.lineWidth=1+v;ctx.beginPath();ctx.moveTo(x-len,y);ctx.lineTo(x+len,y);ctx.stroke()}ctx.globalCompositeOperation='source-over';
       if(!this.rips)this.rips=[];this.ripT=(this.ripT||0)-dtFrame;if(this.ripT<0||(A.active&&A.beat)){this.ripT=1.6;this.rips.push({r:0})}for(let i=this.rips.length-1;i>=0;i--){const r=this.rips[i];r.r+=dtFrame*U*.9;const a=Math.max(0,1-r.r/(U*2.2));if(a<=0){this.rips.splice(i,1);continue}ctx.strokeStyle=hexA(gc,a*.6);ctx.lineWidth=1.5;ctx.beginPath();ctx.ellipse(this.x,this.floor,U*.7+r.r,(U*.7+r.r)*.16,0,0,TAU);ctx.stroke()}}
     if(G==='grass'){const g=ctx.createLinearGradient(0,hz,0,h);g.addColorStop(0,'#03140c');g.addColorStop(1,'#000503');ctx.fillStyle=g;ctx.fillRect(0,hz,w,h-hz);
-      if(!this.blades){this.blades=[...Array(230)].map(()=>({u:rnd(-1.2,1.2),v:Math.pow(rnd(),.9),hh:rnd(.6,1.3),ph:rnd(TAU),c:['#2dffb0','#7dff6b','#38e8ff','#b6ff4f','#2dffb0'][(Math.random()*5)|0],fl:Math.random()<.07?['#ff6fd0','#ffe066','#9d6bff'][(Math.random()*3)|0]:null})).sort((a,b)=>a.v-b.v)}
-      ctx.lineCap='round';for(const b of this.blades){const P=this.floorP(b.u,b.v),L=U*(.07+.22*b.v)*b.hh,sw=Math.sin(t*1.4+b.u*3+b.ph)*.35+(A.active?Math.sin(t*8+b.u*6)*bass*.5:0)-(this.u.shear[0]||0)*.5;const tx=P[0]+Math.sin(sw)*L,ty=P[1]-Math.cos(sw)*L;
-        ctx.strokeStyle=hexA(b.c,.35+.5*b.v);ctx.lineWidth=1+b.v*2.2;ctx.beginPath();ctx.moveTo(P[0],P[1]);ctx.quadraticCurveTo(P[0],P[1]-L*.5,tx,ty);ctx.stroke();if(b.fl){ctx.globalCompositeOperation='lighter';glow(ctx,b.fl,tx,ty,4+b.v*10,.8);ctx.globalCompositeOperation='source-over';ctx.fillStyle=b.fl;ctx.beginPath();ctx.arc(tx,ty,1.5+b.v*2.5,0,TAU);ctx.fill()}}}
+      if(!this.blades){this.blades=[...Array(190)].map(()=>({u:rnd(-1.2,1.2),v:Math.pow(rnd(),.9),hh:rnd(.6,1.3),ph:rnd(TAU),c:['#2dffb0','#7dff6b','#38e8ff','#b6ff4f','#2dffb0'][(Math.random()*5)|0],fl:Math.random()<.07?['#ff6fd0','#ffe066','#9d6bff'][(Math.random()*3)|0]:null})).sort((a,b)=>a.v-b.v)}
+      ctx.lineCap='round';const byC={};for(const b of this.blades){const P=this.floorP(b.u,b.v),L=U*(.07+.22*b.v)*b.hh,sw=Math.sin(t*1.4+b.u*3+b.ph)*.35+(A.active?Math.sin(t*8+b.u*6)*bass*.5:0)-(this.u.shear[0]||0)*.5;b.tx=P[0]+Math.sin(sw)*L;b.ty=P[1]-Math.cos(sw)*L;b.px=P[0];b.py=P[1];b.L=L;const key=b.c+(b.v>.5?'1':'0');(byC[key]||(byC[key]=[])).push(b)}
+      for(const key in byC){const arr=byC[key],far=key.endsWith('0');ctx.strokeStyle=hexA(key.slice(0,7),far?.45:.8);ctx.lineWidth=far?1.3:2.8;ctx.beginPath();for(const b of arr){ctx.moveTo(b.px,b.py);ctx.quadraticCurveTo(b.px,b.py-b.L*.5,b.tx,b.ty)}ctx.stroke()}
+      ctx.globalCompositeOperation='lighter';for(const b of this.blades)if(b.fl)glow(ctx,b.fl,b.tx,b.ty,4+b.v*10,.8);ctx.globalCompositeOperation='source-over';for(const b of this.blades)if(b.fl){ctx.fillStyle=b.fl;ctx.beginPath();ctx.arc(b.tx,b.ty,1.5+b.v*2.5,0,TAU);ctx.fill()}}
     if(G==='clouds'){const gs=this.groundStatic();ctx.drawImage(gs,Math.sin(t*.15)*8,0)}
     if(G==='moon'){ctx.drawImage(this.groundStatic(),0,0);const lg=ctx.createLinearGradient(0,0,w,0);lg.addColorStop(0,'rgba(200,190,255,0)');lg.addColorStop(.5,'rgba(220,210,255,.5)');lg.addColorStop(1,'rgba(200,190,255,0)');ctx.fillStyle=lg;ctx.fillRect(0,hz-4,w,1)}
     ctx.save();ctx.translate(this.x,this.floor);ctx.scale(1,.2);ctx.globalCompositeOperation='lighter';glow(ctx,gc,0,0,U*1.5,.35+bass*.3);glow(ctx,this.pal.rim2,0,0,U*2.3,.14);ctx.restore()},
@@ -464,4 +465,23 @@ Object.assign(MochiScene.prototype,{
     x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='copy';x.setTransform(1,0,0,-1,0,rh);try{x.drawImage(cv,0,(fl-Hs)*pr,cv.width,Hs*pr,0,0,rw,rh)}catch(e){return}
     x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='destination-in';const gr=x.createLinearGradient(0,0,0,rh);gr.addColorStop(0,`rgba(0,0,0,${k})`);gr.addColorStop(.55,`rgba(0,0,0,${k*.2})`);gr.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gr;x.fillRect(0,0,rw,rh);x.globalCompositeOperation='source-over';
     if(this.ground==='water'){const t=this.t;for(let i=0;i<rh;i+=2){const off=Math.sin(i*.5+t*4)*(1+i*.06);ctx.drawImage(rc,0,i,rw,2,off,fl-1+i*R/rh,this.w,2*R/rh+.5)}}else ctx.drawImage(rc,0,fl-1,this.w,R)}
+});
+
+/* ----- GPU mirror reflection (no canvas read-back): the body is rendered upside-down into a
+   half-resolution target, then laid under the floor line with a fade ----- */
+Object.assign(MochiScene.prototype,{
+  reflect(){},
+  attach(el){Buddy.prototype.attach.call(this,el);const g=this.gl;if(!g)return;const T=T3;this.world=new T.Group();g.sc.remove(this.M.root);this.world.add(this.M.root);g.sc.add(this.world);
+    this.rt=new T.WebGLRenderTarget(4,4);const mm=new T.ShaderMaterial({uniforms:{uTex:{value:this.rt.texture},uRes:{value:new T.Vector2(1,1)},uFl:{value:0},uR:{value:1},uK:{value:.3},uT:{value:0},uW:{value:0}},
+      vertexShader:'void main(){gl_Position=vec4(position.xy,0.,1.);}',
+      fragmentShader:'uniform sampler2D uTex;uniform vec2 uRes;uniform float uFl,uR,uK,uT,uW;void main(){vec2 fc=gl_FragCoord.xy;float d=uFl-fc.y;if(d<0.)discard;float f=1.-clamp(d/uR,0.,1.);vec2 uv=fc/uRes;uv.x+=sin(fc.y*.07+uT*4.)*.005*uW;vec4 c=texture2D(uTex,uv);gl_FragColor=vec4(c.rgb,1.);\n#include <encodings_fragment>\ngl_FragColor*=uK*f*f*c.a;}',
+      transparent:true,depthTest:false,depthWrite:false,premultipliedAlpha:true});
+    this.mir=new T.Mesh(new T.PlaneGeometry(2,2),mm);this.mir.frustumCulled=false;this.mir.renderOrder=-10;g.sc.add(this.mir);this.layoutGL()},
+  layoutGL(){Buddy.prototype.layoutGL.call(this);const g=this.gl;if(!g||!this.rt)return;const c=g.r.domElement;this.rt.setSize(Math.max(2,c.width>>1),Math.max(2,c.height>>1))},
+  renderGL(){const g=this.gl,r=g.r,k={grid:.32,glass:.6,water:.36}[this.ground];
+    if(k&&this.world&&this.mir){const pr=r.getPixelRatio(),Yf=this.h/2-this.floor,c=r.domElement;this.world.scale.y=-1;this.world.position.y=2*Yf;this.mir.visible=false;
+      r.setRenderTarget(this.rt);r.clear();r.render(g.sc,g.cam);r.setRenderTarget(null);this.world.scale.y=1;this.world.position.y=0;this.mir.visible=true;
+      const U=this.mir.material.uniforms;U.uRes.value.set(c.width,c.height);U.uFl.value=(this.h-this.floor)*pr;U.uR.value=Math.min(this.h-this.floor,this.U*1.3)*pr;U.uK.value=k;U.uT.value=this.t;U.uW.value=this.ground==='water'?1:0}
+    else if(this.mir)this.mir.visible=false;r.render(g.sc,g.cam)},
+  detach(){if(this.rt){this.rt.dispose();this.rt=null}Buddy.prototype.detach.call(this)}
 });
