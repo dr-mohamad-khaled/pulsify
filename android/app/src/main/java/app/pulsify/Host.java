@@ -26,7 +26,7 @@ public class Host {
     final AudioManager am;
     volatile float offset = 0f; volatile boolean visible = true; volatile int unlocks = 0, screenOffs = 0;
     private Visualizer vis; private int captureSize = 1024;
-    private final float[] bands = new float[3]; private final int[] spec = new int[32]; private volatile long lastCap = 0;
+    private final float[] bands = new float[3]; private final int[] spec = new int[32]; private volatile long lastCap = 0, lastTry = 0; private volatile float energy = 0;
     private float batLevel = 1f; private boolean charging = false; private long batAt = 0;
 
     Host(Context c, boolean wallpaper, Activity a) { ctx = c; this.wallpaper = wallpaper; activity = a; am = (AudioManager) c.getSystemService(Context.AUDIO_SERVICE); }
@@ -41,6 +41,7 @@ public class Host {
             int[] r = Visualizer.getCaptureSizeRange();
             captureSize = Math.min(1024, r[1]);
             vis.setCaptureSize(captureSize);
+            try { vis.setScalingMode(Visualizer.SCALING_MODE_NORMALIZED); } catch (Throwable ignored) {}
             vis.setDataCaptureListener(new Visualizer.OnDataCaptureListener() {
                 @Override public void onWaveFormDataCapture(Visualizer v, byte[] w, int sr) {}
                 @Override public void onFftDataCapture(Visualizer v, byte[] fft, int sr) { analyze(fft, sr); }
@@ -65,6 +66,7 @@ public class Host {
         }
         synchronized (bands) {
             bands[0] = bn > 0 ? b / bn : 0; bands[1] = mn > 0 ? m / mn : 0; bands[2] = tn > 0 ? t / tn : 0;
+            energy = bands[0] + bands[1] + bands[2];
             for (int i = 0; i < 32; i++) spec[i] = (int) (lg[i] * 255);
         }
         lastCap = System.currentTimeMillis();
@@ -82,12 +84,18 @@ public class Host {
 
     @JavascriptInterface public String state() {
         readBattery();
-        boolean music = am != null && am.isMusicActive();
+        long now = System.currentTimeMillis();
+        // keep the visualizer alive: start it once permission arrives, restart it if it went quiet
+        if (visible && now - lastTry > 2500) { lastTry = now;
+            if (vis == null && audioGranted()) startAudio();
+            else if (vis != null && now - lastCap > 3000) { stopAudio(); startAudio(); } }
+        boolean recent = vis != null && now - lastCap < 600;
+        boolean music = (am != null && am.isMusicActive()) || (recent && energy > 0.06f);
         StringBuilder s = new StringBuilder(220);
         s.append("{\"music\":").append(music).append(",\"battery\":").append(batLevel).append(",\"charging\":").append(charging)
          .append(",\"offset\":").append(offset).append(",\"visible\":").append(visible)
          .append(",\"unlocks\":").append(unlocks).append(",\"screenOffs\":").append(screenOffs);
-        if (music && vis != null && System.currentTimeMillis() - lastCap < 600) {
+        if (music && recent) {
             synchronized (bands) {
                 s.append(",\"bands\":[").append(bands[0]).append(',').append(bands[1]).append(',').append(bands[2]).append("],\"spec\":[");
                 for (int i = 0; i < 32; i++) { if (i > 0) s.append(','); s.append(spec[i]); }

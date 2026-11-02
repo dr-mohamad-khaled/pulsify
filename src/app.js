@@ -7,7 +7,8 @@ if(!HOST&&navigator.getBattery)navigator.getBattery().then(b=>{const f=()=>{HSTA
 const _aeu=AE.update.bind(AE);
 AE.update=function(dt,now){if(HOST&&HSTATE.music&&this.mode==='none')devAudio(dt,now);else{this.device=false;_aeu(dt,now)}};
 function devAudio(dt,now){const a=AE;a.device=true;a.active=true;a.beat=false;let raw;
-  if(HSTATE.bands)raw=HSTATE.bands;else{const ph=(now*118/60)%1;raw=[.35+.6*Math.exp(-ph*6),.45+.2*Math.sin(now*3),.3+.2*Math.sin(now*7)]}
+  const sil=HSTATE.bands&&(HSTATE.bands[0]+HSTATE.bands[1]+HSTATE.bands[2])<.03;a.silT=sil?(a.silT||0)+dt:0;
+  if(HSTATE.bands&&a.silT<1.2)raw=HSTATE.bands;else{const ph=(now*118/60)%1;raw=[.35+.6*Math.exp(-ph*6),.45+.2*Math.sin(now*3),.3+.2*Math.sin(now*7)]}
   if(!a.fd||a.fd.length!==32)a.fd=new Uint8Array(32);for(let i=0;i<32;i++)a.fd[i]=HSTATE.spec?HSTATE.spec[i]|0:raw[i<8?0:i<20?1:2]*210;
   const k=Math.pow(.997,dt*60),nb=raw.map((v,i)=>{a.pk[i]=Math.max(v,a.pk[i]*k,.06);return clamp(Math.pow(v/a.pk[i],1.6),0,1)});
   a.bass=lerp(a.bass,nb[0],.55);a.mid=lerp(a.mid,nb[1],.4);a.treble=lerp(a.treble,nb[2],.5);a.level=(a.bass+a.mid+a.treble)/3;
@@ -76,7 +77,7 @@ $('#loopFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if
 /* ---------- studio ---------- */
 const stage=$('#stage'),sctx=stage.getContext('2d'),fxc=$('#fx'),fctx=fxc.getContext('2d'),ptrs=new Map();let scene=null,cur=null,dpr=1,shuffleWp=store.get('shuffleWp',false);
 let SW=0,SH=0;function stageWH(){const r=$('#studio').getBoundingClientRect();return[Math.round(r.width)||innerWidth,Math.round(r.height)||innerHeight]}
-function sizeStage(){[SW,SH]=stageWH();dpr=Math.min(window.devicePixelRatio||1,WP?1.25:1.5);for(const c of[stage,fxc]){c.width=Math.round(SW*dpr);c.height=Math.round(SH*dpr)}if(scene)scene.resize(SW,SH)}
+function sizeStage(){[SW,SH]=stageWH();dpr=Math.min(window.devicePixelRatio||1,WP?1:1.25);for(const c of[stage,fxc]){c.width=Math.round(SW*dpr);c.height=Math.round(SH*dpr)}if(scene)scene.resize(SW,SH)}
 function buildControls(){const box=$('#ctl');box.innerHTML='';const row=lab=>{const r=document.createElement('div');r.className='row';if(lab){const s=document.createElement('span');s.className='micro lbl';s.textContent=lab;r.appendChild(s)}box.appendChild(r);return r};
   const pill=(r,txt,on,fn,cls)=>{const b=document.createElement('button');b.className='pill'+(cls?' '+cls:'');b.innerHTML=txt;if(on!=null)b.setAttribute('aria-pressed',on);b.onclick=()=>fn(b);r.appendChild(b);return b};
   if(scene.isBuddy){const r=row();pill(r,'⤮ Shuffle',null,()=>{const pool=BUD_IDS.filter(x=>x!==scene.id),id=pool[(Math.random()*pool.length)|0];myBuddy=id;store.set('buddy',id);haptic(10);const f=scene.force,c=scene.simCharge;openStudio('b_'+id);scene.force=f;scene.simCharge=c;buildControls()},'acc');
@@ -127,12 +128,12 @@ let cfgT=0;function wpTick(dt){cfgT-=dt;if(HSTATE.visible&&(!wasVisible||cfgT<0)
   const o=HSTATE.offset;if(lastOff==null)lastOff=o;const ov=(o-lastOff)/Math.max(dt,1e-3)*4;lastOff=o;offT-=dt;if(scene&&scene.scroll)scene.scroll(ov)}
 
 /* ---------- main loop ---------- */
-let last=performance.now(),poll=0,homeT=0,sizeT=0;
+let last=performance.now(),poll=0,homeT=0,sizeT=0,specT=0,fxUsed=false;
 let idleSkip=0;function frame(now){if(WP&&view==='studio'&&!ptrs.size&&!(AE.active&&AE.level>.02)&&(now-last)<28){requestAnimationFrame(frame);return}const dt=Math.min(.05,(now-last)/1000);last=now;dtFrame=dt;const t=now/1000;if(HOST&&(poll^=1))pollHost();
   if(WP&&!HSTATE.visible){requestAnimationFrame(frame);return}
   AE.update(dt,t);if(WP)wpTick(dt);
-  if(view==='studio'&&scene){if((sizeT=(sizeT||0)+dt)>.5){sizeT=0;const[a,b]=stageWH();if(a!==SW||b!==SH)sizeStage()}const w=SW,h=SH;scene.update(dt,AE);fctx.setTransform(1,0,0,1,0,0);fctx.clearRect(0,0,fxc.width,fxc.height);fctx.setTransform(dpr,0,0,dpr,0,0);scene.octx=fctx;sctx.setTransform(dpr,0,0,dpr,0,0);sctx.globalAlpha=1;sctx.globalCompositeOperation='source-over';sctx.fillStyle='#000';sctx.fillRect(0,0,w,h);scene.draw(sctx);
-    if(!WP){drawSpec();if(scene.isBuddy){const mc=$('#moodChip'),txt=scene.mood==='charge'?scene.chargeText:(MOOD_TEXT[scene.mood]||'');if(mc.textContent!==txt)mc.textContent=txt}if((homeT+=dt)>.5){homeT=0;audioUI()}}}
+  if(view==='studio'&&scene){if((sizeT=(sizeT||0)+dt)>.5){sizeT=0;const[a,b]=stageWH();if(a!==SW||b!==SH)sizeStage()}const w=SW,h=SH;scene.update(dt,AE);if(scene.isBuddy||fxUsed){fctx.setTransform(1,0,0,1,0,0);fctx.clearRect(0,0,fxc.width,fxc.height);fctx.setTransform(dpr,0,0,dpr,0,0)}fxUsed=!!scene.isBuddy;scene.octx=scene.isBuddy?fctx:null;sctx.setTransform(dpr,0,0,dpr,0,0);sctx.globalAlpha=1;sctx.globalCompositeOperation='source-over';sctx.fillStyle='#000';sctx.fillRect(0,0,w,h);scene.draw(sctx);
+    if(!WP){if((specT=(specT||0)+dt)>.033){specT=0;drawSpec()}if(scene.isBuddy){const mc=$('#moodChip'),txt=scene.mood==='charge'?scene.chargeText:(MOOD_TEXT[scene.mood]||'');if(mc.textContent!==txt)mc.textContent=txt}if((homeT+=dt)>.5){homeT=0;audioUI()}}}
   else if(view==='home'){if((homeT+=dt)>1){homeT=0;homeText()}}
   requestAnimationFrame(frame)}
 if(WP){$('#home').hidden=true;pollHost();lastUnlocks=HSTATE.unlocks;lastOffs=HSTATE.screenOffs;wpOpen(wpConfig())}

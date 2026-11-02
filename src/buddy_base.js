@@ -118,7 +118,7 @@ class Buddy extends Scene{
   /* ----- GPU layer ----- */
   attach(el){if(!HAS3D||this.gl)return;const T=T3;kit();const G=sharedGL();if(G.cv.parentNode!==el)el.insertBefore(G.cv,el.children[1]||null);G.cv.style.display='block';
     const sc=new T.Scene(),cam=new T.PerspectiveCamera(22,1,1,1e5);sc.environment=G.env;const key=new T.DirectionalLight('#fff',1.25);key.position.set(-.5,.9,1.3);const rim=new T.DirectionalLight(this.rimCol||'#ffd6e8',.9);rim.position.set(.8,.5,-1);sc.add(key,rim,new T.HemisphereLight(this.hemiCol||'#ffe6f0','#1a0d18',.35));
-    this.M=this.build();sc.add(this.M.root);this.gl={r:G.r,cv:G.cv,sc,cam,key,pr:G.pr,maxPr:G.maxPr,juice:null};this.layoutGL()}
+    this.M=this.build();sc.add(this.M.root);this.gl={r:G.r,cv:G.cv,sc,cam,key,pr:Math.min(G.maxPr,WP?1:1.25),maxPr:Math.min(G.maxPr,WP?1.25:1.5),juice:null};this.layoutGL()}
   detach(){if(!this.gl)return;const g=this.gl;g.r.clear();g.cv.style.display='none';GLS.pr=g.pr;g.sc.clear();this.gl=null}
   layoutGL(){const g=this.gl;if(!g||this.w<2)return;g.r.setPixelRatio(g.pr);g.r.setSize(this.w,this.h,false);GLS.pr=g.pr;g.cv.style.width=this.w+'px';g.cv.style.height=this.h+'px';const d=this.h/2/Math.tan(11*Math.PI/180);g.cam.aspect=this.w/this.h;g.cam.position.set(0,0,d);g.cam.near=d*.2;g.cam.far=d*3;g.cam.updateProjectionMatrix()}
   resize(w,h){const first=this.w===1;super.resize(w,h);this.U=Math.min(w*.44,h*.5/1.75);this.floor=h*.73;if(first){this.x=w/2;this.y=this.floor}this.layoutGL()}
@@ -246,7 +246,7 @@ class Buddy extends Scene{
     const Uf=M.U;Uf.uT.value=this.t;Uf.uSq.value=u.sq;Uf.uMelt.value=u.melt;Uf.uPress.value=u.press;Uf.uBreath.value=u.breath;Uf.uPull.value.set(...u.pull);Uf.uShear.value.set(...u.shear);
     Uf.uPoke.value.set(this.pokeDir[0],this.pokeDir[1],this.pokeDir[2],this.pokeT<1.2?this.pokeAmp:0);Uf.uPokeT.value=this.pokeT;
     if(Uf.uFillA){Uf.uFillA.value=lerp(Uf.uFillA.value,0,.05);Uf.uFillLv.value=HSTATE.charging?HSTATE.battery:.45+.4*((this.t*.02)%1);Uf.uStar.value=this.star*(.8+.2*Math.sin(this.t*5));Uf.uGlow.value=A.active?A.bass*.6:0}
-    M.root.position.y+=this.hov;if(this.t-this.faceT>1/40){this.faceT=this.t;this.drawFace(M.fctx,this.F,this.t);M.ft.needsUpdate=true}
+    M.root.position.y+=this.hov;if(this.t-this.faceT>1/(this.faceHz||30)){this.faceT=this.t;this.drawFace(M.fctx,this.F,this.t);M.ft.needsUpdate=true}
     this.place(dt,A)}
   /* ----- Mochi only from here ----- */
   mochiPose(dt,A){const g=this.gl,M=this.M,u=this.u,w=this.w,h=this.h,Uf=M.U;placeMochiParts(M,u,this.t,this.earTw,this.earD);
@@ -299,7 +299,7 @@ class Buddy extends Scene{
         if(ch){ctx.fillStyle='#b8ff9a';ctx.beginPath();ctx.moveTo(x+r*.1,y-r*.6);ctx.lineTo(x-r*.35,y+r*.05);ctx.lineTo(x,y+r*.05);ctx.lineTo(x-r*.12,y+r*.6);ctx.lineTo(x+r*.35,y-r*.08);ctx.lineTo(x,y-r*.08);ctx.fill()}ctx.globalAlpha=1;continue}
       const r=U*s.s*(.6+.6*tw2);ctx.globalCompositeOperation='lighter';glow(ctx,s.c,x,y,r*2.2,.55*tw2);ctx.globalCompositeOperation='source-over';ctx.globalAlpha=.6+.4*tw2;ctx.fillStyle=s.c;ctx.beginPath();ctx.moveTo(x,y-r);ctx.quadraticCurveTo(x,y,x+r*.8,y);ctx.quadraticCurveTo(x,y,x,y+r);ctx.quadraticCurveTo(x,y,x-r*.8,y);ctx.quadraticCurveTo(x,y,x,y-r);ctx.fill();ctx.globalAlpha=1}}
   drawBubble(ctx,x,y,r,rgb){const g=ctx.createRadialGradient(x-r*.3,y-r*.3,r*.1,x,y,r);g.addColorStop(0,`rgba(255,255,255,.35)`);g.addColorStop(.7,`rgba(${rgb},.18)`);g.addColorStop(1,`rgba(${rgb},.45)`);ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();ctx.strokeStyle=`rgba(255,255,255,.55)`;ctx.lineWidth=1.2;ctx.stroke();ctx.fillStyle='rgba(255,255,255,.8)';ctx.beginPath();ctx.ellipse(x-r*.4,y-r*.42,r*.18,r*.1,-.6,0,TAU);ctx.fill()}
-  adapt(dt){const g=this.gl;g.fa=lerp(g.fa||16,dt*1000,.05);g.cool=(g.cool||0)-dt;if(g.cool>0)return;if(g.fa>21&&g.pr>.75){g.pr=Math.max(.75,g.pr-.15);g.cool=1.5;this.layoutGL()}else if(g.fa<15&&g.pr<g.maxPr){g.pr=Math.min(g.maxPr,g.pr+.1);g.cool=3;this.layoutGL()}}
+  adapt(dt){const g=this.gl;g.fa=lerp(g.fa||16,dt*1000,.05);g.cool=(g.cool||0)-dt;if(g.cool>0)return;if(g.fa>18.5&&g.pr>.75){g.pr=Math.max(.75,g.pr-.15);g.cool=1.5;this.layoutGL()}else if(g.fa<15&&g.pr<g.maxPr){g.pr=Math.min(g.maxPr,g.pr+.1);g.cool=3;this.layoutGL()}}
   dispose(){store.set(this.id+'.aff',this.affection);store.set(this.id+'.seen',Date.now());this.detach()}
 }
 function normalize3(v){const l=Math.hypot(...v)||1;return[v[0]/l,v[1]/l,v[2]/l]}

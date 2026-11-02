@@ -155,7 +155,7 @@ function buildMochi2(){const T=T3,k=kit(),root=new T.Group(),fc=document.createE
   const U={uT:{value:0},uSq:{value:0},uMelt:{value:0},uPress:{value:0},uBreath:{value:0},uPokeT:{value:9},uPull:{value:new T.Vector3()},uShear:{value:new T.Vector3()},uPoke:{value:new T.Vector4(0,0,1,0)},uS:{value:new T.Vector4(...MOCHI2_S)},
     uFace:{value:ft},uTop:{value:new T.Color('#fff5ec')},uBot:{value:new T.Color('#ffd6e4')},uRim:{value:new T.Color('#ff9ad6')},uRim2:{value:new T.Color('#8a7bff')},uRimK:{value:1},uGal:{value:0},uKey:{value:new T.Vector3(-.45,.75,.7)},uTint:{value:new T.Color('#ffffff')},
     uFill:{value:new T.Color('#5dff9e')},uStarC:{value:new T.Color('#ffe08a')},uLit:{value:new T.Color(0,0,0)},uBounce:{value:new T.Color('#9d7bff')},uFillLv:{value:.5},uFillA:{value:0},uStar:{value:0},uGlow:{value:0}};
-  const mat=new T.ShaderMaterial({uniforms:U,vertexShader:MOCHI2_V,fragmentShader:MOCHI2_F});const body=new T.Mesh(new T.SphereGeometry(1,112,80),mat);root.add(body);
+  const mat=new T.ShaderMaterial({uniforms:U,vertexShader:MOCHI2_V,fragmentShader:MOCHI2_F});const body=new T.Mesh(new T.SphereGeometry(1,84,60),mat);root.add(body);
   const skin=new T.MeshPhysicalMaterial({color:'#ffe6ec',roughness:.4,clearcoat:.6,clearcoatRoughness:.25,sheen:1,sheenColor:new T.Color('#ff9ad6'),emissive:new T.Color('#4a1838'),emissiveIntensity:.18});
   const arms=[-1,1].map(s=>{const g=new T.Group(),m=new T.Mesh(k.SPH,skin);m.scale.set(.115,.18,.115);m.position.y=-.13;g.add(m);root.add(g);g.userData.m=m;return g});
   const feet=[-1,1].map(()=>{const f=new T.Mesh(k.SPH,skin);f.scale.set(.17,.1,.19);root.add(f);return f});
@@ -169,7 +169,7 @@ class MochiScene extends Buddy{
   constructor(pv){super(pv,'mochi');this.snd=MOCHI2_SND;this.col='#ff9ccf';this.rimCol='#ffc2e6';this.chargeText='Drinking battery juice';this.u.S=MOCHI2_S;this.S=MOCHI2_S;this.u.bulge=.1;this.sleepMelt=.12;
     this.armS=[[.15,.55],[.15,.55]];this.armT=[[.15,.55],[.15,.55]];this.armHide=[0,0];this.paw2=[null,null];this.antA=0;this.antV=0;this.antX=0;this.antXV=0;this.pvy=0;this.pitch=0;this.pitchT=0;this.spinA=0;this.roll=0;this.lit=[0,0,0];
     this.prop=null;this.bird=null;this.fx=[];this.drops=[];this.bub=null;this.flash=0;this.gz=null;this.peekT=0;this.recent=[];this.ballCol='#fff2d0';this.nextAct=null;
-    this.loadLook();this.DUR={wave:2.6,phone:16,juice:14,bird:10,hiccup:3.6,peekaboo:3.4,selfie:4.4,drum:3.6,spin:2.2,joy:2.4,balloon:11,firefly:9,shy:3.2,think:4.4,icecream:13,kiss:2.6,juggle:5.5,rain:9,knock:3.6,hearts:3.2,airplane:3.6,snow:8}}
+    this.faceHz=22;this.loadLook();this.DUR={wave:2.6,phone:16,juice:14,bird:10,hiccup:3.6,peekaboo:3.4,selfie:4.4,drum:3.6,spin:2.2,joy:2.4,balloon:11,firefly:9,shy:3.2,think:4.4,icecream:13,kiss:2.6,juggle:5.5,rain:9,knock:3.6,hearts:3.2,airplane:3.6,snow:8}}
   build(){const M=buildMochi2();this.applyPal(M);return M}
   drawFace(g,F,t){drawMochi2Face(g,F,t,{shiver:this.shiver,skin:this.pal.lid,ink:this.pal.ink})}
   resize(w,h){super.resize(w,h);this.U=Math.min(w*.4,h*.235);this.floor=h*.72;if(!this.toss)this.y=this.floor}
