@@ -166,7 +166,7 @@ function buildMochi2(){const T=T3,k=kit(),root=new T.Group(),fc=document.createE
 /* ---------- the scene ---------- */
 const MOCHI_ACTS=['wave','phone','juice','bird','hiccup','peekaboo','selfie','drum','spin','joy','balloon','firefly','shy','think','icecream','kiss','juggle','rain','knock','hearts','airplane','snow'];
 class MochiScene extends Buddy{
-  constructor(pv,id){super(pv,id||'mochi');this.snd=MOCHI2_SND;this.col='#ff9ccf';this.rimCol='#ffc2e6';this.chargeText='Drinking battery juice';this.u.S=MOCHI2_S;this.S=MOCHI2_S;this.u.bulge=.1;this.sleepMelt=.12;
+  constructor(pv,id){super(pv,id||'mochi');this.snd=MOCHI2_SND;this.col='#ff9ccf';this.rimCol='#ffc2e6';this.chargeText='Drinking battery juice';this.u.S=MOCHI2_S;this.S=MOCHI2_S;this.u.bulge=.1;this.sleepMelt=.05;this.lowMelt=.05;
     this.armS=[[.15,.55],[.15,.55]];this.armT=[[.15,.55],[.15,.55]];this.armHide=[0,0];this.paw2=[null,null];this.antA=0;this.antV=0;this.antX=0;this.antXV=0;this.pvy=0;this.pitch=0;this.pitchT=0;this.spinA=0;this.roll=0;this.lit=[0,0,0];
     this.prop=null;this.bird=null;this.fx=[];this.drops=[];this.bub=null;this.flash=0;this.gz=null;this.peekT=0;this.recent=[];this.ballCol='#fff2d0';this.nextAct=null;
     this.faceHz=22;this.loadLook();this.DUR={wave:2.6,phone:16,juice:14,bird:10,hiccup:3.6,peekaboo:3.4,selfie:4.4,drum:3.6,spin:2.2,joy:2.4,balloon:11,firefly:9,shy:3.2,think:4.4,icecream:13,kiss:2.6,juggle:5.5,rain:9,knock:3.6,hearts:3.2,airplane:3.6,snow:8}}
@@ -189,7 +189,7 @@ class MochiScene extends Buddy{
   pickAct(force){if(this.prop&&this.jState!=='mochi')return;const m=this.mood;
     const P={day:['phone','juice','bird','phone','juice','bird','wave','hiccup','peekaboo','selfie','drum','spin','joy','balloon','firefly','shy','think','icecream','kiss','juggle','rain','knock','hearts','airplane','snow','lookAround','bubble','sneeze','press','stargaze'],
       evening:['phone','juice','bird','firefly','balloon','kiss','think','shy','snow','icecream','stargaze','yawn','wave','hearts','rain'],wakeup:['stretch','yawn','juice','phone','wave','nod','bird'],late:['yawn','nod','phone','firefly','stargaze','snow'],low:['sigh']};
-    let pool=P[m]||P.day;if(this.extra&&(m==='day'||m==='evening'))pool=pool.concat(this.extra,this.extra);if(force===undefined&&!pool)return;if(force){this.startAct(force);return}
+    let pool=P[m]||P.day;if(this.is2D)pool=pool.filter(a=>a!=='spin');if(this.extra&&(m==='day'||m==='evening'))pool=pool.concat(this.extra,this.extra);if(force===undefined&&!pool)return;if(force){this.startAct(force);return}
     if(force===undefined&&this.idleT>24&&(m==='day'||m==='evening')){this.startAct(Math.random()<.5?'press':'knock');this.idleT=6;return}
     let a,n=0;do{a=pool[(Math.random()*pool.length)|0];n++}while(this.recent.includes(a)&&n<12);this.recent.push(a);if(this.recent.length>6)this.recent.shift();this.startAct(a)}
   /* ----- input ----- */

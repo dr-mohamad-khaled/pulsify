@@ -216,7 +216,7 @@ class Buddy extends Scene{
     this.look[0]=lerp(this.look[0],lookT[0],.16);this.look[1]=lerp(this.look[1],lookT[1],.16);
     Object.assign(F,{eye,eyeOpen:lerp(F.eyeOpen,open,.35),mouth,mouthOpen:lerp(F.mouthOpen,mo,.3),brow:lerp(F.brow,brow,.2),browUp,browOn:browOn||Math.abs(F.brow)>.1,blush:lerp(F.blush,blush,.1),sparkle,sweat:lerp(F.sweat,sweat,.05),look:this.look});
     // ----- body physics -----
-    if(!(ac&&ac.type==='hide')&&m!=='sleep'&&m!=='low')u.melt=lerp(u.melt,this.hold&&this.hold.t>.45?.18:0,.08);if(m==='sleep')u.melt=lerp(u.melt,this.sleepMelt!=null?this.sleepMelt:.42,.03);if(m==='low')u.melt=lerp(u.melt,.25,.03);
+    if(!(ac&&ac.type==='hide')&&m!=='sleep'&&m!=='low')u.melt=lerp(u.melt,this.hold&&this.hold.t>.45?.18:0,.08);if(m==='sleep')u.melt=lerp(u.melt,this.sleepMelt!=null?this.sleepMelt:.42,.03);if(m==='low')u.melt=lerp(u.melt,this.lowMelt!=null?this.lowMelt:.25,.03);
     if(!(ac&&ac.type==='press'))u.press=lerp(u.press,0,.15);
     if(m==='dance'&&A.beat){this.sqv+=2.2;if(this.beatN%2===0&&this.ground){this.vy=-h*.16;this.ground=false}}
     if(m==='charge'){this.gulpT-=dt;if(this.gulpT<0){this.gulpT=rnd(1,1.5);this.gulp=1;this.sqv-=1.2;if(!this.preview&&!WP&&Math.random()<.4)this.snd.gulp()}this.gulp=Math.max(0,this.gulp-dt*3)}

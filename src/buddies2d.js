@@ -14,7 +14,7 @@ class Buddy2D extends MochiScene{
   shoulder(i){const s=i?1:-1,P=this.SH||[.74,-.1,.66];return this.sp([s*P[0],P[1],P[2]])}
   hand(i){const s=i?1:-1,sh=this.shoulder(i),[out,fwd]=this.armS[i],L=this.U*(this.armLen||.36)*(1-.32*Math.sin(clamp(fwd,0,1.6)));let dx=s*Math.sin(out)-s*.22*Math.sin(clamp(fwd,0,1.6)),dy=-Math.cos(out);const r=this.rollAng(),c=Math.cos(r),sn=Math.sin(r),X=dx*c-dy*sn,Y=dx*sn+dy*c;return[sh[0]+X*L,sh[1]-Y*L]}
   ballScr(){return this.tipScr()}
-  update(dt,A){super.update(dt,A);const p=this.prop;
+  update(dt,A){super.update(dt,A);const p=this.prop;this.spinA=0;this.u.melt=Math.min(this.u.melt,.08);
     if(!(this.act&&this.act.type==='spin')&&this.spinT===0){this.spinA=this.spinA>Math.PI?lerp(this.spinA,TAU,.12):lerp(this.spinA,0,.12);if(Math.abs(this.spinA-TAU)<.01)this.spinA=0}
     if(p&&p.grab&&this.jState==='mochi'){const hm=this.handsMid(),hr=this.hand(1);p.pos=p.type==='icecream'?[hr[0],hr[1]-this.U*.2]:[hm[0],hm[1]+this.U*(p.type==='juice'?.02:.1)]}
     this.jarS=lerp(this.jarS,this.charging?1:0,.1);if(this.charging&&this.jState==='mochi'){const hm=this.handsMid();this.jarPos=[hm[0],hm[1]-this.U*.05]}
