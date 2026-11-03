@@ -21,7 +21,7 @@ class ArnoobScene extends Scene{
     this.P={sy:1,hx:0,hy:0,tilt:0,turn:0,ear:[.12,.12],earF:[0,0],eye:1,look:[0,0],paw:0,pawY:0,nose:0,chew:0,body:0,peri:0,loaf:0,foot:0,dig:0};this.T=null;this.blinkT=2;this.blink=0;this.noseT=0;this.nosePh=0;this.L=null;this.layKey=null;this.u={shear:[0,0,0]};this.dz=0}
   attach(){if(typeof GLS!=='undefined'&&GLS)GLS.cv.style.display='none'}
   dispose(){}
-  resize(w,h){const first=this.w===1;super.resize(w,h);this.U=Math.min(w*.29,h*.16);this.floor=h*.74;if(first){this.home=w/2;this.x=w/2}this.home=w/2;this.layKey=null;this.bgKey=null;this.gdKey=null}
+  resize(w,h){const first=this.w===1;super.resize(w,h);this.U=Math.min(w*.26,h*.15);this.floor=h*.74;if(first){this.home=w/2;this.x=w/2}this.home=w/2;this.layKey=null;this.bgKey=null;this.gdKey=null}
   sfx(n){if(!this.preview&&!WP&&this.snd[n])this.snd[n]()}
   controls(){return[...this.lookControls().map(c=>c.label==='Color'?Object.assign(c,{label:'Coat',set:i=>{this.palI=i;this.pal=this.PALS[i];this.layKey=null;this.saveLook('pal',i)}}):c),
     {type:'buttons',label:'Tricks',items:[['✦ Surprise',null],['Groom','groom'],['Binky','binky'],['Periscope','periscope'],['Ear wash','earwash'],['Dig','dig'],['Thump','thump'],['Carrot','carrot']].map(([n,a])=>({name:n,fn:()=>{this.wake=40;if(a==='carrot')this.dropCarrot(this.home+rnd(-this.U,this.U),this.floor);else this.start(a||['groom','binky','periscope','earwash','dig','scratch','hop','sniff','yawn'][(Math.random()*9)|0])}}))}]}
@@ -36,7 +36,7 @@ class ArnoobScene extends Scene{
     const shade=(x,y,base)=>{const s=clamp(.55-x*.22+(-y-.55)*.45,0,1);return s>.5?mix(base,Li,(s-.5)*1.4):mix(D,base,s*2)};
     const blobFill=(g,f,b,colr)=>{const res=.02;g.fillStyle=colr;for(let y=b[1];y<b[3];y+=res)for(let x=b[0];x<b[2];x+=res)if(f(x,y)<.97)g.fillRect(x,y,res*1.6,res*1.6)};
     // body (loaf + haunches)
-    const bodyF=(x,y)=>Math.min(ell(x,y,0,-.6,.92,.6),ell(x,y,-.56,-.33,.42,.34),ell(x,y,.56,-.33,.42,.34)),bodyB=[-1.1,-1.3,1.1,0];
+    const bodyF=(x,y)=>Math.min(ell(x,y,0,-.62,.74,.62),ell(x,y,-.44,-.32,.34,.32),ell(x,y,.44,-.32,.34,.32)),bodyB=[-1.1,-1.3,1.1,0];
     const body=mk(-1.15,-1.35,1.15,.06,g=>{blobFill(g,bodyF,bodyB,rgb(B,1));const dutch=c.dutch;
       fur(g,{f:bodyF,b:bodyB},(x,y)=>norm(x*.45,1+(y<-.9?-.4:0)),(x,y)=>{let base=B;const belly=Math.abs(x)<.38&&y>-.75;if(dutch)base=(Math.abs(x)<.45&&y<-.55)||belly?Be:B;else if(belly)base=mix(B,Be,clamp(1-Math.abs(x)/.38,0,1)*clamp((y+.75)/.3,0,1));return shade(x,y,base)},8500,.065,1.3);
       const ao=g.createLinearGradient(0,-.25,0,0);ao.addColorStop(0,'rgba(0,0,0,0)');ao.addColorStop(1,'rgba(0,0,0,.45)');g.globalCompositeOperation='source-atop';g.fillStyle=ao;g.fillRect(-1.2,-.3,2.4,.4);g.globalCompositeOperation='source-over'});
@@ -120,9 +120,9 @@ class ArnoobScene extends Scene{
     const bin=this.act&&this.act.type==='binky'?Math.sin(clamp(this.act.t/this.act.dur,0,1)*Math.PI*2)*.25:0,peri=P.peri,loaf=P.loaf;
     const bodySy=P.sy*(1+peri*.28-loaf*.06),bodySx=1+loaf*.05-peri*.08;
     // tail peeks from behind
-    this.dl(o,L.tail,x+U*.9,fy-U*.28,0,.8,.8);
+    this.dl(o,L.tail,x+U*.74,fy-U*.28,0,.8,.8);
     // hind feet (thump lifts the right one)
-    this.dl(o,L.foot,x-U*.62,fy,-.04,-1,1);this.dl(o,L.foot,x+U*.62,fy-P.foot*U*.12,.04+P.foot*.15,1,1);
+    this.dl(o,L.foot,x-U*.5,fy,-.04,-1,1);this.dl(o,L.foot,x+U*.5,fy-P.foot*U*.12,.04+P.foot*.15,1,1);
     // body
     o.save();o.translate(x,fy);o.rotate(bin*.5);o.scale(bodySx,bodySy);this.dl(o,L.body,0,0);o.restore();
     // ears behind the head

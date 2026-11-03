@@ -58,11 +58,11 @@ const PIP_PALS=[
 const PIP_SND=Object.assign({},MOCHI2_SND,SNDS.pip);
 class PipScene extends Buddy2D{
   constructor(pv){super(pv,'pip');this.snd=PIP_SND;this.PALS=PIP_PALS;this.defLook={sky:'bokeh',ground:'grass'};this.loadLook();this.col=this.pal.glow;this.chargeText='Sipping carrot juice';this.strawToMouth=true;
-    this.S=this.u.S=[.86,.8,.92,.8];this.u.bulge=.08;this.SH=[.62,-.22,.75];this.armLen=.28;this.sleepMelt=.06;this.extra=['carrot','helicopter','bighop','flower','bubbles','dj','earwave'];
+    this.S=this.u.S=[.92,.84,.74,.84];this.u.bulge=.05;this.SH=[.62,-.22,.75];this.armLen=.28;this.sleepMelt=.06;this.extra=['carrot','helicopter','bighop','flower','bubbles','dj','earwave'];
     Object.assign(this.DUR,{carrot:12,helicopter:3.6,bighop:2.6,flower:4.4,bubbles:4.6,dj:5,earwave:2.4});this.ears=[{a:0,v:0},{a:0,v:0}];this.soap=[]}
-  resize(w,h){super.resize(w,h);this.U=Math.min(w*.36,h*.205)}
+  resize(w,h){super.resize(w,h);this.U=Math.min(w*.32,h*.19)}
   tipScr(){const t=this.sp([0,1,0]);return[t[0],t[1]-this.U*.06]}
-  paintFace(){drawMochi2Face(this.fcx,this.F,this.t,{skin:this.pal.face,ink:this.pal.ink,shiver:this.shiver})}
+  paintFace(){drawMochi2Face(this.fcx,this.F,this.t,{skin:this.pal.face,ink:this.pal.ink,shiver:this.shiver,ax:this.S[0]/this.S[2]})}
   startAct(type){super.startAct(type);if(type==='carrot'&&this.act&&this.act.type==='carrot')this.prop={type:'carrot',grab:true,act:this.act,s:0,left:1,happy:0}}
   update(dt,A){super.update(dt,A);const ac=this.act,m=this.mood;
     // ears: springy, droop when sad/sleepy, perk when surprised, bounce to the beat, spin for the helicopter
@@ -162,9 +162,9 @@ function drawBoltLED(out,F,t,O){const GW=34,GH=18,g=O.grid,x=g.getContext('2d');
   for(let j=0;j<GH;j++)for(let i=0;i<GW;i++){const k=(j*GW+i)*4,a=d[k+3];if(a<70){o2.fillStyle='rgba(255,255,255,.04)';o2.fillRect(i*cw+cw*.35,j*ch+ch*.35,cw*.3,ch*.3);continue}o2.fillStyle=`rgb(${d[k]},${d[k+1]},${d[k+2]})`;o2.beginPath();o2.arc(i*cw+cw/2,j*ch+ch/2,Math.min(cw,ch)*.42,0,TAU);o2.fill()}}
 class BoltScene extends Buddy2D{
   constructor(pv){super(pv,'bolt');this.snd=BOLT_SND;this.PALS=BOLT_PALS;this.defLook={sky:'city',ground:'glass'};this.loadLook();this.col=this.pal.glow;this.chargeText='Charging up';this.snotOn=false;
-    this.S=this.u.S=[.84,.74,.95,.74];this.u.bulge=.02;this.SH=[.96,-.35,.15];this.armLen=.42;this.sleepMelt=0;this.extra=['scan','glitch','reboot','rocket','magnet','shades'];
+    this.S=this.u.S=[.84,.74,.8,.74];this.u.bulge=.02;this.SH=[.96,-.35,.15];this.armLen=.42;this.sleepMelt=0;this.extra=['scan','glitch','reboot','rocket','magnet','shades'];
     Object.assign(this.DUR,{scan:3.2,glitch:1.8,reboot:4.2,rocket:3.6,magnet:4,shades:3.4});this.fc2.width=340;this.fc2.height=180;this.grid=document.createElement('canvas');this.grid.width=34;this.grid.height=18;this.nuts=[];this.fan=0;this.faceHz=15}
-  resize(w,h){super.resize(w,h);this.U=Math.min(w*.36,h*.21)}
+  resize(w,h){super.resize(w,h);this.U=Math.min(w*.31,h*.18)}
   update(dt,A){super.update(dt,A);const ac=this.act,hv=ac&&ac.type==='rocket'?Math.sin(clamp(ac.t/ac.dur,0,1)*Math.PI)*this.h*.28:0;this.hovT=this.U*(this.mood==='sleep'?.06:.16)+Math.sin(this.t*2.2)*this.U*.03+hv;this.hov=lerp(this.hov,this.hovT,.12);this.fan+=dt*((A.active?8+A.bass*30:2)+(this.charging?8:0))}
   tipScr(){const top=this.sp([0,1,0]),U=this.U,a=this.antA*.9+this.rollAng();return[top[0]+Math.sin(a)*U*.42,top[1]-Math.cos(a)*U*.42]}
   faceSig(){const A=this.A||{},ac=this.act;return MochiScene.prototype.faceSig.call(this)+'|'+(this.mood==='dance'?Math.floor(this.t*15):0)+'|'+(ac&&['reboot','glitch','shades'].includes(ac.type)?ac.type+Math.floor(this.t*12):'')+'|'+this.mood}

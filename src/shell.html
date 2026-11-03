@@ -75,6 +75,20 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #studio canvas.gl,#fx{pointer-events:none}
 #studio .sheet,#studio .ib,#studio .chip{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}#studio .sheet{background:rgba(16,13,24,.84);max-height:42vh}#studio .ib{background:rgba(22,18,32,.85)}
 #fx{position:absolute;inset:0;width:100%;height:100%;display:block}
+#studio .sheet{max-height:none;overflow:visible;padding:4px 10px 10px;gap:8px;background:rgba(14,11,22,.9);left:8px;right:8px;bottom:calc(var(--safe-b) + 8px);border-radius:24px}
+.grab{height:18px;display:grid;place-items:center;touch-action:none;cursor:grab}.grab i{width:40px;height:4px;border-radius:2px;background:rgba(255,255,255,.28)}
+.panel{max-height:36vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding:2px 2px 4px;touch-action:pan-y;animation:pin .22s ease}
+@keyframes pin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#ctl{display:flex;flex-direction:column;gap:12px}
+.tabs{display:grid;grid-template-columns:repeat(var(--n,4),1fr);gap:6px;touch-action:none}
+.tab{height:50px;border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:700;letter-spacing:.02em;color:#c9c1dc;background:rgba(255,255,255,.04);border:1px solid var(--line);transition:background .2s,color .2s}
+.tab svg{width:19px;height:19px}.tab[aria-pressed=true]{color:var(--ink);background:var(--lav);border-color:transparent}
+.sec{display:flex;flex-direction:column;gap:7px}.sec>.micro{color:var(--mute)}
+#studio #setWp{height:46px;border-radius:15px}
+.hidebtn{height:40px;padding:0 14px;border-radius:99px;display:inline-flex;align-items:center;gap:7px;background:rgba(20,16,30,.8);border:1px solid rgba(205,180,255,.35);color:#fff;font-weight:700;font-size:13px;flex:none}
+#showUI{position:absolute;left:50%;bottom:calc(var(--safe-b) + 18px);transform:translateX(-50%);z-index:6;height:40px;padding:0 16px;border-radius:99px;display:inline-flex;align-items:center;gap:6px;background:rgba(20,16,30,.72);border:1px solid rgba(205,180,255,.5);color:#fff;font-weight:700;font-size:13px;opacity:.9}
+#studio.bare #showUI{animation:pin .3s ease}
+
 .sbar{position:absolute;top:0;left:0;right:0;padding:calc(var(--safe-t) + 12px) 14px 12px;display:flex;align-items:center;gap:10px;z-index:5;background:linear-gradient(180deg,rgba(0,0,0,.6),transparent);transition:opacity .35s,transform .35s}
 .ib{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--line);flex:none}
 .stitle{flex:1;min-width:0}.stitle b{display:block;font-size:17px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -100,7 +114,7 @@ input[type=range]{flex:1;accent-color:var(--lav);height:28px}
 #spec{flex:1;min-width:40px;height:36px;border-radius:12px;background:rgba(0,0,0,.35)}
 #setWp{height:48px;border-radius:16px;background:var(--lav);color:var(--ink);font-weight:800;font-size:15px;box-shadow:0 8px 30px rgba(205,180,255,.3)}
 .hint{color:var(--mute);font-size:12px;line-height:1.45;text-align:center;margin:0 6px}
-#showUI{position:absolute;right:14px;bottom:calc(var(--safe-b) + 14px);z-index:6;opacity:.35}
+
 #studio.wp .sbar,#studio.wp .sheet,#studio.wp #showUI{display:none!important}
 #toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 24px);transform:translate(-50%,30px);opacity:0;z-index:20;background:#1E192B;border:1px solid var(--line);padding:11px 16px;border-radius:14px;font-size:13px;max-width:88vw;text-align:center;transition:.3s;pointer-events:none}
 #toast.show{opacity:1;transform:translate(-50%,0)}
@@ -131,14 +145,16 @@ input[type=range]{flex:1;accent-color:var(--lav);height:28px}
   <canvas id="stage"></canvas><canvas id="fx"></canvas>
   <div class="sbar"><button class="ib" id="back" aria-label="Back"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
     <div class="stitle"><span class="micro over" id="sOver"></span><b id="sTitle"></b></div><span class="chip" id="moodChip"></span>
-    <button class="ib" id="hide" aria-label="Hide controls"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.6 6.6C3.9 8.3 2 12 2 12s4 7 10 7c1.8 0 3.4-.5 4.8-1.3"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button></div>
-  <div class="sheet" id="sheet"><div id="ctl" style="display:flex;flex-direction:column;gap:10px"></div>
-    <div class="audio"><button class="abtn" id="synthBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg><span>Test beat</span></button>
+    <button class="hidebtn" id="hide" aria-label="Hide controls"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.6 6.6C3.9 8.3 2 12 2 12s4 7 10 7c1.8 0 3.4-.5 4.8-1.3"/></svg><span>Hide</span></button></div>
+  <div class="sheet" id="sheet"><div class="grab" id="grab"><i></i></div>
+    <div class="panel" id="panel" hidden><div id="ctl"></div><div class="audio" id="audioBox"><button class="abtn" id="synthBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg><span>Test beat</span></button>
       <label class="abtn" id="fileBtn" title="Play a music file"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><input type="file" id="file" accept="audio/*" hidden></label>
       <button class="abtn" id="micBtn" aria-label="Listen with microphone"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       <canvas id="spec"></canvas></div>
-    <button id="setWp">Set as live wallpaper</button><p class="hint" id="hint"></p></div>
-  <button class="ib" id="showUI" hidden aria-label="Show controls"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+    <p class="hint" id="hint"></p></div>
+    <div class="tabs" id="tabs"></div>
+    <button id="setWp">Set as live wallpaper</button></div>
+  <button id="showUI" hidden aria-label="Show controls"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg><span>Show controls</span></button>
 </div>
 <div id="toast" role="status"></div>
 <div id="snapHold" aria-hidden="true" style="position:fixed;left:-9999px;top:0;width:10px;height:10px;overflow:hidden"></div>

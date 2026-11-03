@@ -4,8 +4,8 @@
    Looks at wherever you touch (head turns + eyes), dances to music, and has 22 little stories:
    phone, juice box, ice cream (take any of them away and it cries and chases you), a bird that lands
    on its antenna (heart eyes), firefly, rain + umbrella, snow on the tongue, balloon, selfie, … */
-const MOCHI2_S=[.92,.8,.84,.8];
-const MOCHI2_V=MOCHI_V.replace('float w=1.+.08*','float w=1.+.1*');
+const MOCHI2_S=[1.0,.86,.72,.86];
+const MOCHI2_V=MOCHI_V.replace('float w=1.+.08*','float w=1.+.08*');
 const MOCHI2_F=`uniform sampler2D uFace;uniform vec3 uTop,uBot,uRim,uRim2,uKey,uTint,uFill,uStarC,uLit,uBounce;uniform float uT,uFillLv,uFillA,uStar,uGlow,uRimK,uGal;varying vec3 vN,vV,vP0;
 void main(){vec3 n=normalize(vN),v=normalize(vV);float ndv=clamp(dot(n,v),0.,1.),fr=1.-ndv;
  vec3 base=mix(uBot,uTop,smoothstep(-.9,.8,vP0.y));
@@ -97,7 +97,7 @@ function drawUmbrella(c,x,y,U,rot,open){c.save();c.translate(x,y);c.rotate(rot);
   c.restore()}
 
 /* ---------- the face ---------- */
-function drawMochi2Face(g,F,t,O){O=O||{};const W=g.canvas.width,P=W*.625,AX=.801/.625;g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,W,W);g.setTransform(AX,0,0,1,W/2*(1-AX),0);
+function drawMochi2Face(g,F,t,O){O=O||{};const W=g.canvas.width,P=W*.625,AX=O.ax||1.28;g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,W,W);g.setTransform(AX,0,0,1,W/2*(1-AX),0);
   const X=x=>W/2+x*P,Y=y=>W/2-y*P,ink=O.ink||'#2b1426',SKIN=O.skin||'#fbeee9';g.lineCap='round';g.lineJoin='round';
   const E=P*.16,eyeY=Y(.16),ex=[X(-.27),X(.27)],lx=F.look[0]*E*.5,ly=F.look[1]*E*.38;
   // blush with hatch marks
@@ -166,13 +166,13 @@ function buildMochi2(){const T=T3,k=kit(),root=new T.Group(),fc=document.createE
 /* ---------- the scene ---------- */
 const MOCHI_ACTS=['wave','phone','juice','bird','hiccup','peekaboo','selfie','drum','spin','joy','balloon','firefly','shy','think','icecream','kiss','juggle','rain','knock','hearts','airplane','snow'];
 class MochiScene extends Buddy{
-  constructor(pv,id){super(pv,id||'mochi');this.snd=MOCHI2_SND;this.col='#ff9ccf';this.rimCol='#ffc2e6';this.chargeText='Drinking battery juice';this.u.S=MOCHI2_S;this.S=MOCHI2_S;this.u.bulge=.1;this.sleepMelt=.05;this.lowMelt=.05;
+  constructor(pv,id){super(pv,id||'mochi');this.snd=MOCHI2_SND;this.col='#ff9ccf';this.rimCol='#ffc2e6';this.chargeText='Drinking battery juice';this.u.S=MOCHI2_S;this.S=MOCHI2_S;this.u.bulge=.08;this.sleepMelt=.05;this.lowMelt=.05;
     this.armS=[[.15,.55],[.15,.55]];this.armT=[[.15,.55],[.15,.55]];this.armHide=[0,0];this.paw2=[null,null];this.antA=0;this.antV=0;this.antX=0;this.antXV=0;this.pvy=0;this.pitch=0;this.pitchT=0;this.spinA=0;this.roll=0;this.lit=[0,0,0];
     this.prop=null;this.bird=null;this.fx=[];this.drops=[];this.bub=null;this.flash=0;this.gz=null;this.peekT=0;this.recent=[];this.ballCol='#fff2d0';this.nextAct=null;
     this.faceHz=22;this.loadLook();this.DUR={wave:2.6,phone:16,juice:14,bird:10,hiccup:3.6,peekaboo:3.4,selfie:4.4,drum:3.6,spin:2.2,joy:2.4,balloon:11,firefly:9,shy:3.2,think:4.4,icecream:13,kiss:2.6,juggle:5.5,rain:9,knock:3.6,hearts:3.2,airplane:3.6,snow:8}}
   build(){const M=buildMochi2();this.applyPal(M);return M}
-  drawFace(g,F,t){drawMochi2Face(g,F,t,{shiver:this.shiver,skin:this.pal.lid,ink:this.pal.ink})}
-  resize(w,h){super.resize(w,h);this.U=Math.min(w*.4,h*.235);this.floor=h*.72;if(!this.toss)this.y=this.floor}
+  drawFace(g,F,t){drawMochi2Face(g,F,t,{shiver:this.shiver,skin:this.pal.lid,ink:this.pal.ink,ax:this.S[0]/(this.S[2]*1.03)})}
+  resize(w,h){super.resize(w,h);this.U=Math.min(w*.33,h*.2);this.floor=h*.72;if(!this.toss)this.y=this.floor}
   sfx(n){if(!this.preview&&!WP&&this.snd[n])this.snd[n]()}
   controls(){const go=a=>()=>{this.forceAct(a)};return[...this.lookControls(),{type:'buttons',label:'Tricks',items:[{name:'✦ Surprise',fn:()=>this.forceAct(null)},{name:'Phone',fn:go('phone')},{name:'Juice',fn:go('juice')},{name:'Bird',fn:go('bird')},{name:'Ice cream',fn:go('icecream')},{name:'Rain',fn:go('rain')}]}]}
   forceAct(a){if(this.jState!=='mochi'||this.charging)return;this.wake=40;this.prop=null;this.bird=null;this.act=null;this.pickAct(a)}
@@ -392,8 +392,8 @@ const MOCHI_PALS=[
  {name:'Peach',top:'#ffc08f',bot:'#ff4a2f',rim:'#ff2f6b',rim2:'#ffd23d',skin:'#ffaa7a',lid:'#ffbf90',ink:'#3a120a',glow:'#ff6a45'},
  {name:'Lemon',top:'#fff27a',bot:'#ffa600',rim:'#ff7a1a',rim2:'#5aff6b',skin:'#ffe15a',lid:'#fff07c',ink:'#3a2a05',glow:'#ffc21a'},
  {name:'Galaxy',top:'#8a72ff',bot:'#241060',rim:'#ff3fd8',rim2:'#2fe6ff',skin:'#6a52e6',lid:'#7a64f0',ink:'#fff0fa',glow:'#a64dff',gal:1}];
-const MOCHI_SKIES=[['stars','Stars'],['aurora','Aurora'],['nebula','Nebula'],['sunset','Synth sunset'],['bokeh','Candy lights'],['city','Neon city']];
-const MOCHI_GROUNDS=[['grid','Circuit'],['glass','Mirror'],['water','Water'],['grass','Glow grass'],['clouds','Clouds'],['moon','Moon']];
+const MOCHI_SKIES=[['ocean','Deep sea'],['stars','Stars'],['aurora','Aurora'],['nebula','Nebula'],['sunset','Synth sunset'],['bokeh','Candy lights'],['city','Neon city']];
+const MOCHI_GROUNDS=[['sand','Sea floor'],['grid','Circuit'],['glass','Mirror'],['water','Water'],['grass','Glow grass'],['clouds','Clouds'],['moon','Moon']];
 Object.assign(MochiScene.prototype,{
   loadLook(){const PL=this.PALS||MOCHI_PALS,K=this.id+'.',D=this.defLook||{};this.palI=clamp(store.get(K+'pal',0)|0,0,PL.length-1);this.pal=PL[this.palI];this.col=this.pal.glow;this.sky=store.get(K+'sky',D.sky||'nebula');this.gnd=store.get(K+'ground',D.ground||'grid');this.lum=store.get(K+'lum',1);this.slum=store.get(K+'slum',1);
     this.st2=[...Array(240)].map(()=>{const r=Math.random();return{x:rnd(),y:Math.pow(rnd(),1.25)*.78,s:r<.88?rnd(.6,1.3):rnd(1.4,2.4),a:rnd(.25,.9),ph:rnd(TAU),sp:rnd(.5,1.8),c:['#ffffff','#ffffff','#cdb4ff','#9ff3ff','#ffb3e6','#ffe7a6','#7dffb0'][(Math.random()*7)|0],big:r>.975}})},
@@ -416,6 +416,7 @@ Object.assign(MochiScene.prototype,{
     const sky=this.sky;x.globalCompositeOperation='lighter';
     if(sky==='nebula'){blob(w*.2,h*.22,w*.75,'#ff2fa0',.32);blob(w*.85,h*.12,w*.65,'#3d6bff',.34);blob(w*.6,h*.42,w*.6,'#9d3dff',.3);blob(w*.1,h*.5,w*.45,'#00d9ff',.18);blob(w*.75,h*.3,w*.25,'#ffb36b',.2);
       for(let i=0;i<60;i++)blob(rnd(w),rnd(h*.6),rnd(4,18),['#ffffff','#ff9ecf','#9ff3ff'][i%3],.25)}
+    if(sky==='ocean'){x.globalCompositeOperation='source-over';const og=x.createLinearGradient(0,0,0,h);og.addColorStop(0,'#012a4a');og.addColorStop(.55,'#00142a');og.addColorStop(1,'#000610');x.fillStyle=og;x.fillRect(0,0,w,h);x.globalCompositeOperation='lighter';for(let i=0;i<6;i++){const x0=rnd(w),wd=rnd(w*.05,w*.13),gr=x.createLinearGradient(0,0,0,h*.75);gr.addColorStop(0,'rgba(120,220,255,.14)');gr.addColorStop(1,'rgba(120,220,255,0)');x.fillStyle=gr;x.beginPath();x.moveTo(x0,0);x.lineTo(x0+wd,0);x.lineTo(x0+wd*2.5-w*.15,h*.75);x.lineTo(x0+wd*.5-w*.15,h*.75);x.fill()}}
     if(sky==='aurora'){blob(w*.5,0,w*.9,'#0b3d3a',.6);blob(w*.2,h*.1,w*.5,'#1a0b3d',.5)}
     if(sky==='sunset'){x.globalCompositeOperation='source-over';const g=x.createLinearGradient(0,h*.15,0,hz);g.addColorStop(0,'rgba(40,0,60,0)');g.addColorStop(.55,'rgba(110,10,120,.55)');g.addColorStop(.85,'rgba(255,40,120,.75)');g.addColorStop(1,'rgba(255,140,60,.9)');x.fillStyle=g;x.fillRect(0,0,w,hz);
       const R=Math.min(w*.36,h*.2),sy=hz-R*.35,sg=x.createLinearGradient(0,sy-R,0,sy+R*.4);sg.addColorStop(0,'#fff27a');sg.addColorStop(.5,'#ff9a3d');sg.addColorStop(1,'#ff2f8f');x.fillStyle=sg;x.beginPath();x.arc(w/2,sy,R,Math.PI,0);x.lineTo(w/2+R,hz);x.lineTo(w/2-R,hz);x.fill();
@@ -431,11 +432,13 @@ Object.assign(MochiScene.prototype,{
     const lim=sky==='sunset'||sky==='city'?.55:1;for(const s of this.st2){if(s.y>lim*.78&&lim<1)continue;const a=s.a*(.5+.5*Math.sin(t*s.sp*(1+tw*3)+s.ph));ctx.globalAlpha=a;ctx.fillStyle=s.c;if(s.big){ctx.globalCompositeOperation='lighter';glow(ctx,s.c,s.x*w,s.y*h,s.s*5,a*.8);ctx.globalCompositeOperation='source-over';sparkP(ctx,s.x*w,s.y*h,s.s*2.6);ctx.fill()}else ctx.fillRect(s.x*w,s.y*h,s.s,s.s)}ctx.globalAlpha=1;
     if(sky==='aurora'){ctx.globalCompositeOperation='lighter';[['#2dffb0',.16,0],['#8a5cff',.24,1.7],['#ff4fd8',.3,3.1],['#2fd2ff',.12,4.4]].forEach(([c,yb,ph],i)=>{const top=[];for(let k=0;k<=28;k++){const xx=k/28*w;top.push([xx,h*yb+Math.sin(xx*.006+t*.35+ph)*h*.045+Math.sin(xx*.017-t*.6+ph)*h*.018])}
       const th=h*(.16+.05*Math.sin(t*.4+i))*(1+bass*.4);const g=ctx.createLinearGradient(0,h*yb-h*.05,0,h*yb+th);g.addColorStop(0,hexA(c,0));g.addColorStop(.18,hexA(c,.42));g.addColorStop(1,hexA(c,0));ctx.fillStyle=g;ctx.beginPath();top.forEach(([a,b],k)=>k?ctx.lineTo(a,b):ctx.moveTo(a,b));for(let k=28;k>=0;k--)ctx.lineTo(top[k][0],top[k][1]+th);ctx.fill()});ctx.globalCompositeOperation='source-over'}
+    if(sky==='ocean'){if(!this.seaB)this.seaB=[...Array(26)].map(()=>({x:rnd(),y:rnd(),r:rnd(1.5,4.5),v:rnd(.02,.06)}));ctx.strokeStyle='rgba(170,230,255,.45)';ctx.lineWidth=1;for(const q of this.seaB){q.y-=q.v*dtFrame*(1+bass);if(q.y<-.02)q.y=1;ctx.beginPath();ctx.arc((q.x+Math.sin(t+q.r)*.01)*w,q.y*hz,q.r,0,TAU);ctx.stroke()}}
     if(sky==='bokeh'){if(!this.bok)this.bok=[...Array(26)].map(()=>({x:rnd(),y:rnd(),r:rnd(.03,.11),v:rnd(.004,.012),c:['#ff4fd8','#38e8ff','#ffe066','#9d6bff','#2dffb0','#ff8a3d'][(Math.random()*6)|0],ph:rnd(TAU)}));ctx.globalCompositeOperation='lighter';
       for(const b of this.bok){b.y-=b.v*dtFrame;if(b.y<-.1)b.y=1.05;const x=(b.x+Math.sin(t*.2+b.ph)*.03)*w,y=b.y*hz,r=b.r*w*(1+bass*.25);const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,hexA(b.c,.22));g.addColorStop(.8,hexA(b.c,.16));g.addColorStop(1,hexA(b.c,0));ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill()}ctx.globalCompositeOperation='source-over'}
     if(sky==='sunset'&&bass>.05){ctx.globalCompositeOperation='lighter';glow(ctx,'#ff4f9a',w/2,hz-Math.min(w*.36,h*.2)*.35,Math.min(w*.36,h*.2)*2.2,bass*.5);ctx.globalCompositeOperation='source-over'}},
   /* ----- grounds ----- */
   groundStatic(){const w=this.w,h=this.h,hz=this.floor-this.U*.28,key=this.gnd+'|'+w+'|'+h+'|'+Math.round(hz);if(this.gdKey===key)return this.gdC;const c=this.gdC||(this.gdC=document.createElement('canvas'));c.width=Math.max(1,w);c.height=Math.max(1,h);const x=c.getContext('2d');x.clearRect(0,0,w,h);const G=this.gnd;
+    if(G==='sand'){const g=x.createLinearGradient(0,hz,0,h);g.addColorStop(0,'#1c2a3a');g.addColorStop(1,'#07090e');x.fillStyle=g;x.beginPath();x.moveTo(0,hz+6);for(let i=0;i<=20;i++)x.lineTo(i/20*w,hz-Math.sin(i*.9)*6);x.lineTo(w,h);x.lineTo(0,h);x.fill();for(let i=0;i<10;i++){const v=rnd(.1,1),P=this.floorP(rnd(-1.1,1.1),v),s=4+v*10;x.strokeStyle=['#ff8fb0','#ffd59a','#9fe8ff'][i%3];x.globalAlpha=.6;x.lineWidth=1.5;x.beginPath();x.arc(P[0],P[1],s,Math.PI,0);for(let k=-2;k<=2;k++){x.moveTo(P[0],P[1]);x.lineTo(P[0]+k*s*.4,P[1]-s*.9)}x.stroke();x.globalAlpha=1}for(let i=0;i<8;i++){const bx=rnd(w),hh=rnd(h*.05,h*.14);x.strokeStyle=['#0d5a46','#136a52','#1a4a6a'][i%3];x.lineWidth=rnd(4,8);x.lineCap='round';x.beginPath();x.moveTo(bx,h);for(let k=1;k<=6;k++)x.lineTo(bx+Math.sin(k*1.3+i)*10,h-hh*k/6);x.stroke()}}
     if(G==='moon'){const g=x.createLinearGradient(0,hz,0,h);g.addColorStop(0,'#3a3352');g.addColorStop(1,'#16121f');x.fillStyle=g;x.beginPath();x.moveTo(0,hz+8);x.quadraticCurveTo(w/2,hz-14,w,hz+8);x.lineTo(w,h);x.lineTo(0,h);x.fill();
       for(let i=0;i<34;i++){const v=Math.pow(rnd(),.8),P=this.floorP(rnd(-1.1,1.1),v),r=(4+v*30)*rnd(.5,1.4);if(Math.abs(P[0]-w/2)<this.U*.7&&v<.3)continue;x.fillStyle='rgba(10,8,18,.45)';x.beginPath();x.ellipse(P[0],P[1],r,r*.32,0,0,TAU);x.fill();x.strokeStyle='rgba(190,175,230,.25)';x.lineWidth=1.2;x.beginPath();x.ellipse(P[0],P[1]+r*.05,r,r*.32,0,0,Math.PI);x.stroke()}}
     if(G==='clouds'){const g=x.createLinearGradient(0,hz,0,h);g.addColorStop(0,'rgba(60,30,90,.0)');g.addColorStop(.2,'rgba(60,30,90,.5)');g.addColorStop(1,'rgba(20,10,35,.9)');x.fillStyle=g;x.fillRect(0,hz-10,w,h-hz+10);
@@ -458,6 +461,7 @@ Object.assign(MochiScene.prototype,{
       for(const key in byC){const arr=byC[key],far=key.endsWith('0');ctx.strokeStyle=hexA(key.slice(0,7),far?.45:.8);ctx.lineWidth=far?1.3:2.8;ctx.beginPath();for(const b of arr){ctx.moveTo(b.px,b.py);ctx.quadraticCurveTo(b.px,b.py-b.L*.5,b.tx,b.ty)}ctx.stroke()}
       ctx.globalCompositeOperation='lighter';for(const b of this.blades)if(b.fl)glow(ctx,b.fl,b.tx,b.ty,4+b.v*10,.8);ctx.globalCompositeOperation='source-over';for(const b of this.blades)if(b.fl){ctx.fillStyle=b.fl;ctx.beginPath();ctx.arc(b.tx,b.ty,1.5+b.v*2.5,0,TAU);ctx.fill()}}
     if(G==='clouds'){const gs=this.groundStatic();ctx.drawImage(gs,Math.sin(t*.15)*8,0)}
+    if(G==='sand')ctx.drawImage(this.groundStatic(),0,0);
     if(G==='moon'){ctx.drawImage(this.groundStatic(),0,0);const lg=ctx.createLinearGradient(0,0,w,0);lg.addColorStop(0,'rgba(200,190,255,0)');lg.addColorStop(.5,'rgba(220,210,255,.5)');lg.addColorStop(1,'rgba(200,190,255,0)');ctx.fillStyle=lg;ctx.fillRect(0,hz-4,w,1)}
     ctx.save();ctx.translate(this.x,this.floor);ctx.scale(1,.2);ctx.globalCompositeOperation='lighter';glow(ctx,gc,0,0,U*1.5,.35+bass*.3);glow(ctx,this.pal.rim2,0,0,U*2.3,.14);ctx.restore()},
   reflect(ctx){const k={grid:.3,glass:.6,water:.32}[this.gnd];if(!k)return;const g=this.gl;if(!g)return;const pr=g.r.getPixelRatio(),cv=g.cv,fl=this.floor,Hs=Math.min(fl,this.U*2.3);const R=Math.min(this.h-fl,Hs*.5);if(R<4)return;
