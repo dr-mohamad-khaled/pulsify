@@ -166,7 +166,7 @@ function buildMochi2(){const T=T3,k=kit(),root=new T.Group(),fc=document.createE
 /* ---------- the scene ---------- */
 const MOCHI_ACTS=['wave','phone','juice','bird','hiccup','peekaboo','selfie','drum','spin','joy','balloon','firefly','shy','think','icecream','kiss','juggle','rain','knock','hearts','airplane','snow'];
 class MochiScene extends Buddy{
-  constructor(pv){super(pv,'mochi');this.snd=MOCHI2_SND;this.col='#ff9ccf';this.rimCol='#ffc2e6';this.chargeText='Drinking battery juice';this.u.S=MOCHI2_S;this.S=MOCHI2_S;this.u.bulge=.1;this.sleepMelt=.12;
+  constructor(pv,id){super(pv,id||'mochi');this.snd=MOCHI2_SND;this.col='#ff9ccf';this.rimCol='#ffc2e6';this.chargeText='Drinking battery juice';this.u.S=MOCHI2_S;this.S=MOCHI2_S;this.u.bulge=.1;this.sleepMelt=.12;
     this.armS=[[.15,.55],[.15,.55]];this.armT=[[.15,.55],[.15,.55]];this.armHide=[0,0];this.paw2=[null,null];this.antA=0;this.antV=0;this.antX=0;this.antXV=0;this.pvy=0;this.pitch=0;this.pitchT=0;this.spinA=0;this.roll=0;this.lit=[0,0,0];
     this.prop=null;this.bird=null;this.fx=[];this.drops=[];this.bub=null;this.flash=0;this.gz=null;this.peekT=0;this.recent=[];this.ballCol='#fff2d0';this.nextAct=null;
     this.faceHz=22;this.loadLook();this.DUR={wave:2.6,phone:16,juice:14,bird:10,hiccup:3.6,peekaboo:3.4,selfie:4.4,drum:3.6,spin:2.2,joy:2.4,balloon:11,firefly:9,shy:3.2,think:4.4,icecream:13,kiss:2.6,juggle:5.5,rain:9,knock:3.6,hearts:3.2,airplane:3.6,snow:8}}
@@ -189,7 +189,7 @@ class MochiScene extends Buddy{
   pickAct(force){if(this.prop&&this.jState!=='mochi')return;const m=this.mood;
     const P={day:['phone','juice','bird','phone','juice','bird','wave','hiccup','peekaboo','selfie','drum','spin','joy','balloon','firefly','shy','think','icecream','kiss','juggle','rain','knock','hearts','airplane','snow','lookAround','bubble','sneeze','press','stargaze'],
       evening:['phone','juice','bird','firefly','balloon','kiss','think','shy','snow','icecream','stargaze','yawn','wave','hearts','rain'],wakeup:['stretch','yawn','juice','phone','wave','nod','bird'],late:['yawn','nod','phone','firefly','stargaze','snow'],low:['sigh']};
-    let pool=P[m]||P.day;if(force===undefined&&!pool)return;if(force){this.startAct(force);return}
+    let pool=P[m]||P.day;if(this.extra&&(m==='day'||m==='evening'))pool=pool.concat(this.extra,this.extra);if(force===undefined&&!pool)return;if(force){this.startAct(force);return}
     if(force===undefined&&this.idleT>24&&(m==='day'||m==='evening')){this.startAct(Math.random()<.5?'press':'knock');this.idleT=6;return}
     let a,n=0;do{a=pool[(Math.random()*pool.length)|0];n++}while(this.recent.includes(a)&&n<12);this.recent.push(a);if(this.recent.length>6)this.recent.shift();this.startAct(a)}
   /* ----- input ----- */
@@ -349,7 +349,7 @@ class MochiScene extends Buddy{
     if(ac&&ac.type==='snow'&&this.snowF){const k=ac.t/ac.dur;for(const f of this.snowF){f.y+=f.v*dtFrame;f.x+=Math.sin(t*1.5+f.ph)*.4;if(f.y>this.h&&k<.85)f.y=-10;ctx.globalAlpha=k>.85?Math.max(0,1-(k-.85)/.15):.9;ctx.fillStyle='#fff';sparkP(ctx,f.x,f.y,U*f.r);ctx.fill();ctx.beginPath();ctx.arc(f.x,f.y,U*f.r*.35,0,TAU);ctx.fill()}ctx.globalAlpha=1;
       if(k<.5){const m=this.sp([0,-.1,1]);const fk=k/.5,fx=lerp(this.x+U*.6,m[0],fk),fy=lerp(this.y-U*2.4,m[1],fk);ctx.fillStyle='#e8f6ff';ctx.globalCompositeOperation='lighter';glowM(ctx,'#bfe6ff',fx,fy,U*.12,.8);ctx.globalCompositeOperation='source-over';sparkP(ctx,fx,fy,U*.06);ctx.fill()}}
     // paws over the face (peekaboo, shy, think, yawn, kiss)
-    for(let i=0;i<2;i++){const pw=this.paw2[i];if(!pw||!this.gl)continue;const c=this.sp(pw.pt),r=U*pw.r*this.armHide[i];if(r<2)continue;const g=ctx.createRadialGradient(c[0]-r*.3,c[1]-r*.35,r*.1,c[0],c[1],r);g.addColorStop(0,this.pal.top);g.addColorStop(.7,this.pal.skin);g.addColorStop(1,this.pal.bot);ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(c[0],c[1],r,r*.88,0,0,TAU);ctx.fill();ctx.strokeStyle='rgba(180,120,160,.35)';ctx.lineWidth=1.2;ctx.stroke()}
+    for(let i=0;i<2;i++){const pw=this.paw2[i];if(!pw||(!this.gl&&!this.is2D))continue;const c=this.sp(pw.pt),r=U*pw.r*this.armHide[i];if(r<2)continue;const g=ctx.createRadialGradient(c[0]-r*.3,c[1]-r*.35,r*.1,c[0],c[1],r);g.addColorStop(0,this.pal.top);g.addColorStop(.7,this.pal.skin);g.addColorStop(1,this.pal.bot);ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(c[0],c[1],r,r*.88,0,0,TAU);ctx.fill();ctx.strokeStyle='rgba(180,120,160,.35)';ctx.lineWidth=1.2;ctx.stroke()}
     // held props
     if(p&&p.s>0){const k=ease.outBack(p.s),held=this.jState==='mochi'||!p.grab;let pos=held?p.pos:[this.jx,this.jy];const rot=held?Math.sin(t*1.3)*.05:(this.jTilt||0);
       if(p.type==='phone'&&pos){drawPhone2(ctx,pos[0],pos[1],U*k,rot,t,false)}
@@ -395,16 +395,16 @@ const MOCHI_PALS=[
 const MOCHI_SKIES=[['stars','Stars'],['aurora','Aurora'],['nebula','Nebula'],['sunset','Synth sunset'],['bokeh','Candy lights'],['city','Neon city']];
 const MOCHI_GROUNDS=[['grid','Circuit'],['glass','Mirror'],['water','Water'],['grass','Glow grass'],['clouds','Clouds'],['moon','Moon']];
 Object.assign(MochiScene.prototype,{
-  loadLook(){this.palI=clamp(store.get('mochi.pal',0)|0,0,MOCHI_PALS.length-1);this.pal=MOCHI_PALS[this.palI];this.col=this.pal.glow;this.sky=store.get('mochi.sky','nebula');this.ground=store.get('mochi.ground','grid');this.lum=store.get('mochi.lum',1);this.slum=store.get('mochi.slum',1);
+  loadLook(){const PL=this.PALS||MOCHI_PALS,K=this.id+'.',D=this.defLook||{};this.palI=clamp(store.get(K+'pal',0)|0,0,PL.length-1);this.pal=PL[this.palI];this.col=this.pal.glow;this.sky=store.get(K+'sky',D.sky||'nebula');this.gnd=store.get(K+'ground',D.ground||'grid');this.lum=store.get(K+'lum',1);this.slum=store.get(K+'slum',1);
     this.st2=[...Array(240)].map(()=>{const r=Math.random();return{x:rnd(),y:Math.pow(rnd(),1.25)*.78,s:r<.88?rnd(.6,1.3):rnd(1.4,2.4),a:rnd(.25,.9),ph:rnd(TAU),sp:rnd(.5,1.8),c:['#ffffff','#ffffff','#cdb4ff','#9ff3ff','#ffb3e6','#ffe7a6','#7dffb0'][(Math.random()*7)|0],big:r>.975}})},
   applyPal(M){M=M||this.M;if(!M)return;const p=this.pal,U=M.U;U.uTop.value.set(p.top);U.uBot.value.set(p.bot);U.uRim.value.set(p.rim);U.uRim2.value.set(p.rim2);U.uGal.value=p.gal||0;
     const m=M.arms[0].userData.m.material;m.color.set(p.skin);m.sheenColor.set(p.rim);m.emissive.set(p.bot);m.emissiveIntensity=p.gal?.5:.35;m.roughness=.55;this.col=p.glow},
-  saveLook(k,v){store.set('mochi.'+k,v);try{delete SNAPS.b_mochi;snapSave()}catch(e){}},
+  saveLook(k,v){store.set(this.id+'.'+k,v);try{delete SNAPS['b_'+this.id];snapSave()}catch(e){}},
   lookControls(){return[
-    {type:'swatch',label:'Color',value:this.palI,items:MOCHI_PALS.map(p=>({name:p.name,cols:[p.top,p.bot]})),set:i=>{this.palI=i;this.pal=MOCHI_PALS[i];this.applyPal();this.saveLook('pal',i)}},
+    {type:'swatch',label:'Color',value:this.palI,items:(this.PALS||MOCHI_PALS).map(p=>({name:p.name,cols:[p.sw0||p.top,p.sw1||p.bot]})),set:i=>{this.palI=i;this.pal=(this.PALS||MOCHI_PALS)[i];this.lastSig=null;this.applyPal();this.saveLook('pal',i)}},
     {type:'buttons',label:'Sky',items:MOCHI_SKIES.map(([id,n])=>({name:n,on:this.sky===id,fn:()=>{this.sky=id;this.bgKey=null;this.saveLook('sky',id)}}))},
-    {type:'buttons',label:'Ground',items:MOCHI_GROUNDS.map(([id,n])=>({name:n,on:this.ground===id,fn:()=>{this.ground=id;this.gdKey=null;this.saveLook('ground',id)}}))},
-    {type:'slider',label:'Mochi glow',min:.5,max:1.7,step:.05,value:this.lum,set:v=>{this.lum=v;this.saveLook('lum',v)}},
+    {type:'buttons',label:'Ground',items:MOCHI_GROUNDS.map(([id,n])=>({name:n,on:this.gnd===id,fn:()=>{this.gnd=id;this.gdKey=null;this.saveLook('ground',id)}}))},
+    {type:'slider',label:'Glow',min:.5,max:1.7,step:.05,value:this.lum,set:v=>{this.lum=v;this.saveLook('lum',v)}},
     {type:'slider',label:'Scene light',min:.15,max:1.6,step:.05,value:this.slum,set:v=>{this.slum=v;this.saveLook('slum',v)}}]},
   /* brightness: applied right before the 3D body is drawn (dims or boosts sky + ground) */
   under(ctx){const L=this.slum;if(Math.abs(L-1)<.02)return;ctx.save();ctx.setTransform(1,0,0,1,0,0);if(L<1){ctx.globalAlpha=1-L;ctx.fillStyle='#000';ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height)}else{ctx.globalCompositeOperation='lighter';ctx.globalAlpha=Math.min(1,L-1);ctx.drawImage(ctx.canvas,0,0)}ctx.restore()},
@@ -435,14 +435,14 @@ Object.assign(MochiScene.prototype,{
       for(const b of this.bok){b.y-=b.v*dtFrame;if(b.y<-.1)b.y=1.05;const x=(b.x+Math.sin(t*.2+b.ph)*.03)*w,y=b.y*hz,r=b.r*w*(1+bass*.25);const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,hexA(b.c,.22));g.addColorStop(.8,hexA(b.c,.16));g.addColorStop(1,hexA(b.c,0));ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill()}ctx.globalCompositeOperation='source-over'}
     if(sky==='sunset'&&bass>.05){ctx.globalCompositeOperation='lighter';glow(ctx,'#ff4f9a',w/2,hz-Math.min(w*.36,h*.2)*.35,Math.min(w*.36,h*.2)*2.2,bass*.5);ctx.globalCompositeOperation='source-over'}},
   /* ----- grounds ----- */
-  groundStatic(){const w=this.w,h=this.h,hz=this.floor-this.U*.28,key=this.ground+'|'+w+'|'+h+'|'+Math.round(hz);if(this.gdKey===key)return this.gdC;const c=this.gdC||(this.gdC=document.createElement('canvas'));c.width=Math.max(1,w);c.height=Math.max(1,h);const x=c.getContext('2d');x.clearRect(0,0,w,h);const G=this.ground;
+  groundStatic(){const w=this.w,h=this.h,hz=this.floor-this.U*.28,key=this.gnd+'|'+w+'|'+h+'|'+Math.round(hz);if(this.gdKey===key)return this.gdC;const c=this.gdC||(this.gdC=document.createElement('canvas'));c.width=Math.max(1,w);c.height=Math.max(1,h);const x=c.getContext('2d');x.clearRect(0,0,w,h);const G=this.gnd;
     if(G==='moon'){const g=x.createLinearGradient(0,hz,0,h);g.addColorStop(0,'#3a3352');g.addColorStop(1,'#16121f');x.fillStyle=g;x.beginPath();x.moveTo(0,hz+8);x.quadraticCurveTo(w/2,hz-14,w,hz+8);x.lineTo(w,h);x.lineTo(0,h);x.fill();
       for(let i=0;i<34;i++){const v=Math.pow(rnd(),.8),P=this.floorP(rnd(-1.1,1.1),v),r=(4+v*30)*rnd(.5,1.4);if(Math.abs(P[0]-w/2)<this.U*.7&&v<.3)continue;x.fillStyle='rgba(10,8,18,.45)';x.beginPath();x.ellipse(P[0],P[1],r,r*.32,0,0,TAU);x.fill();x.strokeStyle='rgba(190,175,230,.25)';x.lineWidth=1.2;x.beginPath();x.ellipse(P[0],P[1]+r*.05,r,r*.32,0,0,Math.PI);x.stroke()}}
     if(G==='clouds'){const g=x.createLinearGradient(0,hz,0,h);g.addColorStop(0,'rgba(60,30,90,.0)');g.addColorStop(.2,'rgba(60,30,90,.5)');g.addColorStop(1,'rgba(20,10,35,.9)');x.fillStyle=g;x.fillRect(0,hz-10,w,h-hz+10);
       for(let row=0;row<6;row++){const v=row/5,y=hz+(h-hz)*Math.pow(v,1.2)+6,r=12+v*46;for(let xx=-r;xx<w+r;xx+=r*1.5){const cy=y+rnd(-r*.15,r*.15),gr=x.createRadialGradient(xx-r*.2,cy-r*.25,r*.1,xx,cy,r*1.7);const c=['#ffb8e0','#c4a8ff','#9fd8ff','#ffc8ec'][(row+Math.abs((xx/r)|0))%4];gr.addColorStop(0,hexA(c,.7));gr.addColorStop(.6,hexA(c,.45));gr.addColorStop(1,hexA(c,0));x.fillStyle=gr;x.beginPath();x.ellipse(xx,cy,r*1.7,r*.75,0,0,TAU);x.fill()}}
       x.globalCompositeOperation='source-atop';const sh=x.createLinearGradient(0,hz,0,h);sh.addColorStop(0,'rgba(0,0,0,.05)');sh.addColorStop(1,'rgba(10,0,30,.55)');x.fillStyle=sh;x.fillRect(0,hz-30,w,h-hz+30);x.globalCompositeOperation='source-over'}
     this.gdKey=key;return c},
-  drawFloor(ctx){const w=this.w,h=this.h,U=this.U,t=this.t,A=this.A||{},bass=A.active?A.bass:0,G=this.ground,hz=this.floor-U*.28,gc=this.charging?'#4dff7a':this.pal.glow;
+  drawFloor(ctx){const w=this.w,h=this.h,U=this.U,t=this.t,A=this.A||{},bass=A.active?A.bass:0,G=this.gnd,hz=this.floor-U*.28,gc=this.charging?'#4dff7a':this.pal.glow;
     if(G==='grid'){Buddy.prototype.drawFloor.call(this,ctx);const col=this.charging?'93,255,140':'205,170,255';ctx.lineWidth=1;
       for(let i=1;i<9;i++){const v=Math.pow(i/9,1.6),y=hz+(h-hz)*v;ctx.strokeStyle=`rgba(${col},${.07+v*.1})`;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}
       for(let i=-8;i<=8;i++){const P0=this.floorP(i*.12,0),P1=this.floorP(i*.12,1);ctx.strokeStyle=`rgba(${col},.09)`;ctx.beginPath();ctx.moveTo(P0[0],P0[1]);ctx.lineTo(P1[0],P1[1]);ctx.stroke()}return}
@@ -460,11 +460,11 @@ Object.assign(MochiScene.prototype,{
     if(G==='clouds'){const gs=this.groundStatic();ctx.drawImage(gs,Math.sin(t*.15)*8,0)}
     if(G==='moon'){ctx.drawImage(this.groundStatic(),0,0);const lg=ctx.createLinearGradient(0,0,w,0);lg.addColorStop(0,'rgba(200,190,255,0)');lg.addColorStop(.5,'rgba(220,210,255,.5)');lg.addColorStop(1,'rgba(200,190,255,0)');ctx.fillStyle=lg;ctx.fillRect(0,hz-4,w,1)}
     ctx.save();ctx.translate(this.x,this.floor);ctx.scale(1,.2);ctx.globalCompositeOperation='lighter';glow(ctx,gc,0,0,U*1.5,.35+bass*.3);glow(ctx,this.pal.rim2,0,0,U*2.3,.14);ctx.restore()},
-  reflect(ctx){const k={grid:.3,glass:.6,water:.32}[this.ground];if(!k)return;const g=this.gl;if(!g)return;const pr=g.r.getPixelRatio(),cv=g.cv,fl=this.floor,Hs=Math.min(fl,this.U*2.3);const R=Math.min(this.h-fl,Hs*.5);if(R<4)return;
+  reflect(ctx){const k={grid:.3,glass:.6,water:.32}[this.gnd];if(!k)return;const g=this.gl;if(!g)return;const pr=g.r.getPixelRatio(),cv=g.cv,fl=this.floor,Hs=Math.min(fl,this.U*2.3);const R=Math.min(this.h-fl,Hs*.5);if(R<4)return;
     const rc=this.rc||(this.rc=document.createElement('canvas')),rw=Math.max(2,Math.round(this.w/2)),rh=Math.max(2,Math.round(R/2));if(rc.width!==rw||rc.height!==rh){rc.width=rw;rc.height=rh}const x=rc.getContext('2d');
     x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='copy';x.setTransform(1,0,0,-1,0,rh);try{x.drawImage(cv,0,(fl-Hs)*pr,cv.width,Hs*pr,0,0,rw,rh)}catch(e){return}
     x.setTransform(1,0,0,1,0,0);x.globalCompositeOperation='destination-in';const gr=x.createLinearGradient(0,0,0,rh);gr.addColorStop(0,`rgba(0,0,0,${k})`);gr.addColorStop(.55,`rgba(0,0,0,${k*.2})`);gr.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gr;x.fillRect(0,0,rw,rh);x.globalCompositeOperation='source-over';
-    if(this.ground==='water'){const t=this.t;for(let i=0;i<rh;i+=2){const off=Math.sin(i*.5+t*4)*(1+i*.06);ctx.drawImage(rc,0,i,rw,2,off,fl-1+i*R/rh,this.w,2*R/rh+.5)}}else ctx.drawImage(rc,0,fl-1,this.w,R)}
+    if(this.gnd==='water'){const t=this.t;for(let i=0;i<rh;i+=2){const off=Math.sin(i*.5+t*4)*(1+i*.06);ctx.drawImage(rc,0,i,rw,2,off,fl-1+i*R/rh,this.w,2*R/rh+.5)}}else ctx.drawImage(rc,0,fl-1,this.w,R)}
 });
 
 /* ----- GPU mirror reflection (no canvas read-back): the body is rendered upside-down into a
@@ -478,10 +478,16 @@ Object.assign(MochiScene.prototype,{
       transparent:true,depthTest:false,depthWrite:false,premultipliedAlpha:true});
     this.mir=new T.Mesh(new T.PlaneGeometry(2,2),mm);this.mir.frustumCulled=false;this.mir.renderOrder=-10;g.sc.add(this.mir);this.layoutGL()},
   layoutGL(){Buddy.prototype.layoutGL.call(this);const g=this.gl;if(!g||!this.rt)return;const c=g.r.domElement;this.rt.setSize(Math.max(2,c.width>>1),Math.max(2,c.height>>1))},
-  renderGL(){const g=this.gl,r=g.r,k={grid:.32,glass:.6,water:.36}[this.ground];
+  renderGL(){const g=this.gl,r=g.r,k={grid:.32,glass:.6,water:.36}[this.gnd];
     if(k&&this.world&&this.mir){const pr=r.getPixelRatio(),Yf=this.h/2-this.floor,c=r.domElement;this.world.scale.y=-1;this.world.position.y=2*Yf;this.mir.visible=false;
-      r.setRenderTarget(this.rt);r.clear();r.render(g.sc,g.cam);r.setRenderTarget(null);this.world.scale.y=1;this.world.position.y=0;this.mir.visible=true;
-      const U=this.mir.material.uniforms;U.uRes.value.set(c.width,c.height);U.uFl.value=(this.h-this.floor)*pr;U.uR.value=Math.min(this.h-this.floor,this.U*1.3)*pr;U.uK.value=k;U.uT.value=this.t;U.uW.value=this.ground==='water'?1:0}
+      if((this.mirN=(this.mirN||0)+1)%2){r.setRenderTarget(this.rt);r.clear();r.render(g.sc,g.cam);r.setRenderTarget(null)}this.world.scale.y=1;this.world.position.y=0;this.mir.visible=true;
+      const U=this.mir.material.uniforms;U.uRes.value.set(c.width,c.height);U.uFl.value=(this.h-this.floor)*pr;U.uR.value=Math.min(this.h-this.floor,this.U*1.3)*pr;U.uK.value=k;U.uT.value=this.t;U.uW.value=this.gnd==='water'?1:0}
     else if(this.mir)this.mir.visible=false;r.render(g.sc,g.cam)},
   detach(){if(this.rt){this.rt.dispose();this.rt=null}Buddy.prototype.detach.call(this)}
+});
+
+/* ----- battery: only re-upload the face when it actually changed ----- */
+Object.assign(MochiScene.prototype,{
+  faceSig(){const F=this.F,anim=/heart|star|spiral|cry|teary|note|wow/.test(F.eye)||F.mouth==='wobble'||F.sparkle>0;return F.eye+'|'+F.mouth+'|'+F.eyeOpen.toFixed(2)+'|'+F.mouthOpen.toFixed(2)+'|'+F.look[0].toFixed(2)+','+F.look[1].toFixed(2)+'|'+F.blush.toFixed(2)+'|'+F.brow.toFixed(1)+'|'+(this.shiver?1:0)+'|'+F.sweat.toFixed(1)+'|'+Math.floor(this.t*(anim?20:5))+'|'+this.palI},
+  fpsCap(){if(this.mood==='sleep'&&!this.act&&!this.ptrs.size)return 15;return 0}
 });

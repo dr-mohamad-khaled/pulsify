@@ -20,8 +20,8 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');cl
 
 /* ---------- catalog ---------- */
 const BUDDIES={mochi:{name:'Mochi',col:'#ff9ccf',tag:'Cream bean with a glowing antenna',make:pv=>new MochiScene(pv),hint:'Mochi looks wherever you touch. Poke it, pull it like dough, hold to pet. It dances to your music, plays on its phone, sips milk, licks ice cream (take any of them away and it cries and chases you), and watches birds with heart eyes. Try Tricks.'},
-  pip:{name:'Pip',col:'#5fd0ff',tag:'Static puffball who lives for music',make:pv=>new PipScene(pv),hint:'Poke Pip to tickle it, pull its fluff, hold to pet. It puts its headphones on when music plays. While charging its fur fills with static — touch it for a zap.'},
-  bolt:{name:'Bolt',col:'#5CF2E0',tag:'Squishy robot with an LED face',make:pv=>new BoltScene(pv),hint:'Poke Bolt’s screen, squish it, hold to pet. Its face turns into an equaliser with music. While charging it’s plugged in — pull the plug and watch it panic.'}};
+  pip:{name:'Pip',col:'#5fd0ff',tag:'Chubby bunny with floppy ears',make:pv=>new PipScene(pv),hint:'Pip looks wherever you touch. It puts its headphones on and dances when music plays, sips carrot juice while charging (take it away and it cries), and does everything Mochi does plus munching a carrot, helicopter ears, giant hops, sniffing flowers, soap bubbles, DJing and waving with its ear. Try Tricks and Specials.'},
+  bolt:{name:'Bolt',col:'#5CF2E0',tag:'Hover robot with an LED face',make:pv=>new BoltScene(pv),hint:'Bolt follows your finger with its LED eyes, turns its face into an equaliser with music, hovers on a jet, and does everything Mochi does plus laser scans, glitches, reboots, rocket jumps, a magnet and cool shades. Try Tricks and Specials.'}};
 const BUD_IDS=Object.keys(BUDDIES);
 const WORLDS=[{id:'cosmos',title:'Cosmic Odyssey',over:'Space · 5 worlds',make:pv=>new CosmicScene(pv),hint:'Swipe to spin, pinch to zoom, tap to fire a solar flare or a supernova. The atmosphere breathes with the melody.',wide:true},
   {id:'obsidian',title:'Liquid Obsidian',over:'Water · Your colours',make:pv=>new ObsidianScene(pv),hint:'Drag to draw ripples, tap to splash. Bass kicks send shockwaves across the surface. Pick colours and brightness below.'},
@@ -129,10 +129,10 @@ let cfgT=0;function wpTick(dt){cfgT-=dt;if(HSTATE.visible&&(!wasVisible||cfgT<0)
 
 /* ---------- main loop ---------- */
 let last=performance.now(),poll=0,homeT=0,sizeT=0,specT=0,fxUsed=false;
-let idleSkip=0;function frame(now){if(WP&&view==='studio'&&!ptrs.size&&!(AE.active&&AE.level>.02)&&(now-last)<28){requestAnimationFrame(frame);return}const dt=Math.min(.05,(now-last)/1000);last=now;dtFrame=dt;const t=now/1000;if(HOST&&(poll^=1))pollHost();
+let backT=1;function frame(now){if(WP&&view==='studio'&&scene&&!ptrs.size){const cap=scene.fpsCap?scene.fpsCap():0,minDt=cap?1000/cap-3:(AE.active&&AE.level>.02)?0:28;if(now-last<minDt){requestAnimationFrame(frame);return}}const dt=Math.min(.05,(now-last)/1000);last=now;dtFrame=dt;const t=now/1000;if(HOST&&(poll^=1))pollHost();
   if(WP&&!HSTATE.visible){requestAnimationFrame(frame);return}
   AE.update(dt,t);if(WP)wpTick(dt);
-  if(view==='studio'&&scene){if((sizeT=(sizeT||0)+dt)>.5){sizeT=0;const[a,b]=stageWH();if(a!==SW||b!==SH)sizeStage()}const w=SW,h=SH;scene.update(dt,AE);if(scene.isBuddy||fxUsed){fctx.setTransform(1,0,0,1,0,0);fctx.clearRect(0,0,fxc.width,fxc.height);fctx.setTransform(dpr,0,0,dpr,0,0)}fxUsed=!!scene.isBuddy;scene.octx=scene.isBuddy?fctx:null;sctx.setTransform(dpr,0,0,dpr,0,0);sctx.globalAlpha=1;sctx.globalCompositeOperation='source-over';sctx.fillStyle='#000';sctx.fillRect(0,0,w,h);scene.draw(sctx);
+  if(view==='studio'&&scene){if((sizeT=(sizeT||0)+dt)>.5){sizeT=0;const[a,b]=stageWH();if(a!==SW||b!==SH)sizeStage()}const w=SW,h=SH;scene.update(dt,AE);let skipB=false;if(scene.backHz&&scene.isBuddy){backT+=dt;if(backT<1/scene.backHz)skipB=true;else backT=0}if(scene.isBuddy||fxUsed){fctx.setTransform(1,0,0,1,0,0);fctx.clearRect(0,0,fxc.width,fxc.height);fctx.setTransform(dpr,0,0,dpr,0,0)}fxUsed=!!scene.isBuddy;scene.octx=scene.isBuddy?fctx:null;sctx.setTransform(dpr,0,0,dpr,0,0);sctx.globalAlpha=1;sctx.globalCompositeOperation='source-over';if(!skipB){sctx.fillStyle='#000';sctx.fillRect(0,0,w,h)}sctx.save();fctx.save();scene.draw(sctx,skipB);fctx.restore();sctx.restore();
     if(!WP){if((specT=(specT||0)+dt)>.033){specT=0;drawSpec()}if(scene.isBuddy){const mc=$('#moodChip'),txt=scene.mood==='charge'?scene.chargeText:(MOOD_TEXT[scene.mood]||'');if(mc.textContent!==txt)mc.textContent=txt}if((homeT+=dt)>.5){homeT=0;audioUI()}}}
   else if(view==='home'){if((homeT+=dt)>1){homeT=0;homeText()}}
   requestAnimationFrame(frame)}

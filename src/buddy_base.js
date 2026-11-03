@@ -107,7 +107,7 @@ function placeMochiParts(M,u,t,earTw,earDroop){for(const[i,e]of M.ears.entries()
   for(const[i,f]of M.feet.entries()){const s=i?1:-1,p=mochiDeform([s*.55,-.95,.45],u);f.position.set(p[0],Math.max(.05,p[1]*.4),p[2]+.04)}}
 
 class Buddy extends Scene{
-  constructor(pv,id){super(pv);this.isBuddy=true;this.id=id;this.snd=SNDS[id];this.hov=0;this.force=null;this.simCharge=false;
+  constructor(pv,id){super(pv);this.isBuddy=true;this.backHz=30;this.id=id;this.snd=SNDS[id];this.hov=0;this.force=null;this.simCharge=false;
     this.u={sq:0,melt:0,press:0,breath:0,shear:[0,0,0],pull:[0,0,0],S:this.S||MOCHI_S};this.sqv=0;this.shv=[0,0,0];this.pullv=[0,0,0];this.pullT=null;this.pokeT=9;this.pokeAmp=0;this.pokeDir=[0,0,1];
     this.x=0;this.y=0;this.vx=0;this.vy=0;this.rot=0;this.vr=0;this.toss=false;this.yaw=0;this.dz=0;this.ground=true;
     this.F={eye:'normal',eyeOpen:1,look:[0,0],brow:0,browUp:0,browOn:false,mouth:'cat',mouthOpen:0,blush:.6,sparkle:0,sweat:0};this.look=[0,0];this.sacc=[0,0];this.saccT=1;this.blinkT=2;this.blink=0;
@@ -246,7 +246,7 @@ class Buddy extends Scene{
     const Uf=M.U;Uf.uT.value=this.t;Uf.uSq.value=u.sq;Uf.uMelt.value=u.melt;Uf.uPress.value=u.press;Uf.uBreath.value=u.breath;Uf.uPull.value.set(...u.pull);Uf.uShear.value.set(...u.shear);
     Uf.uPoke.value.set(this.pokeDir[0],this.pokeDir[1],this.pokeDir[2],this.pokeT<1.2?this.pokeAmp:0);Uf.uPokeT.value=this.pokeT;
     if(Uf.uFillA){Uf.uFillA.value=lerp(Uf.uFillA.value,0,.05);Uf.uFillLv.value=HSTATE.charging?HSTATE.battery:.45+.4*((this.t*.02)%1);Uf.uStar.value=this.star*(.8+.2*Math.sin(this.t*5));Uf.uGlow.value=A.active?A.bass*.6:0}
-    M.root.position.y+=this.hov;if(this.t-this.faceT>1/(this.faceHz||30)){this.faceT=this.t;this.drawFace(M.fctx,this.F,this.t);M.ft.needsUpdate=true}
+    M.root.position.y+=this.hov;if(this.t-this.faceT>1/(this.faceHz||30)){this.faceT=this.t;const sig=this.faceSig?this.faceSig():null;if(sig===null||sig!==this.lastSig){this.lastSig=sig;this.drawFace(M.fctx,this.F,this.t);M.ft.needsUpdate=true}}
     this.place(dt,A)}
   /* ----- Mochi only from here ----- */
   mochiPose(dt,A){const g=this.gl,M=this.M,u=this.u,w=this.w,h=this.h,Uf=M.U;placeMochiParts(M,u,this.t,this.earTw,this.earD);
@@ -264,15 +264,15 @@ class Buddy extends Scene{
   jarScreen(){const G=this.gl&&this.gl.jar&&this.gl.jar.g;if(!G||!G.visible)return null;return this.projW(G.localToWorld(new T3.Vector3(0,.25,0)))}
   grabBack(){this.jState='mochi';this.act=null;this.startAct('happy');this.say={g:'♥',life:1.4};this.tears.length=0;haptic(18);if(!this.preview&&!WP)this.snd.yay()}
   /* ----- draw ----- */
-  draw(ctx){const w=this.w,h=this.h,U=this.U;const A=this.A||{active:false},night=(this.force||dayPhase())==='night',tw=A.active?A.treble:0;
-    if(this.drawSky)this.drawSky(ctx);else for(const s of this.stars){ctx.globalAlpha=s.a*(night?1:.7)*(.55+.45*Math.sin(this.t*s.sp*(1+tw*3)+s.ph));ctx.fillStyle=s.c;ctx.fillRect(s.x*w,s.y*h,s.s,s.s)}ctx.globalAlpha=1;
+  draw(ctx,skipBack){const w=this.w,h=this.h,U=this.U;const A=this.A||{active:false},night=(this.force||dayPhase())==='night',tw=A.active?A.treble:0;
+    if(!skipBack){if(this.drawSky)this.drawSky(ctx);else for(const s of this.stars){ctx.globalAlpha=s.a*(night?1:.7)*(.55+.45*Math.sin(this.t*s.sp*(1+tw*3)+s.ph));ctx.fillStyle=s.c;ctx.fillRect(s.x*w,s.y*h,s.s,s.s)}ctx.globalAlpha=1;
     if(this.shoot){const sh=this.shoot,k=sh.t/1.1,x=(sh.x+sh.dir*k*.4)*w,y=(sh.y+k*.1)*h,tx=x-sh.dir*w*.11,ty=y-h*.03,gr=ctx.createLinearGradient(tx,ty,x,y);gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(1,`rgba(255,255,255,${.7*(1-k)})`);ctx.strokeStyle=gr;ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(tx,ty);ctx.lineTo(x,y);ctx.stroke()}
     if(this.fall){const p=this.fallPos(),r=4+3*Math.sin(this.t*12);ctx.globalCompositeOperation='lighter';glow(ctx,'#ffe08a',p[0],p[1],r*5,.8);ctx.globalCompositeOperation='source-over';drawShape(ctx,'stars',p[0],p[1],r*1.6,this.t*4,'#fff3c4',1)}
     for(const f of this.fog){const a=Math.min(1,f.life/1.5)*.16;const g2=ctx.createRadialGradient(f.x,f.y,0,f.x,f.y,U*.55);g2.addColorStop(0,`rgba(235,240,255,${a})`);g2.addColorStop(1,'rgba(235,240,255,0)');ctx.fillStyle=g2;ctx.beginPath();ctx.ellipse(f.x,f.y,U*.6,U*.38,0,0,TAU);ctx.fill()}
-    this.drawFloor(ctx);this.drawSparkles(ctx,false);if(this.under)this.under(ctx);
+    this.drawFloor(ctx);this.drawSparkles(ctx,false);if(this.under)this.under(ctx);}
     // the 3D jelly
     if(this.gl){this.adapt(dtFrame);if(this.renderGL)this.renderGL();else this.gl.r.render(this.gl.sc,this.gl.cam);if(this.reflect)this.reflect(ctx)}
-    const bk=ctx;ctx=this.octx||ctx;
+    const bk=ctx;ctx=this.octx||ctx;if(!this.gl&&this.draw2D)this.draw2D(ctx);
     // bubble being blown / snot bubble while sleeping
     const ac=this.act;if(ac&&ac.type==='bubble'){const k=ac.t/ac.dur;if(k<.85){const c=this.scr([0,-.12,1]),r=U*.05+U*.32*ease.inOut(k/.85)+Math.sin(this.t*9)*U*.01;this.drawBubble(ctx,c[0],c[1]+r*.6,r,'255,170,205')}}
     if(this.over)this.over(ctx);
