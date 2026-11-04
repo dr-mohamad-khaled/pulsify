@@ -41,7 +41,7 @@ import app.pulsify.engine.SkyScene
 fun SettingsScreen(state: AppState, onBack: () -> Unit) {
     val c = LocalPulse.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) state.setMusicReact(true)
+        if (granted) state.applyMusicReact(true)
     }
     Column(
         Modifier.fillMaxSize().background(c.bg).verticalScroll(rememberScrollState())
@@ -67,7 +67,7 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
                     "Uses Android's Visualizer to read only what your phone is playing. Nothing is recorded or sent anywhere.",
                     state.musicReact && Pulse.audio.hasPermission(),
                 ) { on ->
-                    if (on && !Pulse.audio.hasPermission()) launcher.launch(Manifest.permission.RECORD_AUDIO) else state.setMusicReact(on)
+                    if (on && !Pulse.audio.hasPermission()) launcher.launch(Manifest.permission.RECORD_AUDIO) else state.applyMusicReact(on)
                 }
             }
         }
@@ -77,8 +77,8 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
         Gap(8.dp)
         GlassCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                ToggleRow("Battery saver", "Caps the wallpaper at 30 fps and a lower resolution", state.batterySaver) { state.setBatterySaver(it) }
-                ToggleRow("Shuffle on unlock", "A different sky each time you unlock your phone", state.shuffle) { state.setShuffle(it) }
+                ToggleRow("Battery saver", "Caps the wallpaper at 30 fps and a lower resolution", state.batterySaver) { state.applyBatterySaver(it) }
+                ToggleRow("Shuffle on unlock", "A different sky each time you unlock your phone", state.shuffle) { state.applyShuffle(it) }
                 Gap(6.dp)
                 Text(
                     "The wallpaper runs at 60 fps only while you touch it or music plays, 30 fps idle, 15 fps at night, and stops completely when it's hidden.",
@@ -107,7 +107,7 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
                                         else Brush.linearGradient(listOf(Color(argb), Color(SkyScene.shiftHue(argb, 38f)))),
                                     )
                                     .border(if (sel) 2.5.dp else 0.dp, if (sel) Color.White else Color.Transparent, CircleShape)
-                                    .pressable { state.setAccent(argb) },
+                                    .pressable { state.applyAccent(argb) },
                                 contentAlignment = Alignment.Center,
                             ) { if (argb == 0) Text("AUTO", style = T.micro, color = Color.Black) }
                         }

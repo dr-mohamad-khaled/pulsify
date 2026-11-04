@@ -72,17 +72,17 @@ class AppState {
         loaded = true
     }
 
-    fun setVariant(v: Int) { Pulse.prefs.variant = v }
-    fun setCharacter(c: Int) { Pulse.prefs.character = c }
-    fun setCoat(c: Int) { Pulse.prefs.coat = c }
+    fun applyVariant(v: Int) { Pulse.prefs.variant = v }
+    fun applyCharacter(c: Int) { Pulse.prefs.character = c }
+    fun applyCoat(c: Int) { Pulse.prefs.coat = c }
 
     val displayName: String
         get() = app.pulsify.engine.creatureInfo(character)?.name ?: SKY_VARIANTS[variant.coerceIn(0, SKY_VARIANTS.size - 1)].name
-    fun setAccent(argb: Int) { Pulse.prefs.accent = argb }
-    fun setBrightness(b: Float) { Pulse.prefs.brightness = b }
-    fun setMusicReact(on: Boolean) { Pulse.prefs.musicReact = on }
-    fun setBatterySaver(on: Boolean) { Pulse.prefs.batterySaver = on }
-    fun setShuffle(on: Boolean) { Pulse.prefs.shuffleOnUnlock = on }
+    fun applyAccent(argb: Int) { Pulse.prefs.accent = argb }
+    fun applyBrightness(b: Float) { Pulse.prefs.brightness = b }
+    fun applyMusicReact(on: Boolean) { Pulse.prefs.musicReact = on }
+    fun applyBatterySaver(on: Boolean) { Pulse.prefs.batterySaver = on }
+    fun applyShuffle(on: Boolean) { Pulse.prefs.shuffleOnUnlock = on }
 
     val level: Int get() = Prefs.level(xp)
     val levelProgress: Float

@@ -126,8 +126,8 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                             tile, state,
                             modifier = Modifier.weight(1f).enter(5 + row * 2 + i, 40L),
                             onOpen = {
-                                if (tile.creature > 0) { state.setCharacter(tile.creature); onOpenStudio() }
-                                else if (tile.variant != null) { state.setCharacter(0); state.setVariant(tile.variant); onOpenStudio() }
+                                if (tile.creature > 0) { state.applyCharacter(tile.creature); onOpenStudio() }
+                                else if (tile.variant != null) { state.applyCharacter(0); state.applyVariant(tile.variant); onOpenStudio() }
                                 else tile.coming?.let { cs ->
                                     state.toast = AppState.Toast("${cs.name} is in the lab", "Arrives in milestone ${cs.milestone}. Each one is hand-built, one at a time.")
                                 }

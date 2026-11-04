@@ -259,8 +259,8 @@ private fun LookPanel(state: AppState) {
         MicroLabel("Creature")
         Gap(8.dp)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            app.pulsify.engine.CREATURES.forEach { cr -> Pill(cr.name, state.character == cr.id) { state.setCharacter(cr.id) } }
-            Pill("Just the sky", state.character == 0) { state.setCharacter(0) }
+            app.pulsify.engine.CREATURES.forEach { cr -> Pill(cr.name, state.character == cr.id) { state.applyCharacter(cr.id) } }
+            Pill("Just the sky", state.character == 0) { state.applyCharacter(0) }
         }
         val info = app.pulsify.engine.creatureInfo(state.character)
         if (info != null) {
@@ -270,7 +270,7 @@ private fun LookPanel(state: AppState) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 info.coats.forEachIndexed { i, coat ->
                     val sel = state.coat == i
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.pressable { state.setCoat(i) }) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.pressable { state.applyCoat(i) }) {
                         Box(
                             Modifier.size(42.dp).clip(CircleShape)
                                 .background(Brush.radialGradient(listOf(Color(coat.base), Color(coat.base), Color(coat.rim))))
@@ -291,7 +291,7 @@ private fun LookPanel(state: AppState) {
                 Column(
                     Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
                         .border(if (sel) 1.5.dp else 1.dp, if (sel) c.accent else c.border.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                        .pressable { state.setVariant(v.id) },
+                        .pressable { state.applyVariant(v.id) },
                 ) {
                     MiniSky(Color(v.accent1), Color(v.accent2), seed = v.id * 31 + 7, modifier = Modifier.fillMaxWidth().height(56.dp), style = v.id)
                     Text(v.name, style = T.small, color = if (sel) c.text else c.sub, modifier = Modifier.padding(8.dp))
@@ -312,7 +312,7 @@ private fun LookPanel(state: AppState) {
                             else Brush.linearGradient(listOf(Color(argb), Color(app.pulsify.engine.SkyScene.shiftHue(argb, 38f)))),
                         )
                         .border(if (sel) 2.5.dp else 0.dp, if (sel) Color.White else Color.Transparent, CircleShape)
-                        .pressable { state.setAccent(argb) },
+                        .pressable { state.applyAccent(argb) },
                     contentAlignment = Alignment.Center,
                 ) { if (argb == 0) Text("A", style = T.micro, color = Color.Black) }
             }
@@ -325,7 +325,7 @@ private fun LookPanel(state: AppState) {
         }
         var b by remember { mutableFloatStateOf(state.brightness) }
         Slider(
-            value = b, onValueChange = { b = it; state.setBrightness(it) }, valueRange = 0.6f..1.4f,
+            value = b, onValueChange = { b = it; state.applyBrightness(it) }, valueRange = 0.6f..1.4f,
             colors = SliderDefaults.colors(thumbColor = c.accent, activeTrackColor = c.accent, inactiveTrackColor = c.border),
         )
     }
@@ -394,7 +394,7 @@ private fun MusicPanel(state: AppState, source: AudioFrame.Source, spectrum: Flo
     val c = LocalPulse.current
     var demo by remember { mutableStateOf(Pulse.audio.demo) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) state.setMusicReact(true)
+        if (granted) state.applyMusicReact(true)
         else state.toast = AppState.Toast("Music reaction is off", "Without permission the sky still grooves gently when music plays.")
     }
     Column {
@@ -404,7 +404,7 @@ private fun MusicPanel(state: AppState, source: AudioFrame.Source, spectrum: Flo
             state.musicReact && Pulse.audio.hasPermission(),
         ) { on ->
             if (on && !Pulse.audio.hasPermission()) launcher.launch(Manifest.permission.RECORD_AUDIO)
-            else state.setMusicReact(on)
+            else state.applyMusicReact(on)
         }
         ToggleRow("Demo groove", "A built-in beat so you can feel it without music", demo) {
             demo = it; Pulse.audio.demo = it
