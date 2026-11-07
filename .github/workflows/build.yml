@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [v3, main]
+    branches: [v3]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +36,8 @@ jobs:
           git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
           git checkout --orphan ci-logs
           git rm -rfq --cached . >/dev/null
-          git add -f errors.txt tail.txt
+          echo "build-failed ${{ github.run_number }}" > status.txt
+          git add -f errors.txt tail.txt status.txt
           git commit -qm "build log ${{ github.run_number }}"
           git push -f origin ci-logs
 
@@ -48,6 +49,55 @@ jobs:
           name: pulsify-v3-apk
           path: pulsify-v3.apk
 
+  # Runs the APK on a real Android emulator: scripted walk-through, monkey, wallpaper preview.
+  smoke:
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: pulsify-v3-apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          ram-size: 4096M
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash ci/smoke.sh
+
+      - name: Publish the test results
+        if: always()
+        run: |
+          mkdir -p ci-out
+          echo "smoke ${{ github.run_number }} $(cat ci-out/crash_count.txt 2>/dev/null || echo '?')" > ci-out/status.txt
+          git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan ci-logs
+          git rm -rfq --cached . >/dev/null
+          git add -f ci-out
+          git commit -qm "smoke ${{ github.run_number }}"
+          git push -f origin ci-logs
+
+  release:
+    needs: smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pulsify-v3-apk
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
@@ -55,4 +105,4 @@ jobs:
           name: Pulsify v3 build ${{ github.run_number }}
           make_latest: true
           files: pulsify-v3.apk
-          body: Pulsify v3 (Mochi + Kalboob). On your phone, download pulsify-v3.apk and open it to install.
+          body: Pulsify v3. On your phone, download pulsify-v3.apk and open it to install.
