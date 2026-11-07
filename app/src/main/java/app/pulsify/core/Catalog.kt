@@ -28,7 +28,6 @@ data class ComingSoon(
 )
 
 val COMING = listOf(
-    ComingSoon("Kitty", Kind.CREATURE, "Chases your finger like a laser dot.", 0xFFB9C3D6.toInt(), 0xFF6FB7FF.toInt(), 4),
     ComingSoon("Kiwi", Kind.CREATURE, "Parrots that headbang on the beat.", 0xFF6EE07A.toInt(), 0xFFFF5A4E.toInt(), 5),
     ComingSoon("Glowy", Kind.CREATURE, "Deep-sea anglerfish with a lure.", 0xFFFFB347.toInt(), 0xFF3DE0FF.toInt(), 6),
     ComingSoon("Gromble", Kind.CREATURE, "Tries to be evil. Fails, cutely.", 0xFF8A5CFF.toInt(), 0xFFFF6BD6.toInt(), 7),
@@ -60,4 +59,10 @@ val DISCOVERIES = listOf(
     Discovery("dig", "Digger", "Catch Kalboob digging"),
     Discovery("howl", "Awoooo", "Play a song with long notes"),
     Discovery("zoomies", "Zoomies", "Swipe really fast past Kalboob"),
+    Discovery("laser", "Laser pointer", "Drag a finger near Kitty"),
+    Discovery("pounce", "Got it!", "Hold the laser dot still"),
+    Discovery("purr", "Purr engine", "Hold your finger on Kitty"),
+    Discovery("knock", "Gravity check", "Catch Kitty pushing the cup off"),
+    Discovery("cucumber", "THE CUCUMBER", "Wait for a vegetable to appear"),
+    Discovery("box", "If I fits", "Catch Kitty in a box"),
 )

@@ -25,6 +25,7 @@ class AppState {
     var variant by mutableIntStateOf(0); private set
     var character by mutableIntStateOf(1); private set
     var coat by mutableIntStateOf(0); private set
+    var env by mutableIntStateOf(0); private set
     var accent by mutableIntStateOf(0); private set
     var brightness by mutableFloatStateOf(1f); private set
     var musicReact by mutableStateOf(false); private set
@@ -54,6 +55,7 @@ class AppState {
         variant = p.variant
         character = p.character
         coat = p.coat
+        env = p.env
         accent = p.accent
         brightness = p.brightness
         musicReact = p.musicReact
@@ -75,6 +77,7 @@ class AppState {
     fun applyVariant(v: Int) { Pulse.prefs.variant = v }
     fun applyCharacter(c: Int) { Pulse.prefs.character = c }
     fun applyCoat(c: Int) { Pulse.prefs.coat = c }
+    fun applyEnv(e: Int) { Pulse.prefs.env = e }
 
     val displayName: String
         get() = app.pulsify.engine.creatureInfo(character)?.name ?: SKY_VARIANTS[variant.coerceIn(0, SKY_VARIANTS.size - 1)].name

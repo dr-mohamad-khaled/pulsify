@@ -9,6 +9,7 @@ shot() { adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null || true; }
 ui() { python3 ci/ui.py "$@" || true; }
 
 adb wait-for-device
+adb root > /dev/null 2>&1; sleep 3; adb wait-for-device
 adb shell settings put global window_animation_scale 0
 adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
@@ -56,9 +57,19 @@ adb shell input swipe 540 1650 545 1655 1500; sleep 3; shot 31_wallpaper_touch
 adb shell dumpsys gfxinfo $PKG > $OUT/gfxinfo_wallpaper.txt
 adb shell dumpsys meminfo $PKG > $OUT/meminfo.txt
 
+echo "== kitty laser dot"
+adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 6
+ui tap "Kitty"; sleep 4; ui tap "Hide"; sleep 3
+adb shell input swipe 200 1400 900 1500 1500; sleep 1
+adb shell input swipe 900 1500 860 1520 1800; sleep 3; shot 40_kitty_laser
+adb shell input swipe 540 1700 545 1705 1800; sleep 2; shot 41_kitty_purr
+
 echo "== logs"
 adb logcat -d -b crash > $OUT/crash.txt
 adb logcat -d '*:E' > $OUT/errors.txt
 adb logcat -d -s Pulsify:V AndroidRuntime:E libEGL:V OpenGLRenderer:W > $OUT/pulsify.txt
 grep -c "FATAL EXCEPTION\|Fatal signal" $OUT/crash.txt > $OUT/crash_count.txt || true
+adb shell 'cat /data/anr/* 2>/dev/null' | head -600 > $OUT/anr.txt
+adb shell run-as $PKG cat files/last_crash.txt > $OUT/app_crash.txt 2>/dev/null || true
+adb shell run-as $PKG cat files/gl_notes.txt > $OUT/gl_notes.txt 2>/dev/null || true
 echo done

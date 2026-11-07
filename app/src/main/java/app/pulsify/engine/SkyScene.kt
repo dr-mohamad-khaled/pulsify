@@ -17,8 +17,10 @@ import kotlin.random.Random
 /** What the scene needs to know about the world each frame. */
 class SceneInput {
     var variant = 0
-    var character = 0        // 0 = sky only, 1 = Mochi
+    var character = 0        // 0 = sky only, 1 = Mochi, 2 = Kalboob, 3 = Kitty
     var coat = 0
+    var world = -1           // painted environment id, -1 = the night-sky shader
+    var hour = 12f           // local time 0..24 (or the Studio preview time)
     var accent = 0           // 0 = variant colours
     var brightness = 1f
     var mood = Mood.DAY

@@ -227,7 +227,7 @@ private fun Hero(state: AppState, onOpenStudio: () -> Unit, onLoop: (GlLoop) -> 
         modifier.fillMaxWidth().height(460.dp).clip(RoundedCornerShape(32.dp))
             .border(1.dp, Brush.linearGradient(listOf(c.accent.copy(alpha = 0.5f), Color.Transparent, c.accent2.copy(alpha = 0.4f))), RoundedCornerShape(32.dp)),
     ) {
-        LiveSky(Modifier.fillMaxSize(), renderScale = 0.7f, onLoop = onLoop)
+        LiveSky(Modifier.fillMaxSize(), renderScale = 0.5f, onLoop = onLoop)
         // Taps on the hero go straight into the sky; scrolling still works.
         Box(
             Modifier.fillMaxSize().pointerInput(loop) {
@@ -282,6 +282,16 @@ private fun moodLine(character: Int): String {
             Mood.DAY -> "Kalboob wants to play. Throw the ball."
             Mood.EVENING -> "Kalboob is chilling. Belly rubs welcome."
             Mood.NIGHT -> "Shh. Kalboob is dreaming about squirrels."
+        }
+    }
+    if (character == 3) return when {
+        d.charging -> "Charging. Kitty is napping on a warm pad."
+        d.batteryLevel < 0.15f -> "Low battery. Kitty is in power-saving loaf mode."
+        else -> when (DeviceState.moodNow()) {
+            Mood.MORNING -> "Kitty is stretching. Breakfast was 5 minutes late."
+            Mood.DAY -> "Kitty is pretending not to watch you. Drag a finger."
+            Mood.EVENING -> "Kitty is in a loaf. Do not disturb (please disturb)."
+            Mood.NIGHT -> "Kitty's eyes are glowing. It sees everything."
         }
     }
     if (character == 1) return when {
@@ -353,8 +363,9 @@ private class Tile(val title: String, val line: String, val label: String, val c
 private fun buildTiles(filter: Kind?): List<Tile> {
     val out = mutableListOf<Tile>()
     if (filter == null || filter == Kind.CREATURE) {
-        out += Tile("Mochi", "Battery-juice bean. Don't take its jar.", "Live creature", 0xFFFFF4E4.toInt(), 0xFFE9A6FF.toInt(), 3, creature = 1)
-        out += Tile("Kalboob", "Golden pup. Will fetch anything.", "Live creature", 0xFFF2C07A.toInt(), 0xFFB5651D.toInt(), 3, creature = 2)
+        app.pulsify.engine.CREATURES.forEach { cr ->
+            out += Tile(cr.name, cr.line, "Live creature", cr.coats[0].base, cr.accent, 3, creature = cr.id)
+        }
     }
     if (filter == null || filter == Kind.WORLD) {
         SKY_VARIANTS.forEach { v -> out += Tile(v.name, v.tagline, "Live world", v.accent1, v.accent2, v.id, variant = v.id) }

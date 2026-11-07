@@ -1,6 +1,10 @@
 // Pulsify — Night Sky world. GLSL ES 1.00, shared by the Android engine and the web preview.
 // Everything starts from pure #000000 so idle pixels stay off on AMOLED.
+#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
+#else
+precision mediump float;
+#endif
 
 uniform vec2  uRes;       // surface size in pixels
 uniform float uTime;

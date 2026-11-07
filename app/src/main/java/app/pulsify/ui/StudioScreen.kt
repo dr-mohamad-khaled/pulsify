@@ -67,6 +67,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import app.pulsify.core.AudioFrame
@@ -99,10 +102,13 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
     var fps by remember { mutableFloatStateOf(0f) }
 
     // Mirror the engine's audio into the UI (spectrum, CTA glow) every frame.
-    LaunchedEffect(loop) {
+    LaunchedEffect(loop, tab, dock) {
         val l = loop ?: return@LaunchedEffect
         var lastFps = 0L
+        // Only the Music panel needs per-frame UI updates; elsewhere 4 per second is plenty.
+        val live = tab == Tab.MUSIC && dock == Dock.OPEN
         while (true) {
+            if (!live) kotlinx.coroutines.delay(250)
             withFrameNanos { t ->
                 val a = l.input.audio
                 bass = a.bass
@@ -129,7 +135,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { rootH = it.height.coerceAtLeast(1) }) {
-        LiveSky(Modifier.fillMaxSize(), renderScale = 0.85f, interactive = true, onLoop = { loop = it })
+        LiveSky(Modifier.fillMaxSize(), renderScale = 0.65f, interactive = true, onLoop = { loop = it })
 
         // Top bar.
         AnimatedVisibility(
@@ -283,18 +289,29 @@ private fun LookPanel(state: AppState) {
             }
         }
         Gap(14.dp)
-        MicroLabel("Sky")
-        Gap(8.dp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SKY_VARIANTS.forEach { v ->
-                val sel = state.variant == v.id
-                Column(
-                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
-                        .border(if (sel) 1.5.dp else 1.dp, if (sel) c.accent else c.border.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-                        .pressable { state.applyVariant(v.id) },
-                ) {
-                    MiniSky(Color(v.accent1), Color(v.accent2), seed = v.id * 31 + 7, modifier = Modifier.fillMaxWidth().height(56.dp), style = v.id)
-                    Text(v.name, style = T.small, color = if (sel) c.text else c.sub, modifier = Modifier.padding(8.dp))
+        val envInfo = app.pulsify.engine.creatureInfo(state.character)
+        if (envInfo != null) {
+            MicroLabel("World")
+            Gap(8.dp)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                envInfo.envs.forEachIndexed { i, e ->
+                    EnvTile(e, selected = state.env == i, modifier = Modifier.width(104.dp)) { state.applyEnv(i) }
+                }
+            }
+        } else {
+            MicroLabel("Sky")
+            Gap(8.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SKY_VARIANTS.forEach { v ->
+                    val sel = state.variant == v.id
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                            .border(if (sel) 1.5.dp else 1.dp, if (sel) c.accent else c.border.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                            .pressable { state.applyVariant(v.id) },
+                    ) {
+                        MiniSky(Color(v.accent1), Color(v.accent2), seed = v.id * 31 + 7, modifier = Modifier.fillMaxWidth().height(56.dp), style = v.id)
+                        Text(v.name, style = T.small, color = if (sel) c.text else c.sub, modifier = Modifier.padding(8.dp))
+                    }
                 }
             }
         }
@@ -466,3 +483,35 @@ fun ToggleRow(title: String, line: String, checked: Boolean, onChange: (Boolean)
         )
     }
 }
+
+/** A world thumbnail: a pre-rendered picture for painted worlds, a live mini sky for the sky shader. */
+@Composable
+fun EnvTile(e: app.pulsify.engine.EnvInfo, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val c = LocalPulse.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val thumb = androidx.compose.runtime.remember(e.world) {
+        if (e.world < 0) null else try {
+            ctx.assets.open("thumbs/world_${e.world}.jpg").use { android.graphics.BitmapFactory.decodeStream(it) }?.asImageBitmap()
+        } catch (_: Throwable) { null }
+    }
+    Column(
+        modifier.clip(RoundedCornerShape(16.dp))
+            .border(if (selected) 1.5.dp else 1.dp, if (selected) c.accent else c.border.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+            .androidx_semantics("Environment: ${e.name}")
+            .pressable(onClick = onClick),
+    ) {
+        if (thumb != null) {
+            androidx.compose.foundation.Image(
+                thumb, contentDescription = null,
+                modifier = Modifier.fillMaxWidth().height(72.dp),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            )
+        } else {
+            MiniSky(Color(e.c1), Color(e.c2), seed = e.name.hashCode(), modifier = Modifier.fillMaxWidth().height(72.dp), style = e.skyVariant)
+        }
+        Text(e.name, style = T.small, color = if (selected) c.text else c.sub, modifier = Modifier.padding(8.dp), maxLines = 1)
+    }
+}
+
+private fun Modifier.androidx_semantics(desc: String): Modifier =
+    this.then(Modifier.semantics(mergeDescendants = true) { contentDescription = desc })

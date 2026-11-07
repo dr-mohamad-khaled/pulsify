@@ -98,7 +98,7 @@ class AudioEngine(private val context: Context, private val prefs: Prefs) {
             v.setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
                 override fun onWaveFormDataCapture(vis: Visualizer?, waveform: ByteArray?, samplingRate: Int) {}
                 override fun onFftDataCapture(vis: Visualizer?, fft: ByteArray?, samplingRate: Int) {
-                    if (fft != null) onFft(fft, samplingRate / 1000f)
+                    if (fft != null) try { onFft(fft, samplingRate / 1000f) } catch (_: Throwable) {}
                 }
             }, Visualizer.getMaxCaptureRate(), false, true)
             v.setEnabled(true)

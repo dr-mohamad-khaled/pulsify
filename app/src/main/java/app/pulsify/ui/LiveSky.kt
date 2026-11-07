@@ -67,7 +67,7 @@ fun LiveSky(
             lifecycle.removeObserver(obs)
             Pulse.audio.release()
             loop.setRunning(false)
-            loop.quit()
+            loop.quit(waitMs = 300)
         }
     }
 
@@ -97,8 +97,10 @@ fun LiveSky(
 
                     override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
                         visible[0] = false
-                        loop.setRunning(false)
-                        loop.detach()
+                        if (!loop.dead) {
+                            loop.setRunning(false)
+                            loop.detach()
+                        }
                         holder[0]?.release()
                         holder[0] = null
                         return true

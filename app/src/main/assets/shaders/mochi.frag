@@ -2,7 +2,11 @@
 // Drawn over the sky with premultiplied alpha on a quad that only covers Mochi and its props.
 // Character space: y up, feet at y = -0.55, body about 1.1 tall. One uniform scale, never stretched:
 // squash keeps the volume (sx * sy = 1).
+#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
+#else
+precision mediump float;
+#endif
 
 varying vec2 vUv;          // aspect-correct screen space (short side = 1)
 

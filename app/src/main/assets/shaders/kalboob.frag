@@ -1,7 +1,11 @@
 // Pulsify — Kalboob, the golden retriever puppy. GLSL ES 1.00.
 // Same quad + premultiplied-alpha setup as Mochi (mochi.vert). Character space: y up,
 // paws on the floor at y = -0.55, sitting puppy about 1.15 tall. Uniform scale only.
+#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
+#else
+precision mediump float;
+#endif
 
 varying vec2 vUv;
 
@@ -64,6 +68,7 @@ void over(inout vec4 dst, vec3 c, float a) { dst.rgb = dst.rgb * (1.0 - a) + c *
 float fill(float d) { return clamp(0.5 - d / (uPx * 1.2), 0.0, 1.0); }
 // Fur: the silhouette breaks into soft tufts; alpha falls off over a few pixels.
 float furD(float d, vec2 p, float amt) {
+    if (abs(d) > 0.06) return d; // fur noise only near the silhouette
     float n = vnoise(p * 55.0) * 0.6 + vnoise(p * 120.0) * 0.4;
     return d + (n - 0.45) * 0.03 * amt * smoothstep(0.06, 0.0, abs(d));
 }
@@ -202,6 +207,8 @@ void main() {
         over(acc, mix(gold * 0.6, gold, smoothstep(-0.03, 0.03, p.x - cc.x + p.y - cc.y + 0.075)) + uGlow * uBone.z * 0.3, fill(tag));
     }
 
+    // ---- Head (skipped entirely for pixels far from it) ----
+    if (length(p - hp0) < 0.62) {
     // ---- Head ----
     vec2 h = rot(p - hp0, -uTilt);
     vec2 turn = vec2(uLook.x * 0.045, uLook.y * 0.03);
@@ -311,6 +318,8 @@ void main() {
         over(acc, furShade(domeN(ed, g, 0.06), coat * 0.86, h, dir, 0.95, 0.0), fillFur(furD(ed, h, 1.4)));
     }
 
+    }
+
     // ---- Glowing bone (charging), held in the paws ----
     if (uBone.z > 0.01) {
         vec2 q = p - uBone.xy;
@@ -404,8 +413,8 @@ void main() {
             over(acc, vec3(0.8, 0.85, 1.0), fill(dz * (0.035 + life * 0.02) - 0.004) * fade * 0.8);
         } else if (fx.w < 6.5) {
             float bar = sdRoundBox(q - vec2(0.0, 0.03), vec2(0.008, 0.03), 0.006);
-            float dot = length(q + vec2(0.0, 0.02)) - 0.009;
-            over(acc, vec3(1.0, 0.85, 0.3), fill(min(bar, dot)) * fade);
+            float dotv = length(q + vec2(0.0, 0.02)) - 0.009;
+            over(acc, vec3(1.0, 0.85, 0.3), fill(min(bar, dotv)) * fade);
         } else {
             // Sniff puffs.
             float puff = abs(length(q) - 0.02 - life * 0.04) - 0.004;

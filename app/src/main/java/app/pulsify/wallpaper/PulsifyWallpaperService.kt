@@ -32,6 +32,7 @@ class PulsifyWallpaperService : WallpaperService() {
         private var baseW = 0
         private var baseH = 0
         private var fixedScale = 1f
+        private var initialScaled = false
         private var visible = false
         private var audioHeld = false
 
@@ -81,6 +82,8 @@ class PulsifyWallpaperService : WallpaperService() {
             super.onSurfaceChanged(holder, format, width, height)
             if (fixedScale >= 0.999f) { baseW = width; baseH = height }
             loop.attach(holder.surface, width, height)
+            // Start at 80% resolution; the loop raises or lowers it to hold the frame budget.
+            if (!initialScaled && baseW > 0) { initialScaled = true; main.post { applyScale(0.8f) } }
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
@@ -119,7 +122,7 @@ class PulsifyWallpaperService : WallpaperService() {
         }
 
         private fun applyScale(s: Float) {
-            if (baseW <= 0 || baseH <= 0 || !visible) return
+            if (baseW <= 0 || baseH <= 0) return
             fixedScale = s
             if (s >= 0.999f) {
                 surfaceHolder.setSizeFromLayout()
@@ -132,7 +135,7 @@ class PulsifyWallpaperService : WallpaperService() {
             Pulse.removeSettingsListener(settingsListener)
             try { unregisterReceiver(unlockReceiver) } catch (_: Throwable) {}
             if (audioHeld) { Pulse.audio.release(); audioHeld = false }
-            loop.quit()
+            loop.quit(waitMs = 300)
             super.onDestroy()
         }
     }

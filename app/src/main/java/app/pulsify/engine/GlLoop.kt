@@ -6,6 +6,7 @@ import android.opengl.EGLConfig
 import android.opengl.EGLContext
 import android.opengl.EGLDisplay
 import android.opengl.EGLSurface
+import android.opengl.GLES20
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Process
@@ -37,14 +38,20 @@ class GlLoop(
     private val onScaleWanted: ((Float) -> Unit)? = null,
 ) {
     val scene = SkyScene(context)
+    val world = WorldScene(context)
+    private var skyOk = false
+    private var worldOk = false
+    private val okCreatures = HashSet<Creature>()
     val mochi = MochiScene(context)
     val kalboob = KalboobScene(context)
-    private val creatures: List<Creature> = listOf(mochi, kalboob)
+    val kitty = KittyScene(context)
+    private val creatures: List<Creature> = listOf(mochi, kalboob, kitty)
     /** Discoveries and bond XP from the sky and every creature. */
     var listener: SceneListener? = null
         set(v) { field = v; scene.listener = v; creatures.forEach { it.listener = v } }
     /** The creature for character id 1, 2, ... (0 = sky only). */
-    private val active: Creature? get() = creatures.getOrNull(input.character - 1)
+    private val active: Creature? get() = creatures.getOrNull(input.character - 1)?.takeIf { it in okCreatures }
+    private val worldOn: Boolean get() = input.world >= 0 && worldOk
     val input = SceneInput()
     @Volatile var batterySaver = false
 
@@ -62,7 +69,7 @@ class GlLoop(
     private var lastFrameNs = 0L
 
     // Adaptive resolution.
-    var scale = 1f; private set
+    var scale = 0.8f; private set
     private var workAvgNs = 0f
     private var lastScaleChangeNs = 0L
 
@@ -76,7 +83,11 @@ class GlLoop(
         override fun doFrame(frameTimeNanos: Long) {
             if (!running) return
             choreographer?.postFrameCallback(this)
-            renderFrame(frameTimeNanos)
+            try {
+                renderFrame(frameTimeNanos)
+            } catch (t: Throwable) {
+                onFrameError(t)
+            }
         }
     }
 
@@ -85,37 +96,60 @@ class GlLoop(
     }
 
     fun post(block: () -> Unit) {
-        handler.post(block)
+        postSafe(block)
+    }
+
+    private fun postSafe(block: () -> Unit): Boolean = handler.post {
+        try { block() } catch (t: Throwable) { onFrameError(t) }
     }
 
     /** Attach a window surface (wallpaper holder surface, or a Surface around a SurfaceTexture). */
     fun attach(surface: Surface, width: Int, height: Int) {
-        handler.post {
-            if (!initEgl()) return@post
+        handler.post attach@{
+            try { attachNow(surface, width, height) } catch (t: Throwable) {
+                Log.e("Pulsify", "attach failed", t); app.pulsify.core.CrashLog.note("attach failed: ${t.message}")
+            }
+        }
+    }
+
+    private fun attachNow(surface: Surface, width: Int, height: Int) {
+        run {
+            if (!initEgl()) return@run
             destroySurface()
             eglSurface = EGL14.eglCreateWindowSurface(display, config, surface, intArrayOf(EGL14.EGL_NONE), 0)
             if (eglSurface == EGL14.EGL_NO_SURFACE || !EGL14.eglMakeCurrent(display, eglSurface, eglSurface, eglContext)) {
                 Log.e("Pulsify", "eglMakeCurrent failed: 0x" + Integer.toHexString(EGL14.eglGetError()))
-                return@post
+                return@run
             }
             EGL14.eglSwapInterval(display, 1)
             if (!sceneReady) {
-                try {
-                    scene.onSurfaceCreated()
-                    creatures.forEach { it.onSurfaceCreated() }
-                    sceneReady = true
-                } catch (t: Throwable) {
-                    Log.e("Pulsify", "Scene init failed", t)
-                }
+                // Each part compiles on its own: a shader this GPU rejects disables only that part.
+                skyOk = safeInit("sky") { scene.onSurfaceCreated() }
+                worldOk = safeInit("world") { world.onSurfaceCreated() }
+                creatures.forEach { c -> if (safeInit(c.javaClass.simpleName) { c.onSurfaceCreated() }) okCreatures += c }
+                sceneReady = true
             }
-            scene.onSurfaceChanged(width, height)
-            creatures.forEach { it.onSurfaceChanged(width, height) }
+            sizeAll(width, height)
             lastFrameNs = 0L
         }
     }
 
     fun resize(width: Int, height: Int) {
-        handler.post { scene.onSurfaceChanged(width, height); creatures.forEach { it.onSurfaceChanged(width, height) } }
+        postSafe { sizeAll(width, height) }
+    }
+
+    private fun sizeAll(width: Int, height: Int) {
+        if (skyOk) scene.onSurfaceChanged(width, height)
+        if (worldOk) safeInit("world size") { world.onSurfaceChanged(width, height) }
+        okCreatures.forEach { it.onSurfaceChanged(width, height) }
+    }
+
+    private inline fun safeInit(what: String, block: () -> Unit): Boolean = try {
+        block(); true
+    } catch (t: Throwable) {
+        Log.e("Pulsify", "$what failed to start", t)
+        app.pulsify.core.CrashLog.note("GL: $what failed: ${t.message}")
+        false
     }
 
     /** Blocks until the EGL surface is gone, so the caller may release the window safely. */
@@ -126,7 +160,7 @@ class GlLoop(
             latch.countDown()
         }
         if (!queued) return
-        latch.await(750, TimeUnit.MILLISECONDS)
+        latch.await(400, TimeUnit.MILLISECONDS)
     }
 
     fun setRunning(run: Boolean) {
@@ -147,36 +181,67 @@ class GlLoop(
     // Touch, in normalised screen coordinates (0..1, y down).
     // The creature gets first look at every touch; what it doesn't use goes to the sky.
     private var creatureOwnsGesture = false
-    fun touchDown(nx: Float, ny: Float) = handler.post {
+    fun touchDown(nx: Float, ny: Float) = postSafe {
         creatureOwnsGesture = active?.touchDown(nx, ny) == true
-        if (!creatureOwnsGesture) scene.touchDown(nx, ny)
+        if (!creatureOwnsGesture) { if (worldOn) world.touch(nx, ny) else if (skyOk) scene.touchDown(nx, ny) }
     }
-    fun touchMove(nx: Float, ny: Float) = handler.post {
+    fun touchMove(nx: Float, ny: Float) = postSafe {
         active?.touchMove(nx, ny)
-        if (!creatureOwnsGesture) scene.touchMove(nx, ny)
+        if (!creatureOwnsGesture && !worldOn && skyOk) scene.touchMove(nx, ny)
     }
-    fun touchUp() = handler.post {
+    fun touchUp() = postSafe {
         active?.touchUp()
-        if (!creatureOwnsGesture) scene.touchUp()
+        if (!creatureOwnsGesture && !worldOn && skyOk) scene.touchUp()
         creatureOwnsGesture = false
     }
-    fun tap(nx: Float, ny: Float) = handler.post { if (active?.tapAt(nx, ny) != true) scene.tapAt(nx, ny) }
-    fun longPress(nx: Float, ny: Float) = handler.post { if (active?.longPressAt(nx, ny) != true) scene.longPressAt(nx, ny) }
-    fun setBottomInset(f: Float) = handler.post { creatures.forEach { it.bottomInset = f } }
-    fun greet() = handler.post { scene.greet(); active?.greet() }
+    fun tap(nx: Float, ny: Float) = postSafe {
+        if (active?.tapAt(nx, ny) != true) { if (worldOn) world.touch(nx, ny) else if (skyOk) scene.tapAt(nx, ny) }
+    }
+    fun longPress(nx: Float, ny: Float) = postSafe {
+        if (active?.longPressAt(nx, ny) != true) { if (worldOn) world.touch(nx, ny) else if (skyOk) scene.longPressAt(nx, ny) }
+    }
+    fun setBottomInset(f: Float) = postSafe { creatures.forEach { it.bottomInset = f } }
+    fun greet() = postSafe { if (skyOk) scene.greet(); active?.greet() }
 
-    fun quit() {
-        handler.post {
-            running = false
-            choreographer?.removeFrameCallback(frameCallback)
-            if (sceneReady && eglSurface != EGL14.EGL_NO_SURFACE) { scene.release(); creatures.forEach { it.release() } }
-            destroySurface()
-            if (eglContext != EGL14.EGL_NO_CONTEXT) {
-                EGL14.eglDestroyContext(display, eglContext)
-                eglContext = EGL14.EGL_NO_CONTEXT
+    @Volatile var dead = false; private set
+
+    /** Releases everything on the GL thread and stops it. Waits briefly so the window can go safely. */
+    fun quit(waitMs: Long = 0L) {
+        if (dead) return
+        dead = true
+        val latch = CountDownLatch(1)
+        val queued = handler.post {
+            try {
+                running = false
+                choreographer?.removeFrameCallback(frameCallback)
+                if (sceneReady && eglSurface != EGL14.EGL_NO_SURFACE) {
+                    scene.release(); world.release(); creatures.forEach { it.release() }
+                }
+                destroySurface()
+                if (eglContext != EGL14.EGL_NO_CONTEXT) {
+                    EGL14.eglDestroyContext(display, eglContext)
+                    eglContext = EGL14.EGL_NO_CONTEXT
+                }
+            } catch (t: Throwable) {
+                Log.w("Pulsify", "GL shutdown", t)
+            } finally {
+                latch.countDown()
+                thread.quitSafely()
             }
-            thread.quitSafely()
         }
+        if (queued && waitMs > 0) latch.await(waitMs, TimeUnit.MILLISECONDS)
+    }
+
+    // A creature (or world) that keeps throwing is switched off; the rest keeps running.
+    private var frameErrors = 0
+    private fun onFrameError(t: Throwable) {
+        frameErrors++
+        Log.e("Pulsify", "Frame failed", t)
+        if (frameErrors <= 3) app.pulsify.core.CrashLog.note("Frame error: ${t.javaClass.simpleName}: ${t.message} @ ${t.stackTrace.firstOrNull()}")
+        val bad = active
+        if (frameErrors >= 3 && bad != null) { okCreatures.remove(bad); frameErrors = 0 }
+        else if (frameErrors >= 6) { worldOk = false; frameErrors = 0 }
+        try { EGL14.eglSwapBuffers(display, eglSurface) } catch (_: Throwable) {}
     }
 
     // ---- GL thread ----
@@ -185,12 +250,13 @@ class GlLoop(
         if (eglSurface == EGL14.EGL_NO_SURFACE || !sceneReady) return
 
         val audioActive = input.audio.source != AudioFrame.Source.NONE
-        val busy = scene.busy || active?.busy == true
+        val busy = (if (worldOn) world.busy else scene.busy) || active?.busy == true
+        // Frame budget: smooth only while something is actually happening.
         targetFps = when {
-            batterySaver -> if (busy) 30 else 15
+            batterySaver -> if (busy) 30 else 12
             busy || audioActive -> 60
-            input.mood == Mood.NIGHT -> 15
-            else -> 30
+            input.mood == Mood.NIGHT -> 12
+            else -> 24
         }
         val minInterval = 1_000_000_000L / targetFps - 4_000_000L
         if (lastFrameNs != 0L && now - lastFrameNs < minInterval) return
@@ -199,8 +265,13 @@ class GlLoop(
 
         val t0 = System.nanoTime()
         provideInput(input, dt)
-        scene.update(dt, input)
-        scene.draw(input)
+        if (worldOn) {
+            world.update(dt, input); world.draw(input)
+        } else if (skyOk) {
+            scene.update(dt, input); scene.draw(input)
+        } else {
+            GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+        }
         active?.let { it.update(dt, input); it.draw(input) }
         EGL14.eglSwapBuffers(display, eglSurface)
         val work = (System.nanoTime() - t0).toFloat()
