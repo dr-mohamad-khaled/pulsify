@@ -5,8 +5,17 @@ set -u
 PKG=app.pulsify.v3
 OUT=ci-out
 mkdir -p $OUT
-shot() { adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null || true; }
-ui() { python3 ci/ui.py "$@" || true; }
+shot() { timeout 30 adb exec-out screencap -p > "$OUT/$1.png" 2>/dev/null || true; }
+ui() { timeout 60 python3 ci/ui.py "$@" || true; }
+logs() {  # $1 = suffix; safe to call many times
+  timeout 60 adb logcat -d -b crash > $OUT/crash$1.txt 2>/dev/null
+  timeout 60 adb logcat -d '*:E' > $OUT/errors$1.txt 2>/dev/null
+  timeout 60 adb logcat -d -s Pulsify:V AndroidRuntime:E libEGL:V > $OUT/pulsify$1.txt 2>/dev/null
+  grep -c "FATAL EXCEPTION\|Fatal signal" $OUT/crash$1.txt > $OUT/crash_count.txt 2>/dev/null || true
+  timeout 60 adb shell 'cat /data/anr/* 2>/dev/null' | head -600 > $OUT/anr$1.txt
+  timeout 30 adb shell run-as $PKG cat files/last_crash.txt > $OUT/app_crash$1.txt 2>/dev/null || true
+  timeout 30 adb shell run-as $PKG cat files/gl_notes.txt > $OUT/gl_notes$1.txt 2>/dev/null || true
+}
 
 adb wait-for-device
 adb root > /dev/null 2>&1; sleep 3; adb wait-for-device
@@ -35,16 +44,17 @@ ui tap "Mood"; sleep 1; ui switch "Pretend it's charging"; sleep 1; ui tap "Hide
 ui tap "Show controls"; sleep 1; ui switch "Pretend it's charging"; ui switch "Pretend battery is low"; ui tap "Hide"; sleep 5; shot 08_low
 ui tap "Show controls"; sleep 1; ui switch "Pretend battery is low"; ui tap "Night"; ui tap "Hide"; sleep 6; shot 09_night
 ui tap "Show controls"; sleep 1; ui tap "Auto"; ui tap "Music"; ui switch "Demo groove"; ui tap "Hide"; sleep 8; shot 10_music
-adb shell dumpsys gfxinfo $PKG > $OUT/gfxinfo_studio.txt
+timeout 60 adb shell dumpsys gfxinfo $PKG > $OUT/gfxinfo_studio.txt
 
 echo "== every creature and environment"
 ui tap "Show controls"; sleep 1; ui tap "Look"; sleep 1
-ui all_creatures $OUT
+timeout 600 python3 ci/ui.py all_creatures $OUT || true
+logs _a
 
 adb shell input keyevent KEYCODE_BACK; sleep 3; shot 20_home_again
 
 echo "== monkey"
-adb shell monkey -p $PKG --pct-syskeys 0 --pct-appswitch 0 --throttle 200 -s 7 -v 1500 > $OUT/monkey.txt 2>&1 || true
+timeout 300 adb shell monkey -p $PKG --pct-syskeys 0 --pct-appswitch 0 --throttle 250 -s 7 -v 400 > $OUT/monkey.txt 2>&1 || true
 sleep 3; shot 21_after_monkey
 
 echo "== live wallpaper"
@@ -65,11 +75,5 @@ adb shell input swipe 900 1500 860 1520 1800; sleep 3; shot 40_kitty_laser
 adb shell input swipe 540 1700 545 1705 1800; sleep 2; shot 41_kitty_purr
 
 echo "== logs"
-adb logcat -d -b crash > $OUT/crash.txt
-adb logcat -d '*:E' > $OUT/errors.txt
-adb logcat -d -s Pulsify:V AndroidRuntime:E libEGL:V OpenGLRenderer:W > $OUT/pulsify.txt
-grep -c "FATAL EXCEPTION\|Fatal signal" $OUT/crash.txt > $OUT/crash_count.txt || true
-adb shell 'cat /data/anr/* 2>/dev/null' | head -600 > $OUT/anr.txt
-adb shell run-as $PKG cat files/last_crash.txt > $OUT/app_crash.txt 2>/dev/null || true
-adb shell run-as $PKG cat files/gl_notes.txt > $OUT/gl_notes.txt 2>/dev/null || true
+logs ""
 echo done
