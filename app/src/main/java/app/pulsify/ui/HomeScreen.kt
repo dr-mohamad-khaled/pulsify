@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,6 +84,7 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                 Gap(22.dp)
                 Greeting(state, Modifier.enter(1))
                 Gap(18.dp)
+                CrashCard()
             }
         }
         item {
@@ -390,7 +392,17 @@ private fun TileCard(tile: Tile, state: AppState, modifier: Modifier, onOpen: ()
             .pressable(onClick = onOpen),
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.92f)) {
-            MiniSky(Color(tile.c1), Color(tile.c2), seed = tile.title.hashCode(), modifier = Modifier.fillMaxSize(), style = tile.style)
+            val ctx = LocalContext.current
+            val pic = remember(tile.creature) {
+                if (tile.creature <= 0) null else try {
+                    ctx.assets.open("thumbs/creature_${tile.creature}.jpg").use { android.graphics.BitmapFactory.decodeStream(it) }?.asImageBitmap()
+                } catch (_: Throwable) { null }
+            }
+            if (pic != null) {
+                androidx.compose.foundation.Image(pic, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            } else {
+                MiniSky(Color(tile.c1), Color(tile.c2), seed = tile.title.hashCode(), modifier = Modifier.fillMaxSize(), style = tile.style)
+            }
             Row(Modifier.padding(10.dp)) {
                 Box(
                     Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 4.dp),
@@ -404,6 +416,33 @@ private fun TileCard(tile: Tile, state: AppState, modifier: Modifier, onOpen: ()
             Text(tile.title, style = T.heading, color = c.text, maxLines = 1)
             Gap(2.dp)
             Text(tile.line, style = T.small, color = c.sub, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** Shown once after a crash: what happened, and a button to copy the details for a bug report. */
+@Composable
+private fun CrashCard() {
+    val c = LocalPulse.current
+    var report by remember { mutableStateOf(app.pulsify.core.CrashLog.lastCrash()) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    val r = report ?: return
+    GlassCard(Modifier.fillMaxWidth().padding(bottom = 16.dp), rim = 0.6f) {
+        Column(Modifier.padding(16.dp)) {
+            MicroLabel("Sorry about that", color = c.amber)
+            Gap(4.dp)
+            Text("Pulsify closed unexpectedly last time", style = T.heading, color = c.text)
+            Gap(4.dp)
+            Text(r.lines().firstOrNull { it.contains("Exception") || it.contains("Error") } ?: "Unknown error", style = T.small, color = c.sub, maxLines = 2)
+            Gap(12.dp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GhostButton(if (copied) "Copied" else "Copy details") {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(app.pulsify.core.CrashLog.diagnostics()))
+                    copied = true
+                }
+                GhostButton("Dismiss") { app.pulsify.core.CrashLog.clear(); report = null }
+            }
         }
     }
 }

@@ -27,6 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -117,7 +119,16 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
             }
         }
         Gap(20.dp)
-        Text("Pulsify 3.0 · milestone 1", style = T.small, color = c.faint)
+        MicroLabel("Help")
+        Gap(8.dp)
+        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+        var copied by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        GhostButton(if (copied) "Diagnostics copied" else "Copy diagnostics for a bug report") {
+            clipboard.setText(androidx.compose.ui.text.AnnotatedString(app.pulsify.core.CrashLog.diagnostics()))
+            copied = true
+        }
+        Gap(20.dp)
+        Text("Pulsify ${app.pulsify.BuildConfig.VERSION_NAME}", style = T.small, color = c.faint)
         Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 24.dp))
     }
 }

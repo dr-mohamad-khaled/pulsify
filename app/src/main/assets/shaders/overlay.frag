@@ -42,9 +42,12 @@ void main() {
     float glow = base.a;
 
     // Glowing pixels breathe, twinkle and kick with the bass.
+    // Stars are painted with glow 0.6 exactly; only they twinkle. Every glowing pixel breathes with the music.
     vec2 cell = floor(p * 40.0);
+    float star = 1.0 - smoothstep(0.02, 0.06, abs(glow - 0.6));
     float tw = 0.75 + 0.25 * sin(uTime * (1.3 + 3.0 * h21(cell)) + h21(cell + 5.0) * 40.0);
-    col += col * glow * (0.35 * uBass + 0.3 * uBeat + (tw - 0.85) * uNight * 1.5 + 0.06 * sin(uTime * 1.7));
+    col += col * glow * (0.35 * uBass + 0.3 * uBeat + 0.06 * sin(uTime * 1.7));
+    col += col * star * (tw - 0.85) * uNight * 1.5;
 
     vec3 add = vec3(0.0);
     if (uWorld < 1.5) {

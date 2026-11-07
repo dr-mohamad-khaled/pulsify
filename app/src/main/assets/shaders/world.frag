@@ -109,7 +109,7 @@ vec4 cloudNursery(vec2 p) {
         float r = 0.04 + 0.05 * h21(id + 2.0);
         float star = min(sdSeg(f, vec2(-r * 2.0, 0.0), vec2(r * 2.0, 0.0)), sdSeg(f, vec2(0.0, -r * 2.0), vec2(0.0, r * 2.0))) - 0.012;
         vec3 sc = 0.6 + 0.4 * cos(6.28 * (h21(id + 5.0) + vec3(0.0, 0.33, 0.67)));
-        layE(c, mix(sc, vec3(1.0), 0.5), clamp(0.5 - star * 22.0, 0.0, 1.0) * smoothstep(0.1, 0.4, t), 0.9);
+        layE(c, mix(sc, vec3(1.0), 0.5), clamp(0.5 - star * 22.0, 0.0, 1.0) * smoothstep(0.1, 0.4, t), 0.6);
     }
     // Smiling moon.
     vec2 mp = vec2(-uHalf.x * 0.42, uHalf.y - 0.42);
