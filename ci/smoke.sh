@@ -87,6 +87,17 @@ adb shell input swipe 200 1400 900 1500 1500; sleep 1
 adb shell input swipe 900 1500 860 1520 1800; sleep 3; shot 40_kitty_laser
 adb shell input swipe 540 1700 545 1705 1800; sleep 2; shot 41_kitty_purr
 
+echo "== kiwi"
+ui tap "Show controls"; sleep 1; ui tap "Look"; sleep 1; ui tap "Kiwi"; sleep 4
+ui tap "Tricks"; sleep 2; shot 50_kiwi_tricks
+for t in "Trick: Squawk!" "Trick: Say something" "Trick: Fly a lap" "Trick: Upside-down" "Trick: Headbang" "Trick: Give a seed"; do ui tap "$t"; sleep 3; done
+shot 51_kiwi_after_tricks
+ui tap "Kiwi word"; sleep 1; adb shell input text "Hello%sDr"; sleep 1; ui tap "Teach"; sleep 1; shot 52_kiwi_talks
+ui tap "Hide"; sleep 2
+adb shell input tap 540 1500; sleep 1; adb shell input swipe 200 900 205 905 1200; sleep 4; shot 53_kiwi_seed
+for i in 1 2 3 4; do adb shell input tap 900 600; sleep 0.3; done; sleep 3; shot 54_kiwi_copy
+adb shell input keyevent KEYCODE_HOME; sleep 6; shot 55_home_kiwi_live
+logs _k
 echo "== logs"
 logs ""
 echo done

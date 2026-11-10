@@ -44,6 +44,10 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(K_MUSIC, false)
         set(v) = sp.edit().putBoolean(K_MUSIC, v).apply()
 
+    var kiwiWords: String
+        get() = sp.getString(K_WORDS, "") ?: ""
+        set(v) = sp.edit().putString(K_WORDS, v.take(400)).apply()
+
     var batterySaver: Boolean
         get() = sp.getBoolean(K_SAVER, false)
         set(v) = sp.edit().putBoolean(K_SAVER, v).apply()
@@ -100,6 +104,7 @@ class Prefs(context: Context) {
         const val K_STREAK = "streak"
         const val K_LASTDAY = "lastDay"
         const val K_DISC = "discoveries"
+        const val K_WORDS = "kiwiWords"
 
         fun level(xp: Int): Int = (kotlin.math.sqrt(xp / 20.0)).toInt() + 1
         fun xpForLevel(level: Int): Int = (level - 1) * (level - 1) * 20

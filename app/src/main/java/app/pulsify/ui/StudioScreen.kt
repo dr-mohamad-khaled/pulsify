@@ -1,6 +1,7 @@
 package app.pulsify.ui
 
 import android.Manifest
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -213,7 +214,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
                         Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp)) {
                             when (t) {
                                 Tab.LOOK -> LookPanel(state)
-                                Tab.TRICKS -> TricksPanel(state)
+                                Tab.TRICKS -> TricksPanel(state, loop)
                                 Tab.MOOD -> MoodPanel()
                                 Tab.MUSIC -> MusicPanel(state, source, spectrum, tick)
                             }
@@ -271,7 +272,7 @@ private fun LookPanel(state: AppState) {
         val info = app.pulsify.engine.creatureInfo(state.character)
         if (info != null) {
             Gap(12.dp)
-            MicroLabel("Coat")
+            MicroLabel(if (info.id == 4) "Species" else "Coat")
             Gap(8.dp)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 info.coats.forEachIndexed { i, coat ->
@@ -349,33 +350,99 @@ private fun LookPanel(state: AppState) {
 }
 
 @Composable
-private fun TricksPanel(state: AppState) {
+private fun TricksPanel(state: AppState, loop: GlLoop?) {
     val c = LocalPulse.current
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            MicroLabel("Secrets in this sky")
-            Spacer(Modifier.weight(1f))
-            Text("${state.discoveries.size} of ${DISCOVERIES.size}", style = T.small, color = c.accent)
+    val info = app.pulsify.engine.creatureInfo(state.character)
+    Column {
+        if (info == null || info.tricks.isEmpty()) {
+            MicroLabel("Just the sky")
+            Gap(6.dp)
+            Text("Tap the sky for a burst. Hold it for a shooting star. Pick a creature in Look to unlock tricks.", style = T.body, color = c.sub)
+            return@Column
         }
-        DISCOVERIES.forEach { d ->
-            val found = d.id in state.discoveries
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (found) c.accent.copy(alpha = 0.1f) else c.bg.copy(alpha = 0.6f))
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    Modifier.size(26.dp).clip(CircleShape).background(if (found) c.accent else c.surface2),
-                    contentAlignment = Alignment.Center,
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MicroLabel("Ask ${info.name}")
+            Spacer(Modifier.weight(1f))
+            Text("tap one", style = T.small, color = c.faint)
+        }
+        Gap(10.dp)
+        info.tricks.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { t ->
+                    Column(
+                        Modifier.weight(1f).height(76.dp).clip(RoundedCornerShape(18.dp))
+                            .background(Brush.verticalGradient(listOf(c.surface2, c.bg.copy(alpha = 0.7f))))
+                            .border(1.dp, c.border.copy(alpha = 0.7f), RoundedCornerShape(18.dp))
+                            .pressable { loop?.perform(t.id) }
+                            .semantics { contentDescription = "Trick: ${t.label}" }
+                            .padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(t.emoji, style = T.title)
+                        Gap(4.dp)
+                        Text(t.label, style = T.small, color = c.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+            Gap(8.dp)
+        }
+        Gap(2.dp)
+        Text(info.hint, style = T.small, color = c.faint)
+        if (info.id == 4) {
+            Gap(14.dp)
+            KiwiWords(state, loop)
+        }
+    }
+}
+
+@Composable
+private fun KiwiWords(state: AppState, loop: GlLoop?) {
+    val c = LocalPulse.current
+    var text by remember { mutableStateOf("") }
+    val taught = state.kiwiWords.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    MicroLabel("Teach Kiwi to talk")
+    Gap(8.dp)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.foundation.text.BasicTextField(
+            value = text,
+            onValueChange = { text = it.replace(",", " ").take(40) },
+            singleLine = true,
+            textStyle = T.body.copy(color = c.text),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(c.accent),
+            modifier = Modifier.weight(1f).height(46.dp).clip(RoundedCornerShape(14.dp)).background(c.bg.copy(alpha = 0.7f))
+                .border(1.dp, c.border, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 13.dp)
+                .semantics { contentDescription = "Kiwi word" },
+            decorationBox = { inner -> if (text.isEmpty()) Text("Your name, a joke, anything...", style = T.body, color = c.faint); inner() },
+        )
+        Spacer(Modifier.width(8.dp))
+        GlowButton("Teach", Modifier.width(96.dp), height = 46.dp) {
+            val w = text.trim()
+            if (w.isNotEmpty()) {
+                state.applyKiwiWords((taught.filter { it != w } + w).takeLast(12).joinToString(", "))
+                loop?.perform("say:$w")
+                text = ""
+            }
+        }
+    }
+    if (taught.isNotEmpty()) {
+        Gap(8.dp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            taught.forEach { w ->
+                Row(
+                    Modifier.clip(RoundedCornerShape(50)).background(c.accent.copy(alpha = 0.14f))
+                        .pressable { loop?.perform("say:$w") }.padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(if (found) Icons.Default.Check else Icons.Default.Lock, null, tint = if (found) c.onAccent else c.faint, modifier = Modifier.size(14.dp))
+                    Text(w, style = T.small, color = c.text, maxLines = 1)
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        Modifier.size(18.dp).clip(CircleShape).background(c.surface2)
+                            .pressable { state.applyKiwiWords(taught.filter { it != w }.joinToString(", ")) },
+                        contentAlignment = Alignment.Center,
+                    ) { Text("×", style = T.small, color = c.sub) }
                 }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(if (found) d.title else "Locked", style = T.bodyStrong, color = if (found) c.text else c.sub)
-                    Text(d.hint, style = T.small, color = c.faint)
-                }
-                if (found) Icon(Icons.Default.Star, null, tint = c.amber, modifier = Modifier.size(14.dp))
             }
         }
     }

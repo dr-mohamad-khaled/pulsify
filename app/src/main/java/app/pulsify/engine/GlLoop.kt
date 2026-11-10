@@ -45,7 +45,8 @@ class GlLoop(
     val mochi = MochiScene(context)
     val kalboob = KalboobScene(context)
     val kitty = KittyScene(context)
-    private val creatures: List<Creature> = listOf(mochi, kalboob, kitty)
+    val kiwi = KiwiScene(context)
+    private val creatures: List<Creature> = listOf(mochi, kalboob, kitty, kiwi)
     /** Discoveries and bond XP from the sky and every creature. */
     var listener: SceneListener? = null
         set(v) { field = v; scene.listener = v; creatures.forEach { it.listener = v } }
@@ -201,6 +202,7 @@ class GlLoop(
         if (active?.longPressAt(nx, ny) != true) { if (worldOn) world.touch(nx, ny) else if (skyOk) scene.longPressAt(nx, ny) }
     }
     fun setBottomInset(f: Float) = postSafe { creatures.forEach { it.bottomInset = f } }
+    fun perform(trick: String) = postSafe { active?.perform(trick) }
     fun greet() = postSafe { if (skyOk) scene.greet(); active?.greet() }
 
     @Volatile var dead = false; private set

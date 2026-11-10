@@ -28,6 +28,7 @@ class SceneInput {
     var battery = 1f
     var lowBattery = false
     var parallax = 0f        // -1..1 from home-screen pages
+    var kiwiWords = ""       // words the user taught Kiwi, comma separated
     val audio = AudioFrame()
 }
 

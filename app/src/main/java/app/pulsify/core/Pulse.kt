@@ -15,6 +15,7 @@ data class Settings(
     val batterySaver: Boolean,
     val musicReact: Boolean,
     val shuffleOnUnlock: Boolean,
+    val kiwiWords: String = "",
 )
 
 /** Process-wide services shared by the app screens and the live wallpaper. */
@@ -66,6 +67,7 @@ object Pulse {
             batterySaver = prefs.batterySaver,
             musicReact = prefs.musicReact,
             shuffleOnUnlock = prefs.shuffleOnUnlock,
+            kiwiWords = prefs.kiwiWords,
         )
     }
 
@@ -107,6 +109,7 @@ object Pulse {
         i.accent = s.accent
         i.brightness = s.brightness
         i.parallax = parallax
+        i.kiwiWords = s.kiwiWords
         i.mood = (if (preview) previewMood else null) ?: when (i.hour.toInt()) {
             in 5..9 -> Mood.MORNING
             in 10..16 -> Mood.DAY

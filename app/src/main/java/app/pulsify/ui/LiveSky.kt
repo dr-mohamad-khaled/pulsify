@@ -39,10 +39,6 @@ fun LiveSky(
     val loop = remember {
         GlLoop(context, provideInput = { input, dt -> Pulse.fillInput(input, dt, preview = true, parallax = 0f) }).also { l ->
             l.batterySaver = false
-            l.listener = object : SceneListener {
-                override fun onDiscovery(id: String) { main.post { Pulse.prefs.discover(id) } }
-                override fun onBondXp(amount: Int) { main.post { Pulse.prefs.addXp(amount) } }
-            }
         }
     }
     val holder = remember { arrayOfNulls<Surface>(1) }

@@ -14,7 +14,6 @@ import app.pulsify.core.Pulse
 import app.pulsify.core.SKY_VARIANTS
 import app.pulsify.engine.GlLoop
 import app.pulsify.engine.SceneListener
-import kotlin.math.roundToInt
 import kotlin.random.Random
 
 class PulsifyWallpaperService : WallpaperService() {
@@ -31,15 +30,13 @@ class PulsifyWallpaperService : WallpaperService() {
         private var parallax = 0f
         private var baseW = 0
         private var baseH = 0
-        private var fixedScale = 1f
-        private var initialScaled = false
         private var visible = false
         private var audioHeld = false
+        @Volatile private var gone = false
 
         private val loop = GlLoop(
             this@PulsifyWallpaperService,
             provideInput = { input, dt -> Pulse.fillInput(input, dt, preview = false, parallax = parallax) },
-            onScaleWanted = { s -> main.post { applyScale(s) } },
         )
 
         private val settingsListener: () -> Unit = {
@@ -64,10 +61,6 @@ class PulsifyWallpaperService : WallpaperService() {
             setTouchEventsEnabled(true)
             setOffsetNotificationsEnabled(true)
             loop.batterySaver = Pulse.settings.batterySaver
-            loop.listener = object : SceneListener {
-                override fun onDiscovery(id: String) { main.post { Pulse.prefs.discover(id) } }
-                override fun onBondXp(amount: Int) { main.post { Pulse.prefs.addXp(amount) } }
-            }
             Pulse.addSettingsListener(settingsListener)
             val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
             if (Build.VERSION.SDK_INT >= 33) {
@@ -80,10 +73,10 @@ class PulsifyWallpaperService : WallpaperService() {
 
         override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
             super.onSurfaceChanged(holder, format, width, height)
-            if (fixedScale >= 0.999f) { baseW = width; baseH = height }
+            baseW = width; baseH = height
             loop.attach(holder.surface, width, height)
-            // Start at 80% resolution; the loop raises or lowers it to hold the frame budget.
-            if (!initialScaled && baseW > 0) { initialScaled = true; main.post { applyScale(0.8f) } }
+            // A resize can recreate the surface without a visibility change; keep drawing.
+            loop.setRunning(visible)
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {
@@ -94,12 +87,14 @@ class PulsifyWallpaperService : WallpaperService() {
 
         override fun onVisibilityChanged(isVisible: Boolean) {
             visible = isVisible
-            if (isVisible) {
-                if (!audioHeld) { Pulse.audio.acquire(); audioHeld = true }
-                Pulse.device.poll(force = true)
-            } else if (audioHeld) {
-                Pulse.audio.release(); audioHeld = false
-            }
+            try {
+                if (isVisible) {
+                    if (!audioHeld) { Pulse.audio.acquire(); audioHeld = true }
+                    Pulse.device.poll(force = true)
+                } else if (audioHeld) {
+                    Pulse.audio.release(); audioHeld = false
+                }
+            } catch (t: Throwable) { app.pulsify.core.CrashLog.note("visibility: $t") }
             loop.setRunning(isVisible)
         }
 
@@ -109,6 +104,7 @@ class PulsifyWallpaperService : WallpaperService() {
         }
 
         override fun onTouchEvent(event: MotionEvent) {
+            if (gone) return
             val w = if (baseW > 0) baseW else surfaceHolder.surfaceFrame.width()
             val h = if (baseH > 0) baseH else surfaceHolder.surfaceFrame.height()
             if (w <= 0 || h <= 0) return
@@ -121,17 +117,9 @@ class PulsifyWallpaperService : WallpaperService() {
             }
         }
 
-        private fun applyScale(s: Float) {
-            if (baseW <= 0 || baseH <= 0) return
-            fixedScale = s
-            if (s >= 0.999f) {
-                surfaceHolder.setSizeFromLayout()
-            } else {
-                surfaceHolder.setFixedSize((baseW * s).roundToInt(), (baseH * s).roundToInt())
-            }
-        }
-
         override fun onDestroy() {
+            gone = true
+            main.removeCallbacksAndMessages(null)
             Pulse.removeSettingsListener(settingsListener)
             try { unregisterReceiver(unlockReceiver) } catch (_: Throwable) {}
             if (audioHeld) { Pulse.audio.release(); audioHeld = false }

@@ -6,6 +6,9 @@ data class CoatInfo(val name: String, val base: Int, val rim: Int)
 /** An environment: a painted world id, or -1 for the night-sky shader with a given variant. */
 data class EnvInfo(val name: String, val world: Int, val skyVariant: Int = 0, val c1: Int, val c2: Int)
 
+/** A trick the Studio can ask the creature to do right now. */
+data class TrickInfo(val id: String, val label: String, val emoji: String)
+
 data class CreatureInfo(
     val id: Int,
     val name: String,
@@ -14,9 +17,12 @@ data class CreatureInfo(
     val accent: Int,
     val coats: List<CoatInfo>,
     val envs: List<EnvInfo>,
+    val tricks: List<TrickInfo> = emptyList(),
 )
 
-val CREATURES = listOf(
+val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO }
+
+private val BASE_CREATURES = listOf(
     CreatureInfo(
         1, "Mochi", "Battery-juice bean. Don't take its jar.",
         "Tap Mochi. Hold it. Try stealing its jar while you charge.",
@@ -26,6 +32,7 @@ val CREATURES = listOf(
             EnvInfo("Cloud Nursery", 1, c1 = 0xFFF5A8D8.toInt(), c2 = 0xFF8C7AE6.toInt()),
             EnvInfo("Battery Lab", 2, c1 = 0xFF4ADE80.toInt(), c2 = 0xFF1B2430.toInt()),
         ),
+        listOf(TrickInfo("hello", "Say hi", "👋"), TrickInfo("bubble", "Blow a bubble", "🫧"), TrickInfo("star", "Catch a star", "⭐"), TrickInfo("bird", "Bird visit", "🐦"), TrickInfo("party", "Party", "🎉"), TrickInfo("wobble", "Wobble", "🍮"), TrickInfo("giggle", "Giggle", "😆"), TrickInfo("stretch", "Big stretch", "🙆")),
     ),
     CreatureInfo(
         2, "Kalboob", "Golden pup. Will fetch anything.",
@@ -36,6 +43,7 @@ val CREATURES = listOf(
             EnvInfo("Snow Day", 4, c1 = 0xFFDDEBFF.toInt(), c2 = 0xFF2E7D6B.toInt()),
             EnvInfo("Cozy Room", 5, c1 = 0xFFE0A070.toInt(), c2 = 0xFF8E3A50.toInt()),
         ),
+        listOf(TrickInfo("fetch", "Fetch", "🎾"), TrickInfo("paw", "Give paw", "🐾"), TrickInfo("belly", "Belly rub", "🫶"), TrickInfo("dig", "Dig", "🕳️"), TrickInfo("howl", "Howl", "🌕"), TrickInfo("butterfly", "Butterfly", "🦋"), TrickInfo("zoomies", "Zoomies", "💨"), TrickInfo("yawn", "Yawn", "🥱")),
     ),
     CreatureInfo(
         3, "Kitty", "Curious, aloof, a little dramatic.",
@@ -46,6 +54,24 @@ val CREATURES = listOf(
             EnvInfo("Rooftop", 7, c1 = 0xFF1F2A44.toInt(), c2 = 0xFFFFC56B.toInt()),
             EnvInfo("Box Fort", 8, c1 = 0xFFD9A066.toInt(), c2 = 0xFFF06292.toInt()),
         ),
+        listOf(TrickInfo("pounce", "Pounce", "🎯"), TrickInfo("knock", "Knock the cup", "☕"), TrickInfo("cucumber", "Cucumber!", "🥒"), TrickInfo("box", "If it fits", "📦"), TrickInfo("zoomies", "Zoomies", "💨"), TrickInfo("purr", "Purr", "💜"), TrickInfo("groom", "Groom", "👅"), TrickInfo("loaf", "Loaf", "🍞"), TrickInfo("trill", "Trill", "🎶"), TrickInfo("stretch", "Stretch", "🙆")),
+    ),
+)
+
+val KIWI_INFO = CreatureInfo(
+    4, "Kiwi", "Talks, whistles, headbangs. Teach it words.",
+    "Drag: it steps to your finger. Tap it: squawk. Hold the sky: a seed. Tap a rhythm: it copies you.",
+    0xFF7BE08A.toInt(), KIWI_SPECIES.map { CoatInfo(it.name, it.body, it.face) },
+    listOf(
+        EnvInfo("Rainforest", 9, c1 = 0xFF2E7D4F.toInt(), c2 = 0xFFB8F27A.toInt()),
+        EnvInfo("Palm Beach", 10, c1 = 0xFF3FC1FF.toInt(), c2 = 0xFFFFC46B.toInt()),
+        EnvInfo("Blossom Garden", 11, c1 = 0xFFFFB7D5.toInt(), c2 = 0xFF8C6CE6.toInt()),
+    ),
+    listOf(
+        TrickInfo("talk", "Say something", "💬"), TrickInfo("whistle", "Whistle", "🎵"), TrickInfo("dance", "Headbang", "🤘"),
+        TrickInfo("fly", "Fly a lap", "🪽"), TrickInfo("hang", "Upside-down", "🙃"), TrickInfo("seed", "Give a seed", "🌻"),
+        TrickInfo("squawk", "Squawk!", "📢"), TrickInfo("preen", "Preen", "✨"), TrickInfo("oneleg", "One leg", "🦩"),
+        TrickInfo("stretch", "Wing stretch", "🙆"),
     ),
 )
 

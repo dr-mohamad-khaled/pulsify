@@ -31,9 +31,7 @@ class AppState {
     var musicReact by mutableStateOf(false); private set
     var batterySaver by mutableStateOf(false); private set
     var shuffle by mutableStateOf(false); private set
-    var xp by mutableIntStateOf(0); private set
-    var streak by mutableIntStateOf(0); private set
-    var discoveries by mutableStateOf(emptySet<String>()); private set
+    var kiwiWords by mutableStateOf(""); private set
 
     /** A short celebratory banner (daily spark, discovery). */
     var toast by mutableStateOf<Toast?>(null)
@@ -61,16 +59,7 @@ class AppState {
         musicReact = p.musicReact
         batterySaver = p.batterySaver
         shuffle = p.shuffleOnUnlock
-        xp = p.bondXp
-        streak = p.streak
-        val before = discoveries
-        val now = p.discoveries
-        if (loaded && now.size > before.size) {
-            val fresh = (now - before).firstOrNull()
-            val d = DISCOVERIES.firstOrNull { it.id == fresh }
-            if (d != null) toast = Toast("Discovery unlocked", "${d.title}  ·  +25 bond")
-        }
-        discoveries = now
+        kiwiWords = p.kiwiWords
         loaded = true
     }
 
@@ -86,15 +75,8 @@ class AppState {
     fun applyMusicReact(on: Boolean) { Pulse.prefs.musicReact = on }
     fun applyBatterySaver(on: Boolean) { Pulse.prefs.batterySaver = on }
     fun applyShuffle(on: Boolean) { Pulse.prefs.shuffleOnUnlock = on }
+    fun applyKiwiWords(v: String) { Pulse.prefs.kiwiWords = v }
 
-    val level: Int get() = Prefs.level(xp)
-    val levelProgress: Float
-        get() {
-            val lo = Prefs.xpForLevel(level)
-            val hi = Prefs.xpForLevel(level + 1)
-            return (xp - lo) / (hi - lo).toFloat()
-        }
-    val xpToNext: Int get() = Prefs.xpForLevel(level + 1) - xp
 
     val accentPair: Pair<Color, Color>
         get() {
@@ -108,17 +90,9 @@ class AppState {
             else Color(accent) to Color(SkyScene.shiftHue(accent, 38f))
         }
 
-    fun checkIn() {
-        val reward = Pulse.prefs.checkIn()
-        if (reward > 0) {
-            val s = Pulse.prefs.streak
-            toast = Toast("Daily spark  +$reward", if (s > 1) "$s-day streak. Come back tomorrow for more." else "Come back tomorrow to start a streak.")
-        }
-    }
-
     companion object {
         fun isOurWallpaperActive(ctx: Context): Boolean =
-            WallpaperManager.getInstance(ctx).wallpaperInfo?.packageName == ctx.packageName
+            try { WallpaperManager.getInstance(ctx).wallpaperInfo?.packageName == ctx.packageName } catch (_: Throwable) { false }
 
         /** Opens the system preview. Returns false if we were already live (changes apply instantly). */
         fun applyWallpaper(ctx: Context): Boolean {
@@ -129,7 +103,7 @@ class AppState {
             try {
                 ctx.startActivity(intent)
             } catch (_: Throwable) {
-                ctx.startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                try { ctx.startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Throwable) {}
             }
             return true
         }

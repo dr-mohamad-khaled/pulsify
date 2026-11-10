@@ -90,12 +90,6 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
         item {
             Column {
                 Hero(state, onOpenStudio, onLoop = { loop = it }, loop = loop, modifier = Modifier.padding(horizontal = 16.dp).enter(2))
-                Gap(16.dp)
-            }
-        }
-        item {
-            Column {
-                BondCard(state, Modifier.padding(horizontal = 16.dp).enter(3))
                 Gap(28.dp)
             }
         }
@@ -195,19 +189,6 @@ private fun Greeting(state: AppState, modifier: Modifier) {
         Gap(6.dp)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("$date  ·  ${(battery * 100).toInt()}%" + (if (charging) " charging" else ""), style = T.body, color = c.sub)
-            if (state.streak > 0) {
-                Spacer(Modifier.width(10.dp))
-                Row(
-                    Modifier.clip(RoundedCornerShape(50))
-                        .background(Brush.horizontalGradient(listOf(c.amber.copy(alpha = 0.22f), c.accent.copy(alpha = 0.16f))))
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Default.Star, null, tint = c.amber, modifier = Modifier.size(12.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("${state.streak}-day streak", style = T.small, color = c.amber)
-                }
-            }
         }
     }
 }
@@ -286,6 +267,16 @@ private fun moodLine(character: Int): String {
             Mood.NIGHT -> "Shh. Kalboob is dreaming about squirrels."
         }
     }
+    if (character == 4) return when {
+        d.charging -> "Charging. Kiwi is nibbling a glowing millet spray."
+        d.batteryLevel < 0.15f -> "Low battery. Kiwi is fluffed up and squawking about it."
+        else -> when (DeviceState.moodNow()) {
+            Mood.MORNING -> "Kiwi is up early and very loud about it."
+            Mood.DAY -> "Kiwi wants to talk. Teach it a word."
+            Mood.EVENING -> "Kiwi is preening for the evening."
+            Mood.NIGHT -> "Kiwi is asleep on one leg. Shh."
+        }
+    }
     if (character == 3) return when {
         d.charging -> "Charging. Kitty is napping on a warm pad."
         d.batteryLevel < 0.15f -> "Low battery. Kitty is in power-saving loaf mode."
@@ -314,48 +305,6 @@ private fun moodLine(character: Int): String {
             Mood.DAY -> "Clear sky. Try catching a shooting star."
             Mood.EVENING -> "Evening. The stars are coming out."
             Mood.NIGHT -> "The sky is half asleep. Shooting stars fall more often now."
-        }
-    }
-}
-
-@Composable
-private fun BondCard(state: AppState, modifier: Modifier) {
-    val c = LocalPulse.current
-    GlassCard(modifier.fillMaxWidth()) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BondRing(state.levelProgress, state.level, 58.dp)
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    MicroLabel("Bond level")
-                    Text("Level ${state.level}", style = T.heading, color = c.text)
-                    Text("${state.xpToNext} XP to level ${state.level + 1}", style = T.small, color = c.sub)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("${state.discoveries.size}/${DISCOVERIES.size}", style = T.heading, color = c.accent)
-                    MicroLabel("Found")
-                }
-            }
-            Gap(16.dp)
-            DISCOVERIES.chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEach { d ->
-                        val found = d.id in state.discoveries
-                        Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
-                                .background(if (found) Brush.verticalGradient(listOf(c.accent.copy(alpha = 0.22f), c.accent2.copy(alpha = 0.08f))) else Brush.verticalGradient(listOf(c.bg, c.bg)))
-                                .border(1.dp, if (found) c.accent.copy(alpha = 0.45f) else c.border.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                                .padding(10.dp),
-                        ) {
-                            Icon(if (found) Icons.Default.Star else Icons.Default.Lock, null, tint = if (found) c.amber else c.faint, modifier = Modifier.size(14.dp))
-                            Gap(6.dp)
-                            Text(if (found) d.title else "???", style = T.small, color = if (found) c.text else c.sub, maxLines = 1)
-                            Text(d.hint, style = T.micro.copy(letterSpacing = T.small.letterSpacing), color = c.faint, maxLines = 2)
-                        }
-                    }
-                }
-                Gap(8.dp)
-            }
         }
     }
 }
@@ -434,7 +383,9 @@ private fun CrashCard() {
             Gap(4.dp)
             Text("Pulsify closed unexpectedly last time", style = T.heading, color = c.text)
             Gap(4.dp)
-            Text(r.lines().firstOrNull { it.contains("Exception") || it.contains("Error") } ?: "Unknown error", style = T.small, color = c.sub, maxLines = 2)
+            Text(r.lines().firstOrNull { it.contains("Exception") || it.contains("Error") || it.contains("crash") || it.contains("ANR") } ?: "Unknown error", style = T.small, color = c.sub, maxLines = 3)
+            Gap(4.dp)
+            Text("Tap Copy details and send it to the developer.", style = T.small, color = c.faint)
             Gap(12.dp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GhostButton(if (copied) "Copied" else "Copy details") {

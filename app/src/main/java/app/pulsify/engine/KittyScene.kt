@@ -231,6 +231,17 @@ class KittyScene(private val context: Context) : Creature {
 
     override fun greet() { startAct(Act.TRILL) }
 
+    override fun perform(trick: String): Boolean {
+        sinceTouch = 0f
+        val a = when (trick) {
+            "pounce" -> Act.POUNCE; "knock" -> Act.KNOCK; "cucumber" -> Act.CUCUMBER; "box" -> Act.BOX
+            "zoomies" -> Act.ZOOM; "groom" -> Act.GROOM; "loaf" -> Act.LOAF; "trill" -> Act.TRILL
+            "stretch" -> Act.STRETCH; "purr" -> Act.PURR
+            else -> return false
+        }
+        startAct(a); return true
+    }
+
     private fun startAct(a: Act) {
         act = a; actT = 0f
         when (a) {

@@ -89,6 +89,8 @@ vec4 skyLayer(vec2 p, float horizonY, float clouds) {
     return c;
 }
 
+vec2 rot2(vec2 p, float a) { float c = cos(a), s = sin(a); return vec2(c * p.x - s * p.y, s * p.x + c * p.y); }
+
 float hillMask(vec2 p, float base, float amp, float freq, float seed) {
     float y = base + amp * (0.6 * sin(p.x * freq + seed) + 0.4 * sin(p.x * freq * 2.3 + seed * 1.7));
     return fill(p.y - y);
@@ -535,6 +537,214 @@ vec4 boxFort(vec2 p) {
     return c;
 }
 
+// 9 Rainforest (Kiwi): layered jungle in haze, light shafts by day, hanging vines, glowing fungi at night.
+vec4 rainforest(vec2 p) {
+    vec3 amb = ambient();
+    float top = (p.y + uHalf.y) / (2.0 * uHalf.y);
+    // Canopy light at the top, deep green haze below.
+    vec3 hazeDay = mix(vec3(0.18, 0.42, 0.3), vec3(0.62, 0.85, 0.6), smoothstep(0.2, 1.0, top));
+    vec3 hazeNight = mix(vec3(0.0, 0.02, 0.03), vec3(0.02, 0.07, 0.1), top);
+    vec3 haze = mix(hazeNight, hazeDay * mix(vec3(1.0), vec3(1.0, 0.75, 0.55), wDawn + wDusk), 1.0 - wNight);
+    vec4 c = vec4(haze, 0.0);
+    // Sky peeks through gaps in the canopy.
+    float gaps = smoothstep(0.62, 0.72, fbm(p * vec2(3.0, 5.0) + 2.0)) * smoothstep(uHalf.y - 0.7, uHalf.y - 0.1, p.y);
+    vec4 sky = skyLayer(p, uFloor + 0.3, 0.0);
+    c.rgb = mix(c.rgb, sky.rgb, gaps * 0.8); c.a = mix(c.a, sky.a, gaps);
+    // Three layers of trunks and foliage, farther = paler.
+    for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        float depth = 1.0 - fi / 3.0;
+        vec3 col = mix(haze, mix(vec3(0.02, 0.08, 0.05), vec3(0.08, 0.22, 0.12) * amb, 1.0 - wNight), 0.35 + 0.3 * fi);
+        float spacing = 0.55 - fi * 0.1;
+        float cell = floor((p.x + fi * 0.37) / spacing);
+        float tx = (cell + 0.5) * spacing - fi * 0.37 + (h21(vec2(cell, fi)) - 0.5) * spacing * 0.5;
+        float w = (0.025 + 0.02 * fi) * (0.7 + 0.6 * h21(vec2(cell, fi + 3.0)));
+        float trunk = abs(p.x - tx - 0.03 * sin(p.y * 3.0 + cell)) - w;
+        lay(c, col * (0.85 + 0.2 * vnoise(vec2(p.x * 80.0, p.y * 8.0))), fill(trunk) * step(0.25, h21(vec2(cell, fi + 7.0))));
+        float foliage = fbm(vec2(p.x * (2.0 + fi), p.y * 3.0 + fi * 5.0)) - 0.15 * (p.y - uHalf.y + 0.4) * (1.0 + fi);
+        lay(c, col * (0.8 + 0.4 * vnoise(p * 30.0)), smoothstep(0.62 - 0.04 * fi, 0.66 - 0.04 * fi, foliage) * smoothstep(-0.2, 0.4, p.y - uFloor));
+        // Fog between layers.
+        c.rgb = mix(c.rgb, haze, 0.18 * depth);
+    }
+    // God rays.
+    float rays = pow(max(0.0, sin((p.x * 0.8 + p.y * 0.35) * 9.0 + 1.3)), 6.0) * smoothstep(uFloor - 0.4, uHalf.y, p.y);
+    c.rgb += vec3(1.0, 0.95, 0.75) * rays * 0.16 * (wDay + 0.6 * wDawn + 0.6 * wDusk);
+    // Hanging vines.
+    for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        float vx = (h21(vec2(fi, 11.0)) * 2.0 - 1.0) * uHalf.x;
+        float len = 0.4 + 0.6 * h21(vec2(fi, 13.0));
+        float vy = uHalf.y - p.y;
+        float vine = abs(p.x - vx - 0.02 * sin(vy * 8.0 + fi)) - 0.005;
+        float on = step(vy, len);
+        vec3 vc = mix(vec3(0.02, 0.06, 0.04), vec3(0.15, 0.35, 0.15) * amb, 1.0 - wNight);
+        lay(c, vc, fill(vine) * on);
+        vec2 lq = vec2(p.x - vx - 0.02 * sin(vy * 8.0 + fi), mod(vy, 0.07) - 0.035);
+        float leaf = length(lq * vec2(1.0, 1.6) - vec2(0.018 * sign(sin(floor(vy / 0.07) * 2.0 + fi)), 0.0)) - 0.016;
+        lay(c, vc * 1.3, fill(leaf) * on);
+    }
+    // Glowing fungi on the forest floor at night.
+    for (int i = 0; i < 6; i++) {
+        float fi = float(i);
+        vec2 mp = vec2((h21(vec2(fi, 21.0)) * 2.0 - 1.0) * uHalf.x * 0.9, -uHalf.y + 0.12 + 0.12 * h21(vec2(fi, 23.0)));
+        float cap = sdEllipse(p - mp, vec2(0.03, 0.015));
+        float stem = sdBox(p - mp + vec2(0.0, 0.022), vec2(0.006, 0.02));
+        vec3 gc = mix(vec3(0.5, 0.9, 1.0), vec3(0.75, 0.6, 1.0), h21(vec2(fi, 2.0)));
+        c.rgb += gc * exp(-max(cap, 0.0) * 25.0) * 0.35 * wNight;
+        layE(c, mix(vec3(0.85, 0.8, 0.7) * amb, gc, wNight), fill(min(cap, stem)), wNight * 0.9);
+    }
+    // Big leaves in the bottom corners.
+    for (int s = 0; s < 2; s++) {
+        float side = s == 0 ? -1.0 : 1.0;
+        vec2 lq = p - vec2(side * uHalf.x, -uHalf.y + 0.05);
+        lq = vec2(lq.x * side, lq.y);
+        vec2 r = vec2(cos(0.8), sin(0.8));
+        vec2 l = vec2(dot(lq, r), dot(lq, vec2(-r.y, r.x)));
+        float leaf = sdEllipse(l - vec2(-0.25, 0.0), vec2(0.38, 0.14));
+        float slits = step(0.85, sin(l.x * 30.0)) * step(0.04, abs(l.y)) * step(-0.5, l.x);
+        vec3 lc = mix(vec3(0.01, 0.04, 0.02), vec3(0.05, 0.25, 0.1) * amb, 1.0 - wNight * 0.8);
+        lay(c, lc * (0.8 + 0.3 * smoothstep(0.1, -0.1, l.y)), fill(leaf) * (1.0 - slits));
+        lay(c, lc * 1.8, fill(abs(l.y) - 0.004) * step(leaf, 0.0));
+    }
+    return c;
+}
+
+// 10 Palm Beach (Kiwi): sea and sky by time of day, the sun's path on the water, a palm, sand.
+vec4 palmBeach(vec2 p) {
+    float horizon = uFloor + 0.42;
+    vec4 c = skyLayer(p, horizon, 1.0);
+    vec3 amb = ambient();
+    vec2 sp = sunPos();
+    float sunUp = smoothstep(5.0, 7.0, uHour) * (1.0 - smoothstep(18.0, 19.5, uHour));
+    // Distant island.
+    float isl = horizon + 0.05 * exp(-pow((p.x - uHalf.x * 0.35) * 5.0, 2.0)) + 0.025 * exp(-pow((p.x - uHalf.x * 0.5) * 9.0, 2.0));
+    lay(c, mix(vec3(0.25, 0.4, 0.45), vec3(0.02, 0.03, 0.06), wNight) * mix(vec3(1.0), vec3(1.0, 0.6, 0.5), wDusk + wDawn), fill(p.y - isl));
+    // Sea.
+    float sandY = -uHalf.y + 0.3 + 0.03 * sin(p.x * 3.0);
+    if (p.y < horizon) {
+        float dd = (horizon - p.y) / max(horizon - sandY, 0.1);
+        vec3 deep = vec3(0.02, 0.2, 0.38) * wDay + vec3(0.25, 0.18, 0.3) * (wDawn + wDusk) + vec3(0.0, 0.02, 0.06) * wNight;
+        vec3 shallow = vec3(0.1, 0.65, 0.7) * wDay + vec3(0.7, 0.4, 0.35) * (wDawn + wDusk) + vec3(0.01, 0.05, 0.09) * wNight;
+        vec3 sea = mix(deep, shallow, smoothstep(0.3, 1.0, dd));
+        // Wave lines.
+        float wv = sin(p.x * (20.0 + 30.0 * dd) + vnoise(p * vec2(4.0, 30.0)) * 4.0 + p.y * 60.0);
+        sea *= 0.9 + 0.12 * smoothstep(0.7, 1.0, wv);
+        lay(c, sea, fill(p.y - horizon) * 1.0);
+        // Sun or moon path on the water.
+        vec2 lp = sunUp > 0.1 ? sp : vec2(uHalf.x * 0.45, uHalf.y - 0.35);
+        float path = exp(-pow((p.x - lp.x) * (6.0 + 10.0 * (1.0 - dd)), 2.0)) * (0.5 + 0.5 * smoothstep(0.3, 0.9, vnoise(p * vec2(20.0, 80.0))));
+        vec3 pc = mix(vec3(0.75, 0.8, 1.0) * 0.5, mix(vec3(1.0, 0.95, 0.8), vec3(1.0, 0.55, 0.25), wDawn + wDusk), sunUp);
+        c.rgb += pc * path * 0.55 * (sunUp + wNight * 0.6);
+        c.a = max(c.a, path * 0.5 * smoothstep(0.6, 0.9, vnoise(p * vec2(30.0, 90.0))));
+        // Foam at the shore.
+        float foam = abs(p.y - sandY - 0.025 - 0.01 * sin(p.x * 9.0 + 1.0)) - 0.006;
+        lay(c, vec3(0.95) * amb, fill(foam) * 0.8);
+    }
+    // Sand.
+    vec3 sand = mix(vec3(0.95, 0.85, 0.65), vec3(0.85, 0.72, 0.52), smoothstep(sandY, -uHalf.y, p.y)) * amb;
+    sand *= 0.92 + 0.1 * vnoise(p * 120.0);
+    lay(c, sand, fill(p.y - sandY));
+    // Shells and a starfish.
+    vec2 st = p - vec2(-uHalf.x * 0.55, -uHalf.y + 0.12);
+    float ang = atan(st.y, st.x);
+    float star = length(st) - 0.035 - 0.018 * cos(ang * 5.0);
+    lay(c, vec3(1.0, 0.5, 0.35) * amb, fill(star));
+    // Palm on the right: curved trunk with rings, fronds at the top.
+    vec2 base = vec2(uHalf.x * 0.95, -uHalf.y + 0.2);
+    float tt = clamp((p.y - base.y) / (uHalf.y * 1.6), 0.0, 1.0);
+    float tx = base.x - 0.25 * tt * tt;
+    float trunk = abs(p.x - tx) - mix(0.05, 0.028, tt);
+    float tOn = step(p.y, base.y + uHalf.y * 1.6) * step(base.y, p.y);
+    vec3 tc = mix(vec3(0.35, 0.25, 0.15), vec3(0.05, 0.04, 0.04), wNight) * (0.75 + 0.35 * step(0.5, fract(p.y * 22.0)));
+    lay(c, tc * mix(vec3(1.0), amb, 0.5), fill(trunk) * tOn);
+    vec2 crown = vec2(base.x - 0.25, base.y + uHalf.y * 1.6);
+    for (int i = 0; i < 7; i++) {
+        float fi = float(i);
+        float a = -2.6 + fi * 0.62;
+        vec2 dir = vec2(cos(a), sin(a));
+        vec2 q = p - crown;
+        float along = dot(q, dir);
+        float droop = 0.25 * along * along;
+        float off = dot(q, vec2(-dir.y, dir.x)) + droop;
+        float frond = abs(off) - 0.035 * (1.0 - along / 0.45) * step(0.0, along);
+        frond = max(frond, along - 0.45);
+        float lobes = 0.85 + 0.15 * step(0.4, fract(along * 30.0));
+        vec3 fc = mix(vec3(0.1, 0.35, 0.15), vec3(0.01, 0.03, 0.02), wNight) * mix(vec3(1.0), amb, 0.4);
+        lay(c, fc * lobes, fill(frond) * step(0.0, along));
+    }
+    return c;
+}
+
+// 11 Blossom Garden (Kiwi): a meadow under cherry trees, blossom canopy above, a lantern that glows at night.
+vec4 blossomGarden(vec2 p) {
+    float horizon = uFloor + 0.38;
+    vec4 c = skyLayer(p, horizon, 0.5);
+    vec3 amb = ambient();
+    c.rgb = mix(c.rgb, c.rgb * vec3(1.05, 0.86, 0.96) + vec3(0.07, 0.02, 0.05), 0.5 * (1.0 - wNight));
+    // Distant hills dotted with pink trees.
+    vec3 hc = mix(vec3(0.55, 0.62, 0.62), vec3(0.03, 0.04, 0.07), wNight) * mix(vec3(1.0), vec3(1.0, 0.78, 0.78), wDusk + wDawn);
+    lay(c, hc, hillMask(p, horizon + 0.03, 0.035, 2.2, 4.0));
+    vec2 tg = vec2(p.x * 14.0, (p.y - horizon) * 14.0);
+    vec2 tid = floor(tg); vec2 tf = fract(tg) - 0.5;
+    if (p.y > horizon - 0.05 && p.y < horizon + 0.09 && h21(tid + 2.0) > 0.55) {
+        float tree = length(tf * vec2(1.0, 1.3)) - 0.38;
+        vec3 tcol = mix(vec3(0.95, 0.68, 0.8), vec3(0.15, 0.08, 0.15), wNight) * mix(vec3(1.0), vec3(1.0, 0.8, 0.8), wDusk);
+        lay(c, tcol, clamp(0.5 - tree * 6.0, 0.0, 1.0) * 0.85);
+    }
+    // Meadow from the hills to the bottom, darker and richer closer to you.
+    float gy = horizon - 0.02 + 0.015 * sin(p.x * 3.0);
+    float near = smoothstep(gy, -uHalf.y, p.y);
+    vec3 grass = mix(vec3(0.55, 0.72, 0.42), vec3(0.22, 0.45, 0.2), near);
+    grass = mix(grass, vec3(0.02, 0.05, 0.04), wNight * 0.9) * mix(vec3(1.0), vec3(1.0, 0.82, 0.75), wDusk + wDawn);
+    grass *= 0.88 + 0.18 * vnoise(vec2(p.x * (40.0 + 80.0 * near), p.y * 10.0));
+    lay(c, grass, fill(p.y - gy));
+    // Fallen petals, bigger in front.
+    float ps = mix(60.0, 18.0, near);
+    vec2 g = vec2(p.x, p.y * 1.6) * ps; vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+    if (p.y < gy && h21(id + 5.0) > 0.72) {
+        float pet = length(rot2(f, h21(id) * 6.0) * vec2(1.0, 1.7)) - 0.22;
+        lay(c, mix(vec3(1.0, 0.78, 0.88), vec3(0.25, 0.15, 0.22), wNight) * amb, clamp(0.5 - pet * 12.0, 0.0, 1.0) * 0.9);
+    }
+    // Stone lantern.
+    vec2 lq = p - vec2(uHalf.x * 0.62, -uHalf.y + 0.32);
+    float ln = min(min(sdBox(lq - vec2(0.0, 0.08), vec2(0.018, 0.08)), sdBox(lq - vec2(0.0, 0.2), vec2(0.045, 0.04))), sdTri(lq, vec2(-0.075, 0.24), vec2(0.075, 0.24), vec2(0.0, 0.3)));
+    ln = min(ln, sdBox(lq - vec2(0.0, 0.0), vec2(0.05, 0.015)));
+    lay(c, mix(vec3(0.62, 0.62, 0.6), vec3(0.1, 0.1, 0.13), wNight) * amb * (0.85 + 0.2 * vnoise(lq * 90.0)), fill(ln));
+    float lamp = sdBox(lq - vec2(0.0, 0.2), vec2(0.022, 0.022));
+    float lit = clamp(wNight + wDusk, 0.0, 1.0);
+    c.rgb += vec3(1.0, 0.7, 0.35) * exp(-max(lamp, 0.0) * 14.0) * 0.5 * lit;
+    layE(c, mix(vec3(0.2), vec3(1.0, 0.8, 0.45), lit), fill(lamp), lit);
+    // Blossom canopy hanging from the top edge: soft clumps with flower detail, dark branches inside.
+    float edge = uHalf.y - 0.22 - 0.12 * fbm(vec2(p.x * 2.5, 1.0)) + 0.08 * sin(p.x * 1.7);
+    float clump = fbm(p * vec2(6.0, 8.0) + 3.0);
+    float canopy = smoothstep(-0.02, 0.02, p.y - edge + 0.12 * (clump - 0.5));
+    // A few clumps hang lower.
+    for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        vec2 cp = vec2((h21(vec2(fi, 41.0)) * 2.0 - 1.0) * uHalf.x, uHalf.y - 0.35 - 0.12 * h21(vec2(fi, 43.0)));
+        canopy = max(canopy, smoothstep(0.02, -0.02, length((p - cp) * vec2(1.0, 1.4)) - 0.08 - 0.05 * clump));
+    }
+    float br = abs(p.y - (uHalf.y - 0.12 - 0.06 * sin(p.x * 2.2))) - 0.012;
+    br = min(br, sdSeg(p, vec2(-uHalf.x, uHalf.y - 0.3), vec2(-uHalf.x * 0.2, uHalf.y - 0.14)) - 0.009);
+    lay(c, mix(vec3(0.3, 0.18, 0.16), vec3(0.03), wNight), fill(br));
+    vec3 pink = mix(vec3(0.98, 0.66, 0.8), vec3(1.0, 0.9, 0.95), smoothstep(0.3, 0.8, clump));
+    pink *= mix(vec3(1.0), amb, 0.7);
+    pink = mix(pink, vec3(0.18, 0.1, 0.18), wNight * 0.7);
+    vec2 bg = p * 20.0; vec2 bid = floor(bg); vec2 bf = fract(bg) - 0.5;
+    float flower = length(bf) - 0.25 - 0.1 * cos(atan(bf.y, bf.x) * 5.0);
+    float fl = step(0.5, h21(bid)) * smoothstep(0.06, -0.06, flower);
+    lay(c, pink * (0.85 + 0.25 * fl), canopy);
+    lay(c, mix(vec3(1.0, 0.92, 0.6), vec3(0.4, 0.3, 0.3), wNight) * amb, canopy * fl * clamp(0.5 - (length(bf) - 0.06) * 30.0, 0.0, 1.0));
+    // Bokeh glow in the air.
+    for (int i = 0; i < 6; i++) {
+        float fi = float(i);
+        vec2 bp = vec2((h21(vec2(fi, 31.0)) * 2.0 - 1.0) * uHalf.x, horizon + 0.1 + h21(vec2(fi, 33.0)) * (uHalf.y - horizon - 0.4));
+        float bd = length(p - bp) - 0.05 - 0.04 * h21(vec2(fi, 35.0));
+        c.rgb += mix(vec3(1.0, 0.8, 0.9), vec3(1.0, 0.85, 0.5), wNight) * smoothstep(0.02, -0.02, bd) * 0.07;
+    }
+    return c;
+}
+
 void main() {
     px = 2.0 * uHalf.y / uRes.y;
     vec2 p = (gl_FragCoord.xy / uRes - 0.5) * uHalf * 2.0;
@@ -547,7 +757,10 @@ void main() {
     else if (uWorld < 5.5) c = cozyRoom(p);
     else if (uWorld < 6.5) c = windowsill(p);
     else if (uWorld < 7.5) c = rooftop(p);
-    else c = boxFort(p);
+    else if (uWorld < 8.5) c = boxFort(p);
+    else if (uWorld < 9.5) c = rainforest(p);
+    else if (uWorld < 10.5) c = palmBeach(p);
+    else c = blossomGarden(p);
     // Gentle vignette keeps the edges dark on AMOLED.
     float v = smoothstep(1.4, 0.4, length(p / uHalf));
     c.rgb *= mix(0.55, 1.0, v);

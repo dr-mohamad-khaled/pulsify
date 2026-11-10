@@ -80,7 +80,6 @@ private fun App() {
     DisposableEffect(Unit) { onDispose { state.dispose() } }
     LaunchedEffect(Unit) {
         delay(900)
-        state.checkIn()
     }
     val (a1, a2) = state.accentPair
     PulsifyTheme(a1, a2) {

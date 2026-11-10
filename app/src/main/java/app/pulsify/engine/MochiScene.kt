@@ -296,6 +296,16 @@ class MochiScene(private val context: Context) : Creature {
     private var mood = Mood.DAY
     private fun isAsleep() = mood == Mood.NIGHT && awakeFor <= 0f && act == Act.NONE && jar != Jar.DRAG && jar != Jar.LOOSE
 
+    override fun perform(trick: String): Boolean {
+        wake()
+        val a = when (trick) {
+            "bubble" -> Act.BUBBLE; "star" -> Act.STAR; "bird" -> Act.BIRD; "party" -> Act.CELEBRATE
+            "wobble" -> Act.WOBBLE; "stretch" -> Act.STRETCH; "giggle" -> Act.GIGGLE; "hello" -> Act.GREET
+            else -> return false
+        }
+        startAct(a); return true
+    }
+
     private fun startAct(a: Act) {
         act = a; actT = 0f
         when (a) {

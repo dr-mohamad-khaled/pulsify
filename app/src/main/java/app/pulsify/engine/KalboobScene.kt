@@ -251,6 +251,18 @@ class KalboobScene(private val context: Context) : Creature {
 
     private fun isAsleep() = mood == Mood.NIGHT && awakeFor <= 0f && act == Act.NONE && ballState == 0
 
+    override fun perform(trick: String): Boolean {
+        awakeFor = 12f; sinceTouch = 0f
+        when (trick) {
+            "fetch" -> { ballState = 0; dropBall(homeX + (if (Random.nextBoolean()) 0.6f else -0.6f) * size, homeY + 1.2f * size) }
+            "dig" -> startAct(Act.DIG); "howl" -> startAct(Act.HOWL); "paw" -> startAct(Act.PAW)
+            "belly" -> startAct(Act.RUB); "butterfly" -> startAct(Act.BUTTERFLY); "zoomies" -> startAct(Act.ZOOM)
+            "yawn" -> startAct(Act.YAWN); "hello" -> startAct(Act.GREET)
+            else -> return false
+        }
+        return true
+    }
+
     private fun startAct(a: Act) {
         act = a; actT = 0f
         when (a) {
