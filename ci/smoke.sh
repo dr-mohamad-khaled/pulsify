@@ -12,6 +12,7 @@ logs() {  # $1 = suffix; safe to call many times
   timeout 60 adb logcat -d '*:E' > $OUT/errors$1.txt 2>/dev/null
   timeout 60 adb logcat -d -s Pulsify:V AndroidRuntime:E libEGL:V > $OUT/pulsify$1.txt 2>/dev/null
   grep -c "FATAL EXCEPTION\|Fatal signal" $OUT/crash$1.txt > $OUT/crash_count.txt 2>/dev/null || true
+  timeout 30 adb shell dumpsys activity exit-info $PKG > $OUT/exit_info$1.txt 2>/dev/null
   timeout 60 adb shell 'cat /data/anr/* 2>/dev/null' | head -600 > $OUT/anr$1.txt
   timeout 30 adb shell run-as $PKG cat files/last_crash.txt > $OUT/app_crash$1.txt 2>/dev/null || true
   timeout 30 adb shell run-as $PKG cat files/gl_notes.txt > $OUT/gl_notes$1.txt 2>/dev/null || true
@@ -24,6 +25,28 @@ adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
 adb install -r -g pulsify-v3.apk > $OUT/install.txt 2>&1
 adb logcat -c
+
+echo "== set as live wallpaper for real, then live with it"
+adb shell am start -a android.service.wallpaper.CHANGE_LIVE_WALLPAPER \
+  --ecn android.service.wallpaper.extra.LIVE_WALLPAPER_COMPONENT $PKG/app.pulsify.wallpaper.PulsifyWallpaperService > $OUT/wallpaper.txt 2>&1
+sleep 12; shot 30_wallpaper_preview
+ui tap "Set wallpaper"; sleep 3; shot 32_set_dialog
+ui tap "Home and lock screens" ; ui tap "Home screen and lock screen"; sleep 8
+timeout 30 adb shell dumpsys wallpaper | grep -i -m3 "pulsify\|component" > $OUT/wallpaper_set.txt
+adb shell input keyevent KEYCODE_HOME; sleep 10; shot 33_home_live
+adb shell input tap 540 1600; sleep 2; adb shell input swipe 540 1650 545 1655 1500; sleep 2; shot 34_home_touch
+adb shell input swipe 900 1200 150 1200 300; sleep 3; adb shell input swipe 150 1200 900 1200 300; sleep 3
+adb shell input keyevent KEYCODE_SLEEP; sleep 5; adb shell input keyevent KEYCODE_WAKEUP; sleep 3
+adb shell wm dismiss-keyguard; sleep 5; shot 35_after_unlock
+echo "== change things in the app while the wallpaper is live"
+adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 8; shot 36_app_with_live
+ui tap "Open Studio"; sleep 5
+for n in Kalboob Kitty Mochi Kalboob; do ui tap "$n"; sleep 3; done
+ui tap "Mood"; sleep 1; ui switch "Pretend it's charging"; sleep 2
+adb shell input keyevent KEYCODE_HOME; sleep 10; shot 37_home_after_changes
+adb shell input tap 540 1600; sleep 3
+adb shell am force-stop $PKG; sleep 10; shot 38_after_force_stop
+logs _w
 
 echo "== launch"
 adb shell am start -W -n $PKG/app.pulsify.MainActivity > $OUT/launch.txt 2>&1
@@ -56,16 +79,6 @@ adb shell input keyevent KEYCODE_BACK; sleep 3; shot 20_home_again
 echo "== monkey"
 timeout 300 adb shell monkey -p $PKG --pct-syskeys 0 --pct-appswitch 0 --throttle 250 -s 7 -v 400 > $OUT/monkey.txt 2>&1 || true
 sleep 3; shot 21_after_monkey
-
-echo "== live wallpaper"
-adb shell am force-stop $PKG
-adb shell am start -a android.service.wallpaper.CHANGE_LIVE_WALLPAPER \
-  --ecn android.service.wallpaper.extra.LIVE_WALLPAPER_COMPONENT $PKG/app.pulsify.wallpaper.PulsifyWallpaperService > $OUT/wallpaper.txt 2>&1
-sleep 12; shot 30_wallpaper_preview
-adb shell input tap 540 1700; sleep 2
-adb shell input swipe 540 1650 545 1655 1500; sleep 3; shot 31_wallpaper_touch
-adb shell dumpsys gfxinfo $PKG > $OUT/gfxinfo_wallpaper.txt
-adb shell dumpsys meminfo $PKG > $OUT/meminfo.txt
 
 echo "== kitty laser dot"
 adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 6
