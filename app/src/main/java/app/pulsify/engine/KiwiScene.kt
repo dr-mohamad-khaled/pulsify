@@ -31,7 +31,7 @@ data class KiwiSpecies(
 )
 
 val KIWI_SPECIES = listOf(
-    KiwiSpecies("Ringneck", 0xFF5CBD4C.toInt(), 0xFF8CDB6B.toInt(), 0xFF61C75C.toInt(), 0xFF61C75C.toInt(), 0xFF4DA847.toInt(), 0xFF337333.toInt(), 0xFF408C99.toInt(), 0xFFD91F1F.toInt(), 0xFFFF8CB3.toInt()),
+    KiwiSpecies("Ringneck", 0xFF66C233.toInt(), 0xFF9ED942.toInt(), 0xFF70CC3D.toInt(), 0xFF70CC3D.toInt(), 0xFF4DAB33.toInt(), 0xFF337A29.toInt(), 0xFF21859E.toInt(), 0xFFED3826.toInt(), 0xFFFF80A6.toInt()),
     KiwiSpecies("Budgie", 0xFF73D147.toInt(), 0xFF8CE052.toInt(), 0xFFFAEB59.toInt(), 0xFFFAEB59.toInt(), 0xFFD9D959.toInt(), 0xFF0D0D0D.toInt(), 0xFF264D99.toInt(), 0xFFD9C78C.toInt(), 0xFF7359D9.toInt()),
     KiwiSpecies("Cockatiel", 0xFF9E9EA6.toInt(), 0xFFB3B3B8.toInt(), 0xFFF7E073.toInt(), 0xFFFAE673.toInt(), 0xFF8C8C94.toInt(), 0xFF73737A.toInt(), 0xFF737380.toInt(), 0xFF999499.toInt(), 0xFFFF8C26.toInt()),
     KiwiSpecies("Lovebird", 0xFF6BC74D.toInt(), 0xFF8CDB61.toInt(), 0xFFF28040.toInt(), 0xFFF2402E.toInt(), 0xFF52A642.toInt(), 0xFF387A33.toInt(), 0xFF4D9959.toInt(), 0xFFF23326.toInt(), 0xFF4073F2.toInt()),
