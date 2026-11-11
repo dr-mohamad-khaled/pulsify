@@ -104,6 +104,15 @@ float earSdf(vec2 h, float side, float flop) {
     return sdEllipse(q - vec2(0.045 * side, -0.13), vec2(0.085, 0.165));
 }
 
+float sdTri(vec2 p, vec2 a, vec2 b, vec2 c) {
+    vec2 e0 = b - a, e1 = c - b, e2 = a - c, v0 = p - a, v1 = p - b, v2 = p - c;
+    vec2 pq0 = v0 - e0 * clamp(dot(v0, e0) / dot(e0, e0), 0.0, 1.0);
+    vec2 pq1 = v1 - e1 * clamp(dot(v1, e1) / dot(e1, e1), 0.0, 1.0);
+    vec2 pq2 = v2 - e2 * clamp(dot(v2, e2) / dot(e2, e2), 0.0, 1.0);
+    float s = sign(e0.x * e2.y - e0.y * e2.x);
+    vec2 d = min(min(vec2(dot(pq0, pq0), s * (v0.x * e0.y - v0.y * e0.x)), vec2(dot(pq1, pq1), s * (v1.x * e1.y - v1.y * e1.x))), vec2(dot(pq2, pq2), s * (v2.x * e2.y - v2.y * e2.x)));
+    return -sqrt(d.x) * sign(d.y);
+}
 void main() {
     vec2 p = (vUv - uPos) / uSize;
     vec2 sp = p;
@@ -322,19 +331,41 @@ void main() {
 
     // ---- Glowing bone (charging), held in the paws ----
     if (uBone.z > 0.01) {
-        vec2 q = p - uBone.xy;
-        float shaft = sdRoundBox(q, vec2(0.11, 0.022), 0.02);
-        float knobs = min(min(length(q - vec2(-0.12, 0.025)), length(q - vec2(-0.12, -0.025))), min(length(q - vec2(0.12, 0.025)), length(q - vec2(0.12, -0.025)))) - 0.032;
-        float bone = smin(shaft, knobs, 0.015);
+        // A chunky bone that fills with light as the battery charges, with a luminous bolt badge.
+        vec2 q = (p - uBone.xy) / 1.25;
+        float shaft = sdRoundBox(q, vec2(0.11, 0.024), 0.022);
+        float knobs = min(min(length(q - vec2(-0.12, 0.027)), length(q - vec2(-0.12, -0.027))), min(length(q - vec2(0.12, 0.027)), length(q - vec2(0.12, -0.027)))) - 0.034;
+        float bone = smin(shaft, knobs, 0.015) * 1.25;
         float lvl = uBone.w;
-        vec3 boneC = mix(vec3(0.98, 0.95, 0.86), uGlow * 1.3, 0.35 + 0.35 * lvl);
-        boneC *= 0.85 + 0.15 * smoothstep(-0.03, 0.03, q.y);
-        over(acc, uGlow, exp(-max(bone, 0.0) * 45.0) * 0.35 * uBone.z);
+        float beat = 0.6 + 0.4 * sin(uTime * 4.0);
+        vec3 ivory = vec3(1.0, 0.97, 0.88) * (0.78 + 0.22 * smoothstep(-0.03, 0.03, q.y));
+        // Charge fills the bone from the left; the leading edge shimmers.
+        float fillX = -0.155 + 0.31 * lvl;
+        float charged = smoothstep(0.012, -0.012, q.x - fillX + 0.006 * sin(q.y * 80.0 + uTime * 6.0));
+        vec3 boneC = mix(ivory, mix(uGlow, vec3(1.0), 0.25) * (0.9 + 0.2 * beat), charged * 0.8);
+        boneC += vec3(1.0) * smoothstep(0.008, 0.0, abs(q.y - 0.012)) * 0.25;
+        over(acc, uGlow, exp(-max(bone, 0.0) * 30.0) * (0.3 + 0.25 * beat) * uBone.z);
         over(acc, boneC, fill(bone) * uBone.z);
+        over(acc, vec3(1.0), fill(bone) * smoothstep(0.01, 0.0, abs(q.x - fillX)) * 0.6 * uBone.z);
         // Bite marks.
+        for (int k = 0; k < 2; k++) {
+            float bm = length(q - vec2(0.06 + float(k) * 0.035, 0.022)) - 0.007;
+            over(acc, ivory * 0.7, fill(bm * 1.25) * uBone.z * 0.7);
+        }
+        // Badge with the bolt.
+        float disc = length(q) - 0.042;
+        over(acc, vec3(0.05, 0.06, 0.1), fill(disc * 1.25) * uBone.z);
+        over(acc, uGlow, fill((abs(disc) - 0.004) * 1.25) * uBone.z);
+        vec2 bq = q / 0.055;
+        float bolt = min(sdTri(bq, vec2(0.18, 0.5), vec2(-0.32, -0.06), vec2(0.06, -0.06)), sdTri(bq, vec2(-0.18, -0.5), vec2(0.32, 0.06), vec2(-0.06, 0.06))) * 0.055 * 1.25;
+        over(acc, mix(uGlow, vec3(1.0), 0.4 + 0.35 * beat), fill(bolt) * uBone.z);
+        over(acc, uGlow, exp(-max(bolt, 0.0) * 60.0) * 0.55 * beat * uBone.z);
+        // Sparks hopping off the charged end.
         for (int k = 0; k < 3; k++) {
-            float bm = length(q - vec2(-0.04 + float(k) * 0.04, 0.018)) - 0.006;
-            over(acc, boneC * 0.75, fill(bm) * uBone.z * 0.7);
+            float fk = float(k);
+            float t = fract(uTime * 0.9 + fk * 0.37);
+            vec2 sq = q - vec2(fillX + (fk - 1.0) * 0.03, 0.03 + t * 0.09);
+            over(acc, mix(uGlow, vec3(1.0), 0.5), exp(-length(sq) * 120.0) * (1.0 - t) * uBone.z);
         }
     }
 

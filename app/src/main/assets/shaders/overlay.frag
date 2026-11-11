@@ -105,6 +105,43 @@ void main() {
             float tw2 = 0.5 + 0.5 * sin(uTime * 5.0 + h21(id + 3.0) * 30.0);
             add += vec3(1.0, 0.95, 0.85) * gl * tw2 * (0.5 + uTreble) * (1.0 - 0.6 * uNight) * smoothstep(-0.2, 0.2, base.a + 0.2);
         }
+    } else if (uWorld > 11.5 && uWorld < 14.5) {
+        // The sea: bubbles rising, marine snow, caustic shimmer near the surface.
+        for (int i = 0; i < 9; i++) {
+            float fi = float(i);
+            vec2 start = vec2(h11(fi + 80.0) * 2.0 - 1.0, h11(fi * 2.3 + 80.0) * 2.0 - 1.0) * uHalf;
+            vec2 span = uHalf * 2.0 + 0.2;
+            vec2 pos = mod(start + vec2(0.0, 0.07 + 0.05 * h11(fi)) * uTime + uHalf + 0.1, span) - uHalf - 0.1;
+            pos.x += 0.02 * sin(uTime * (1.5 + h11(fi)) + fi * 3.0);
+            float r = 0.008 + 0.012 * h11(fi + 5.0);
+            float d = length(p - pos);
+            add += vec3(0.7, 0.9, 1.0) * (smoothstep(0.004, 0.0, abs(d - r)) * 0.6 + smoothstep(r * 0.4, 0.0, length(p - pos - vec2(-r * 0.35, r * 0.4))) * 0.5);
+            float sn = mote(p, fi + 60.0, vec2(0.012 * sin(fi), -0.015), 0.006, 23.0);
+            add += vec3(0.75, 0.85, 1.0) * sn * 0.35;
+        }
+        float ca = sin(p.x * 14.0 + uTime * 0.8 + sin(p.y * 9.0 + uTime * 0.6) * 1.5) * sin(p.y * 11.0 - uTime * 0.5 + sin(p.x * 7.0) * 1.3);
+        add += vec3(0.5, 0.85, 1.0) * smoothstep(0.75, 1.0, ca) * 0.12 * (1.0 - uNight) * smoothstep(-uHalf.y * 0.3, uHalf.y, p.y) * (uWorld > 12.5 ? 1.0 : 0.4);
+    } else if (uWorld > 14.5 && uWorld < 15.5) {
+        // Lava Lair: embers rising, the lava light breathing.
+        for (int i = 0; i < 10; i++) {
+            float fi = float(i);
+            float e = mote(p, fi + 90.0, vec2(0.02 * sin(fi * 2.0), 0.07 + 0.04 * h11(fi)), 0.008, 29.0);
+            add += vec3(1.0, 0.5, 0.1) * e * (1.0 + uBass);
+        }
+        add += vec3(1.0, 0.3, 0.05) * base.a * (0.15 + 0.15 * sin(uTime * 1.5 + p.x * 4.0) + 0.3 * uBass);
+    } else if (uWorld > 15.5 && uWorld < 16.5) {
+        // Haunted Hill: fog motes and will-o'-wisps at night.
+        for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            float wsp = mote(p, fi + 110.0, vec2(0.03 * sin(fi * 1.3), 0.012 * cos(fi)), 0.016, 31.0);
+            add += mix(vec3(0.5, 1.0, 0.7), vec3(0.7, 0.6, 1.0), h11(fi)) * wsp * (0.25 + uNight) * (0.6 + 0.4 * sin(uTime * 2.0 + fi * 3.0));
+        }
+    } else if (uWorld > 16.5) {
+        // Evil HQ: dust in the lamp light.
+        for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            add += vec3(0.9, 1.0, 0.8) * mote(p, fi + 130.0, vec2(0.01 * sin(fi), 0.008), 0.007, 37.0) * 0.35;
+        }
     } else if (uWorld > 10.5) {
         // Blossom Garden: petals spinning down.
         for (int i = 0; i < 12; i++) {

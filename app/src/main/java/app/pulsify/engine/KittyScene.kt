@@ -315,9 +315,21 @@ class KittyScene(private val context: Context) : Creature {
         var padT = 0f; var boxT = 0f
         setPaws(0f, 1f, 0f, 1f)
 
-        if (charging) {
-            padT = 1f; loafT = 1f; eT = 3f; openT = 0f; tailB = 1.6f; tailS = 0.04f
-            if (fx[23] == 0f || fx[22] >= 1f) spawnFx(5f, 0.28f, 0.25f, 0.3f, slot = 5)
+        if (charging && act == Act.NONE) {
+            // Sipping glowing milk through a straw: gulp, gulp, gulp, then a happy "ahh".
+            padT = 1f; tailB = 0.35f; tailS = 0.22f; tailRate = 2.2f
+            val ph = time % 5f
+            if (ph < 3.8f) {
+                val gulp = sin(time * 7f)
+                mT = 4f; eT = 1f; headYT = -0.035f + 0.012f * gulp; tiltT = -0.1f
+                lookTX = -0.55f; lookTY = -0.5f
+                if (gulp > 0.95f) { earL = 0.18f; earR = -0.12f }
+            } else {
+                mT = 3f; eT = 0f; pupilT = 0.95f; headYT = 0f; tiltT = 0.08f; lookTX = 0f; lookTY = 0f
+                if (ph - dt <= 3.8f) spawnFx(1f, 0.2f, 0.42f, 0.8f)
+            }
+        } else if (charging) {
+            padT = 1f
         } else if (low) {
             loafT = 1f; eT = 2f; earsDownT = 0.4f; tailB = 1.7f; tailS = 0.02f; headYT = -0.04f
         }
@@ -521,6 +533,7 @@ class KittyScene(private val context: Context) : Creature {
         if (cupVis > 0f) { maxX = max(maxX, bx + (cupX + 0.15f) * size); minY = min(minY, by + (cupY - 0.12f) * size) }
         if (cukeVis > 0f) minX = min(minX, bx - 0.75f * size)
         if (boxVis > 0f || padVis > 0f) { minX = min(minX, bx - 0.55f * size); maxX = max(maxX, bx + 0.55f * size) }
+        if (padVis > 0f) minX = min(minX, bx - 0.72f * size)
         GLES20.glUniform4f(u("uQuad"), minX, minY, maxX, maxY)
         GLES20.glUniform2f(u("uRes"), w.toFloat(), h.toFloat())
         GLES20.glUniform1f(u("uTime"), time % 600f)

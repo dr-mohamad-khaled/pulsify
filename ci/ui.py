@@ -86,7 +86,7 @@ def switch(title):
 
 
 def all_creatures(out):
-    names = ["Mochi", "Kalboob", "Kitty", "Kiwi", "Just the sky"]
+    names = ["Mochi", "Kalboob", "Kitty", "Kiwi", "Glowy", "Gromble", "Just the sky"]
     i = 0
     for name in names:
         if not tap(name):

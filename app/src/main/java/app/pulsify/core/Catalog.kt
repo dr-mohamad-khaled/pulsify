@@ -28,8 +28,6 @@ data class ComingSoon(
 )
 
 val COMING = listOf(
-    ComingSoon("Glowy", Kind.CREATURE, "Deep-sea anglerfish with a lure.", 0xFFFFB347.toInt(), 0xFF3DE0FF.toInt(), 6),
-    ComingSoon("Gromble", Kind.CREATURE, "Tries to be evil. Fails, cutely.", 0xFF8A5CFF.toInt(), 0xFFFF6BD6.toInt(), 7),
     ComingSoon("Sparky", Kind.CREATURE, "Bat with goggles and a sparkler.", 0xFFFF9F43.toInt(), 0xFF6C5CE7.toInt(), 8),
     ComingSoon("Cosmic loops", Kind.LOOP, "Earth, Saturn, black hole, nebula — seamless.", 0xFF5B8CFF.toInt(), 0xFFFFB36B.toInt(), 9),
     ComingSoon("Liquid Obsidian", Kind.WORLD, "Black chrome ferrofluid that spikes to bass.", 0xFFB8B8C8.toInt(), 0xFF9D4EDD.toInt(), 10),

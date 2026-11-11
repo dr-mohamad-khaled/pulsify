@@ -84,11 +84,11 @@ vec3 shade(vec3 base, vec2 p, vec2 c, vec2 r, vec2 dir) {
     vec3 n = normalize(vec3(q * 0.85, sqrt(t) + 0.25));
     vec3 L = normalize(vec3(-0.4, 0.7, 0.75));
     float diff = smoothstep(0.0, 1.0, clamp((dot(n, L) + 0.5) / 1.5, 0.0, 1.0));
-    vec3 col = mix(base * vec3(0.42, 0.45, 0.55), base, diff);
+    vec3 col = mix(base * vec3(0.48, 0.52, 0.72), base * 1.03, diff);
     float spec = pow(max(dot(reflect(-L, n), vec3(0.0, 0.0, 1.0)), 0.0), 18.0);
     col += vec3(1.0) * spec * 0.18;
     vec2 perp = vec2(-dir.y, dir.x);
-    col *= 0.94 + 0.09 * vnoise(vec2(dot(p, perp) * 260.0, dot(p, dir) * 24.0));
+    col *= 0.96 + 0.06 * vnoise(vec2(dot(p, perp) * 60.0, dot(p, dir) * 14.0));
     col *= mix(vec3(1.0), uAmb, 0.55);
     col += uRim * pow(1.0 - n.z, 2.6) * 0.5;
     return col;
@@ -322,11 +322,11 @@ void main() {
             over(acc, shade(uFaceC, h, vec2(0.0, 0.2), vec2(0.15, 0.2), vec2(0.0, 1.0)), fillSoft(cbest));
         }
         // Small head crest raise for the others.
-        if (tiel < 0.5 && uCrest > 0.05) {
+        if (tiel < 0.5 && uCrest > 0.5) {
             for (int k = 0; k < 3; k++) {
                 float fk = float(k);
                 vec2 aa = vec2(-0.03 - 0.035 * fk, hr * 0.85 - 0.02 * fk);
-                float t = sdCapsule(h, aa, aa + rot(vec2(0.0, 0.07), -0.5 - 0.25 * fk) * uCrest, 0.018, 0.004);
+                float t = sdCapsule(h, aa, aa + rot(vec2(0.0, 0.07), -0.5 - 0.25 * fk) * (uCrest - 0.5) * 2.0, 0.018, 0.004);
                 over(acc, shade(uHeadC, h, vec2(0.0), vec2(0.17), vec2(0.0, 1.0)), fillSoft(t));
             }
         }
@@ -360,15 +360,15 @@ void main() {
         }
         // Ringneck: black chin stripe and rose neck ring.
         if (ring > 0.5) {
-            // Angles from straight down: + towards the beak. Black runs chin -> throat -> nape, rose collar behind it.
-            float ang = atan(h.x, -h.y);
-            float rr = length(h);
-            float blackC = mix(0.15, 0.0, turn);
-            float blackW = mix(1.05, 0.9, turn);
-            float r1 = max(abs(rr - hr * 0.98) - 0.011, (abs(ang - blackC) - blackW) * 0.15);
-            float r2 = max(abs(rr - hr * 1.1) - 0.012, (abs(ang + 1.05) - 0.6) * 0.15);
-            over(acc, vec3(0.03), fill(r1) * uMark.a);
-            over(acc, uMark.rgb * mix(vec3(1.0), uAmb, 0.4), fill(r2) * uMark.a * (1.0 - turn));
+            // A slim collar slanting across the neck: black in front, rose behind. A necklace when facing you.
+            float sideB = sdCapsule(h, vec2(0.085, -0.165), vec2(-0.165, -0.115), 0.007, 0.005);
+            float sideP = sdCapsule(h, vec2(-0.02, -0.168), vec2(-0.17, -0.135), 0.006, 0.006);
+            vec2 nq = h - vec2(0.0, 0.03);
+            float frontB = max(abs(length(nq) - hr * 1.12) - 0.006, nq.y + 0.12);
+            float bib = sdEllipse(h - mix(vec2(0.095, -0.135), vec2(0.0, -0.15), turn), vec2(0.03, 0.02));
+            float blackD = min(mix(sideB, frontB, step(0.5, turn)), bib);
+            over(acc, uMark.rgb * mix(vec3(1.0), uAmb, 0.4), fill(sideP + 0.0) * uMark.a * (1.0 - step(0.5, turn)));
+            over(acc, vec3(0.04), fill(blackD) * uMark.a);
         }
 
         // Eyes: one in profile, both when turned to you.
@@ -383,8 +383,8 @@ void main() {
             // Eye ring: lovebird big white, ringneck orange, budgie pale.
             float ringW = 0.014 * love + 0.006 * ring + 0.004 * budgie;
             vec3 ringC = mix(mix(vec3(1.0, 0.65, 0.3), vec3(0.95), love + budgie), vec3(0.95), love);
-            if (ringW > 0.0) over(acc, ringC * mix(vec3(1.0), uAmb, 0.5), fill(eyeD - ringW) * inHead * vis);
             float mode = uEyeS.y;
+            if (ringW > 0.0 && (mode < 0.5 || mode > 2.5)) over(acc, ringC * mix(vec3(1.0), uAmb, 0.5), fill(eyeD - ringW) * inHead * vis);
             if (mode < 0.5 || mode > 2.5) {
                 float open = uEyeS.x;
                 // Eyelid closes from the top.
@@ -456,15 +456,12 @@ void main() {
         float raise = s == 0 ? legL : legR;
         vec2 fp = vec2(s == 0 ? 0.05 : -0.045, -0.5);
         vec3 skin = mix(vec3(0.62, 0.55, 0.58), vec3(0.75, 0.6, 0.55), tiel) * mix(vec3(1.0), uAmb, 0.5);
-        if (raise > 0.5) {
-            // Tucked up in the belly feathers: a little curled foot.
-            vec2 c = fp + vec2(0.01, 0.16);
-            float ball = length(p - c) - 0.028;
-            over(acc, skin * 0.9, fill(ball) * (1.0 - fs * 0.4));
-            continue;
-        }
-        float leg = sdCapsule(p, fp + vec2(-0.005, 0.07), fp + vec2(0.0, 0.01), 0.024, 0.02);
+        if (raise > 0.5) continue; // tucked away in the belly feathers
+        float leg = sdCapsule(p, fp + vec2(-0.005, 0.05), fp + vec2(0.0, 0.01), 0.024, 0.02);
         over(acc, skin * 0.85, fill(leg) * (1.0 - fs * 0.35));
+        // Feather trousers over the top of the leg.
+        float thigh = sdEllipse(p - fp - vec2(-0.01, 0.09), vec2(0.05, 0.045));
+        over(acc, shade(mix(uBody, uBelly, 0.35), p, fp + vec2(0.0, 0.1), vec2(0.09, 0.09), vec2(0.0, -1.0)), fillSoft(feathery(thigh, p, 1.0)) * (1.0 - uHang));
         for (int k = 0; k < 2; k++) {
             float fk = float(k);
             vec2 a = fp + vec2(0.0, 0.005);

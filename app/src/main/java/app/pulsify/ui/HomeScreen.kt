@@ -267,6 +267,22 @@ private fun moodLine(character: Int): String {
             Mood.NIGHT -> "Shh. Kalboob is dreaming about squirrels."
         }
     }
+    if (character == 5) return when {
+        d.charging -> "Charging. Glowy's lure turned into a little light bulb."
+        d.batteryLevel < 0.15f -> "Low battery. Glowy's light is flickering."
+        else -> when (DeviceState.moodNow()) {
+            Mood.NIGHT -> "Glowy is asleep, glowing softly in the dark."
+            else -> "Glowy is drifting around. Wiggle a finger for the lure."
+        }
+    }
+    if (character == 6) return when {
+        d.charging -> "Charging. Gromble is hugging a jar of lightning."
+        d.batteryLevel < 0.15f -> "Low battery. Gromble has fainted dramatically."
+        else -> when (DeviceState.moodNow()) {
+            Mood.NIGHT -> "Gromble is asleep with a teddy he says isn't his."
+            else -> "Gromble is plotting something. It will not work."
+        }
+    }
     if (character == 4) return when {
         d.charging -> "Charging. Kiwi is nibbling a glowing millet spray."
         d.batteryLevel < 0.15f -> "Low battery. Kiwi is fluffed up and squawking about it."

@@ -26,6 +26,7 @@ float sdBox(vec2 p, vec2 b) { vec2 q = abs(p) - b; return length(max(q, 0.0)) + 
 float sdRoundBox(vec2 p, vec2 b, float r) { return sdBox(p, b - r) - r; }
 float sdEllipse(vec2 p, vec2 r) { float k0 = length(p / r); float k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-4); }
 float sdSeg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
+float sdCapsule(vec2 p, vec2 a, vec2 b, float ra, float rb) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - mix(ra, rb, h); }
 float sdTri(vec2 p, vec2 a, vec2 b, vec2 c) {
     vec2 e0 = b - a, e1 = c - b, e2 = a - c, v0 = p - a, v1 = p - b, v2 = p - c;
     vec2 pq0 = v0 - e0 * clamp(dot(v0, e0) / dot(e0, e0), 0.0, 1.0);
@@ -395,7 +396,9 @@ vec4 cozyRoom(vec2 p) {
 // 6 Windowsill (Kitty): a big window on the city, a ledge, a plant, cosy curtains.
 vec4 windowsill(vec2 p) {
     vec3 light = mix(ambient() * 0.6 + vec3(0.05), vec3(0.22, 0.2, 0.3), wNight);
-    vec4 c = vec4(vec3(0.75, 0.78, 0.82) * light, 0.0);
+    vec3 wall = mix(vec3(0.93, 0.86, 0.8), vec3(0.8, 0.76, 0.84), smoothstep(uFloor, uHalf.y, p.y));
+    wall *= 0.96 + 0.05 * vnoise(p * vec2(3.0, 40.0));
+    vec4 c = vec4(wall * light, 0.0);
     vec2 wq = p - vec2(0.0, (uFloor + uHalf.y) * 0.5 + 0.05);
     vec2 wr = vec2(uHalf.x - 0.12, (uHalf.y - uFloor) * 0.5 - 0.12);
     float win = sdBox(wq, wr);
@@ -412,6 +415,8 @@ vec4 windowsill(vec2 p) {
             vec3 bc = mix(vec3(0.45, 0.5, 0.6), vec3(0.03, 0.035, 0.06), wNight) * (0.75 + 0.2 * fl) * mix(vec3(1.0), vec3(1.0, 0.75, 0.65), wDusk + wDawn);
             float bld = p.y - hgt;
             if (bld < 0.0) {
+                bc *= 0.8 + 0.35 * smoothstep(horizon, hgt, p.y);
+                bc = mix(bc, sky.rgb, 0.25 * (1.0 - fl) * (1.0 - wNight));
                 c = vec4(bc, 0.0);
                 vec2 g = vec2(p.x / 0.025, p.y / 0.035);
                 vec2 cell = fract(g); vec2 gid = floor(g);
@@ -421,6 +426,13 @@ vec4 windowsill(vec2 p) {
             }
         }
     }
+    // Soft reflections on the glass.
+    if (win < 0.0) {
+        float streak = smoothstep(0.06, 0.0, abs(fract((p.x + p.y * 0.6) * 0.9) - 0.5) - 0.06) + 0.5 * smoothstep(0.02, 0.0, abs(fract((p.x + p.y * 0.6) * 0.9 + 0.2) - 0.5) - 0.015);
+        c.rgb += vec3(1.0) * streak * 0.07 * (1.0 - 0.5 * wNight);
+    }
+    // Inner shadow of the frame.
+    lay(c, vec3(0.0), smoothstep(0.07, 0.0, -win) * 0.22 * step(win, 0.0));
     // Window frame and mullions.
     lay(c, vec3(0.96, 0.95, 0.93) * light, fill(abs(win) - 0.022));
     lay(c, vec3(0.96, 0.95, 0.93) * light, fill(abs(wq.x) - 0.012) * step(win, 0.0));
@@ -433,15 +445,38 @@ vec4 windowsill(vec2 p) {
         float w = mix(0.07, 0.16, smoothstep(tie, uHalf.y, p.y)) + mix(0.0, 0.08, smoothstep(tie, uFloor + 0.2, p.y));
         float cur = (abs(cq.x) - w) * step(uFloor + 0.18, p.y);
         if (p.y < uFloor + 0.18) cur = 1.0;
-        lay(c, vec3(0.3, 0.42, 0.62) * light * (0.85 + 0.15 * sin(cq.x * 80.0)), fill(cur));
+        float fold = sin(cq.x * 70.0 + 1.5 * sin(p.y * 2.5 + float(s)));
+        vec3 cc = mix(vec3(0.16, 0.24, 0.48), vec3(0.42, 0.56, 0.86), 0.5 + 0.5 * fold);
+        cc *= 0.8 + 0.3 * smoothstep(w, 0.0, abs(cq.x));
+        lay(c, vec3(0.0), smoothstep(0.08, 0.0, cur) * 0.2 * step(0.0, cur) * step(uFloor + 0.18, p.y));
+        lay(c, cc * light, fill(cur));
+        // Golden tie-back.
+        lay(c, vec3(1.0, 0.8, 0.4) * light, fill(sdBox(p - vec2(sx * (uHalf.x - 0.06), tie), vec2(0.085, 0.012))));
     }
     // The sill (the creature sits on it) and the wall below.
     if (p.y < uFloor + 0.02) {
-        c = vec4(vec3(0.7, 0.72, 0.76) * light * 0.8, 0.0);
+        c = vec4(mix(vec3(0.62, 0.58, 0.68), vec3(0.8, 0.74, 0.76), smoothstep(-uHalf.y, uFloor, p.y)) * light * 0.85, 0.0);
     }
     float sill = sdRoundBox(p - vec2(0.0, uFloor - 0.01), vec2(uHalf.x + 0.1, 0.035), 0.01);
-    lay(c, vec3(0.97, 0.96, 0.94) * light, fill(sill));
+    vec3 wood = mix(vec3(0.78, 0.56, 0.38), vec3(0.93, 0.74, 0.54), smoothstep(uFloor - 0.045, uFloor + 0.02, p.y));
+    wood *= 0.92 + 0.1 * vnoise(vec2(p.x * 6.0, p.y * 160.0));
+    wood += vec3(1.0, 0.95, 0.85) * smoothstep(0.012, 0.0, abs(p.y - uFloor - 0.012)) * 0.25;
+    lay(c, wood * light, fill(sill));
     lay(c, vec3(0.0), smoothstep(0.0, -0.08, p.y - (uFloor - 0.045)) * 0.35 * step(p.y, uFloor - 0.045));
+    // Fairy lights draped across the window.
+    {
+        float sag = wq.y - wr.y + 0.03 + 0.07 * (1.0 - pow(wq.x / wr.x, 2.0));
+        lay(c, vec3(0.2, 0.2, 0.25), fill(abs(sag) - 0.003) * step(abs(wq.x), wr.x));
+        float bx = floor(wq.x / 0.11 + 0.5) * 0.11;
+        vec2 bq = vec2(wq.x - bx, wq.y - wr.y + 0.05 + 0.07 * (1.0 - pow(bx / wr.x, 2.0)));
+        float bulb = sdEllipse(bq, vec2(0.014, 0.02));
+        vec3 bcol = 0.6 + 0.4 * cos(6.28 * (bx * 3.1 + vec3(0.0, 0.33, 0.67)));
+        float on = 0.35 + 0.65 * clamp(wNight + wDusk, 0.0, 1.0);
+        if (abs(bx) < wr.x) {
+            c.rgb += bcol * exp(-max(bulb, 0.0) * 30.0) * 0.35 * on;
+            layE(c, mix(bcol, vec3(1.0), 0.3) * (0.6 + 0.6 * on), fill(bulb), on * 0.8);
+        }
+    }
     // Potted plant on the left.
     vec2 pp = p - vec2(-uHalf.x * 0.68, uFloor + 0.025);
     float pot = sdTri(pp, vec2(-0.08, 0.13), vec2(0.08, 0.13), vec2(0.0, -0.06));
@@ -745,6 +780,343 @@ vec4 blossomGarden(vec2 p) {
     return c;
 }
 
+// ---------------- Glowy's sea ----------------
+vec4 seaBase(vec2 p, vec3 top, vec3 bot, float rayAmt) {
+    float t = clamp((p.y + uHalf.y) / (2.0 * uHalf.y), 0.0, 1.0);
+    float dayL = 1.0 - 0.8 * wNight;
+    vec3 col = mix(bot, top, pow(t, 1.6)) * mix(0.3, 1.0, dayL);
+    col *= mix(vec3(1.0), vec3(1.05, 0.8, 0.75), (wDawn + wDusk) * t);
+    float rays = pow(max(0.0, sin((p.x + p.y * 0.32) * 6.5 + 1.6 * sin(p.x * 1.7 + 0.5))), 5.0) * smoothstep(-uHalf.y * 0.4, uHalf.y, p.y);
+    col += vec3(0.55, 0.85, 1.0) * rays * 0.22 * rayAmt * dayL;
+    // Moonbeam at night.
+    col += vec3(0.4, 0.5, 0.9) * exp(-pow((p.x - 0.1 - p.y * 0.2) * 3.0, 2.0)) * 0.1 * wNight * t;
+    return vec4(col, 0.0);
+}
+float rockEdge(vec2 p, float side, float reach, float seed) {
+    float e = reach * (0.55 + 0.6 * fbm(vec2(p.y * 2.2 + seed, seed)) + 0.12 * vnoise(vec2(p.y * 14.0, seed)));
+    return (uHalf.x - e) - p.x * side;
+}
+
+// 12 Midnight Trench: near-black water, cliffs, glowing tube worms, drifting jellyfish.
+vec4 trench(vec2 p) {
+    vec4 c = seaBase(p, vec3(0.02, 0.1, 0.24), vec3(0.0, 0.0, 0.015), 0.7);
+    // Plankton specks (they twinkle in the overlay).
+    vec2 g = p * 26.0; vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+    vec2 o = vec2(h21(id), h21(id + 7.0)) - 0.5;
+    float sp = step(0.86, h21(id + 3.0)) * smoothstep(0.09, 0.0, length(f - o * 0.7));
+    layE(c, mix(vec3(0.4, 0.9, 1.0), vec3(0.7, 0.6, 1.0), h21(id + 1.0)), sp * 0.9, 0.6);
+    // Jellyfish far away.
+    for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        vec2 jp = vec2((h21(vec2(fi, 51.0)) * 2.0 - 1.0) * uHalf.x * 0.7, (h21(vec2(fi, 53.0)) - 0.2) * uHalf.y);
+        vec2 q = p - jp;
+        float bell = max(sdEllipse(q, vec2(0.07, 0.055)), -q.y - 0.01);
+        vec3 jc = mix(vec3(0.5, 0.4, 1.0), vec3(0.3, 0.9, 1.0), h21(vec2(fi, 2.0)));
+        c.rgb += jc * exp(-max(bell, 0.0) * 18.0) * 0.16;
+        lay(c, jc * 0.75, fill(bell) * 0.55);
+        for (int k = 0; k < 4; k++) {
+            float fk = float(k);
+            float tx = (fk - 1.5) * 0.03;
+            float tent = abs(q.x - tx - 0.012 * sin(q.y * 40.0 + fk)) - 0.004;
+            lay(c, jc * 0.6, fill(tent) * step(q.y, -0.005) * step(-0.17 - 0.03 * fk, q.y) * 0.5);
+        }
+    }
+    // Cliffs on both sides and a ridge along the bottom.
+    for (int s = 0; s < 2; s++) {
+        float side = s == 0 ? -1.0 : 1.0;
+        float e = rockEdge(p, side, uHalf.x * 0.42, 3.0 + float(s) * 9.0);
+        vec3 rc = vec3(0.035, 0.05, 0.095) * (0.5 + 0.9 * fbm(p * vec2(5.0, 3.0))) * (1.0 - 0.5 * wNight);
+        rc += vec3(0.05, 0.16, 0.28) * smoothstep(0.04, 0.0, -e) * (1.0 - 0.5 * wNight);
+        lay(c, rc, fill(e));
+        // Tube worms glowing on the ledges.
+        for (int k = 0; k < 4; k++) {
+            float fk = float(k);
+            float wy = -uHalf.y + 0.3 + fk * (uHalf.y * 0.42) + 0.1 * h21(vec2(fk, float(s)));
+            float ex = (uHalf.x - uHalf.x * 0.42 * (0.55 + 0.6 * fbm(vec2(wy * 2.2 + 3.0 + float(s) * 9.0, 3.0 + float(s) * 9.0)))) * side;
+            vec2 q = p - vec2(ex, wy);
+            float tube = sdCapsule(q, vec2(0.0), vec2(-0.05 * side, 0.03), 0.008, 0.006);
+            float tip = length(q - vec2(-0.055 * side, 0.034)) - 0.014;
+            vec3 tc = mix(vec3(1.0, 0.35, 0.6), vec3(0.3, 1.0, 0.8), mod(fk + float(s), 2.0));
+            lay(c, vec3(0.08, 0.1, 0.16), fill(tube));
+            c.rgb += tc * exp(-max(tip, 0.0) * 30.0) * 0.4;
+            layE(c, tc, fill(tip), 0.9);
+        }
+    }
+    float ridge = -uHalf.y + 0.14 + 0.1 * fbm(vec2(p.x * 2.5, 4.0)) - p.y;
+    lay(c, vec3(0.008, 0.014, 0.03) * (0.6 + 0.8 * vnoise(p * 12.0)), smoothstep(-0.01, 0.01, ridge));
+    return c;
+}
+
+// 13 Coral Garden: bright shallows, sand, corals and sea fans in candy colours, kelp.
+vec4 coralGarden(vec2 p) {
+    vec4 c = seaBase(p, vec3(0.1, 0.62, 0.78), vec3(0.02, 0.18, 0.38), 1.2);
+    // Far reef silhouettes.
+    float far = -uHalf.y * 0.25 + 0.12 * fbm(vec2(p.x * 2.0, 7.0)) - p.y;
+    lay(c, mix(c.rgb, vec3(0.03, 0.2, 0.34) * (1.0 - 0.7 * wNight), 0.6), smoothstep(-0.01, 0.02, far));
+    // Kelp swaying shapes.
+    for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        float kx = (h21(vec2(fi, 61.0)) * 2.0 - 1.0) * uHalf.x;
+        float top = -uHalf.y + 0.5 + 0.7 * h21(vec2(fi, 63.0));
+        float kelp = abs(p.x - kx - 0.04 * sin(p.y * 5.0 + fi * 2.0)) - 0.016 * smoothstep(top, top - 0.4, p.y);
+        vec3 kc = mix(vec3(0.05, 0.3, 0.22), vec3(0.2, 0.55, 0.3), smoothstep(-uHalf.y, top, p.y)) * (1.0 - 0.75 * wNight);
+        lay(c, kc, fill(kelp) * step(p.y, top));
+    }
+    // Sand.
+    float sandY = -uHalf.y + 0.24 + 0.03 * sin(p.x * 4.0 + 1.0);
+    vec3 sand = mix(vec3(0.95, 0.86, 0.66), vec3(0.75, 0.7, 0.62), smoothstep(sandY, -uHalf.y, p.y)) * ambient();
+    sand *= 0.9 + 0.12 * vnoise(vec2(p.x * 30.0, p.y * 90.0));
+    sand = mix(sand, sand * vec3(0.5, 0.8, 1.0), 0.35);
+    // Corals standing on the sand.
+    for (int i = 0; i < 6; i++) {
+        float fi = float(i);
+        vec2 base = vec2((fi / 5.0 * 2.0 - 1.0) * uHalf.x * 0.92 + 0.05 * sin(fi * 5.0), sandY - 0.01);
+        vec3 cc = 0.55 + 0.45 * cos(6.28 * (fi * 0.19 + vec3(0.0, 0.35, 0.6)));
+        cc = mix(cc, vec3(1.0, 0.5, 0.6), 0.25) * mix(vec3(1.0), ambient(), 0.7);
+        vec2 q = p - base;
+        float d = 1e5;
+        if (mod(fi, 3.0) < 0.5) {
+            // Branching coral.
+            for (int k = 0; k < 5; k++) {
+                float a = (float(k) - 2.0) * 0.38;
+                vec2 tip = vec2(sin(a), cos(a)) * (0.2 + 0.05 * h21(vec2(fi, float(k))));
+                d = min(d, sdCapsule(q, vec2(0.0), tip, 0.022, 0.012));
+                d = min(d, sdCapsule(q, tip * 0.6, tip * 0.6 + vec2(cos(a) * 0.06, 0.06), 0.012, 0.008));
+            }
+        } else if (mod(fi, 3.0) < 1.5) {
+            // Brain coral dome.
+            d = max(sdEllipse(q - vec2(0.0, 0.02), vec2(0.13, 0.1)), -q.y);
+            cc *= 0.8 + 0.25 * sin(length(q) * 90.0 + sin(atan(q.y, q.x) * 6.0) * 2.0);
+        } else {
+            // Sea fan.
+            d = max(sdEllipse(q - vec2(0.0, 0.14), vec2(0.12, 0.15)), -q.y);
+            cc *= 0.65 + 0.4 * step(0.5, fract(atan(q.x, q.y + 0.02) * 9.0)) + 0.2 * step(0.6, fract(length(q) * 28.0));
+        }
+        lay(c, cc * (0.75 + 0.35 * smoothstep(0.0, 0.25, q.y)), fill(d));
+        c.rgb += cc * exp(-max(d, 0.0) * 25.0) * 0.1 * wNight;
+    }
+    lay(c, sand, fill(p.y - sandY));
+    // Shells and pebbles.
+    vec2 g = p * vec2(14.0, 30.0); vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+    if (p.y < sandY - 0.03 && h21(id + 9.0) > 0.8) lay(c, mix(vec3(1.0, 0.8, 0.85), vec3(0.6, 0.65, 0.75), h21(id)) * ambient(), clamp(0.5 - (length(f * vec2(1.0, 1.6)) - 0.2) * 12.0, 0.0, 1.0));
+    return c;
+}
+
+// 14 Sunken Ship: a wreck in green murk, portholes that glow at night, a chest of gold.
+vec4 sunkenShip(vec2 p) {
+    vec4 c = seaBase(p, vec3(0.06, 0.4, 0.45), vec3(0.01, 0.07, 0.12), 1.0);
+    float sandY = -uHalf.y + 0.26 + 0.04 * sin(p.x * 3.0 + 2.0);
+    // The wreck: tilted hull, cabin, broken mast.
+    vec2 q = p - vec2(uHalf.x * 0.15, sandY + 0.16);
+    float ca = cos(-0.16), sa = sin(-0.16);
+    q = vec2(ca * q.x - sa * q.y, sa * q.x + ca * q.y);
+    float hull = max(sdEllipse(q - vec2(0.0, 0.1), vec2(0.62, 0.3)), q.y - 0.1);
+    float cabin = sdBox(q - vec2(-0.18, 0.2), vec2(0.17, 0.1));
+    float mast = min(sdBox(q - vec2(0.1, 0.42), vec2(0.014, 0.33)), sdBox(q - vec2(0.1, 0.55), vec2(0.16, 0.01)));
+    float ship = min(min(hull, cabin), mast);
+    vec3 wood = mix(vec3(0.05, 0.12, 0.12), vec3(0.16, 0.22, 0.18), smoothstep(-0.2, 0.3, q.y)) * (1.0 - 0.6 * wNight);
+    wood *= 0.8 + 0.3 * step(0.5, fract(q.y * 22.0)) * step(q.y, 0.1) + 0.15 * vnoise(q * vec2(8.0, 60.0));
+    lay(c, wood, fill(ship));
+    // A hole in the hull.
+    lay(c, vec3(0.0, 0.01, 0.02), fill(sdEllipse(q - vec2(0.3, -0.03), vec2(0.07, 0.05) * (0.8 + 0.4 * vnoise(q * 20.0)))));
+    // Portholes.
+    float lit = clamp(wNight + wDusk, 0.0, 1.0);
+    for (int i = 0; i < 4; i++) {
+        vec2 pc = i < 2 ? vec2(-0.26 + float(i) * 0.16, 0.21) : vec2(-0.3 + float(i - 2) * 0.3, -0.0);
+        float ph = length(q - pc) - 0.032;
+        lay(c, vec3(0.3, 0.26, 0.15), fill(ph - 0.01));
+        c.rgb += vec3(1.0, 0.75, 0.35) * exp(-max(ph, 0.0) * 18.0) * 0.35 * lit;
+        layE(c, mix(vec3(0.02, 0.08, 0.1), vec3(1.0, 0.82, 0.45), lit), fill(ph), lit);
+    }
+    // Tattered sail.
+    float sail = sdTri(q, vec2(0.1, 0.54), vec2(0.1, 0.3), vec2(0.24 + 0.02 * sin(q.y * 30.0), 0.5));
+    lay(c, vec3(0.5, 0.55, 0.5) * (1.0 - 0.6 * wNight), fill(sail) * 0.7);
+    // Sand, chest and anchor.
+    vec3 sand = mix(vec3(0.6, 0.62, 0.48), vec3(0.3, 0.36, 0.32), smoothstep(sandY, -uHalf.y, p.y)) * ambient() * vec3(0.6, 0.9, 0.9);
+    sand *= 0.9 + 0.12 * vnoise(vec2(p.x * 30.0, p.y * 90.0));
+    lay(c, sand, fill(p.y - sandY));
+    vec2 cq = p - vec2(-uHalf.x * 0.55, sandY - 0.02);
+    float chest = sdRoundBox(cq - vec2(0.0, 0.03), vec2(0.09, 0.055), 0.01);
+    float lid = max(sdEllipse(cq - vec2(0.0, 0.085), vec2(0.095, 0.06)), -(cq.y - 0.085));
+    lay(c, vec3(0.4, 0.22, 0.1) * mix(vec3(1.0), ambient(), 0.6), fill(chest));
+    lay(c, vec3(0.5, 0.28, 0.12) * mix(vec3(1.0), ambient(), 0.6), fill(lid) * step(0.12, cq.y - 0.02 + 0.1));
+    lay(c, vec3(0.95, 0.75, 0.25), fill(abs(cq.x) - 0.008) * fill(chest));
+    // Gold spilling out; the coins twinkle.
+    for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        vec2 gp = cq - vec2(-0.07 + fi * 0.035, 0.09 + 0.012 * sin(fi * 2.0));
+        float coin = length(gp) - 0.016;
+        layE(c, vec3(1.0, 0.85, 0.35), fill(coin), 0.6);
+    }
+    c.rgb += vec3(1.0, 0.8, 0.3) * exp(-length(cq - vec2(0.0, 0.1)) * 9.0) * 0.18;
+    // Kelp in front.
+    for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        float kx = (-0.9 + fi * 0.85) * uHalf.x + 0.05;
+        float top = -uHalf.y + 0.45 + 0.3 * h21(vec2(fi, 73.0));
+        float kelp = abs(p.x - kx - 0.035 * sin(p.y * 6.0 + fi * 2.0)) - 0.02 * smoothstep(top, top - 0.35, p.y);
+        lay(c, vec3(0.03, 0.2, 0.13) * (1.0 - 0.7 * wNight), fill(kelp) * step(p.y, top));
+    }
+    return c;
+}
+
+// ---------------- Gromble's lairs ----------------
+// 15 Lava Lair: a cave with a river of lava, stalactites, and a throne that is far too big for him.
+vec4 lavaLair(vec2 p) {
+    float t = clamp((p.y + uHalf.y) / (2.0 * uHalf.y), 0.0, 1.0);
+    float heat = 0.75 + 0.25 * (1.0 - wNight);
+    vec4 c = vec4(mix(vec3(0.16, 0.03, 0.03), vec3(0.03, 0.01, 0.05), t) * heat, 0.0);
+    // Back wall rock with glowing cracks.
+    float rock = fbm(p * vec2(3.0, 2.0) + 4.0);
+    c.rgb *= 0.6 + 0.9 * rock;
+    float crack = smoothstep(0.02, 0.0, abs(fbm(p * 2.2 + 11.0) - 0.5) - 0.006) * smoothstep(uFloor, uFloor + 0.9, p.y);
+    c.rgb += vec3(1.0, 0.35, 0.05) * crack * 0.5;
+    c.a = max(c.a, crack * 0.5);
+    // Stalactites.
+    for (int i = 0; i < 7; i++) {
+        float fi = float(i);
+        float sx = (fi / 6.0 * 2.0 - 1.0) * uHalf.x + 0.06 * sin(fi * 7.0);
+        float len = 0.2 + 0.45 * h21(vec2(fi, 81.0));
+        float st = abs(p.x - sx) - 0.07 * clamp((p.y - (uHalf.y - len)) / len, 0.0, 1.0);
+        vec3 rc = vec3(0.06, 0.03, 0.05) + vec3(0.25, 0.07, 0.02) * smoothstep(0.03, 0.0, -st) * 0.6;
+        lay(c, rc, fill(st) * step(uHalf.y - len, p.y));
+    }
+    // Lava river behind the floor ledge.
+    float lavaY = uFloor + 0.16 + 0.015 * sin(p.x * 6.0);
+    if (p.y < lavaY) {
+        float flow = fbm(vec2(p.x * 3.0, p.y * 9.0) + 2.0);
+        vec3 lava = mix(vec3(1.0, 0.25, 0.02), vec3(1.0, 0.85, 0.3), smoothstep(0.35, 0.7, flow));
+        lava = mix(lava, vec3(0.25, 0.04, 0.02), smoothstep(0.55, 0.3, flow) * 0.7);
+        c = vec4(lava, 0.35 + 0.4 * smoothstep(0.5, 0.75, flow));
+    }
+    c.rgb += vec3(1.0, 0.35, 0.05) * exp(-max(p.y - lavaY, 0.0) * 5.0) * 0.35;
+    // Throne on the right.
+    vec2 q = p - vec2(uHalf.x * 0.55, uFloor + 0.02);
+    float throne = min(sdBox(q - vec2(0.0, 0.3), vec2(0.13, 0.3)), sdBox(q - vec2(0.0, 0.08), vec2(0.17, 0.08)));
+    throne = min(throne, min(sdTri(q, vec2(-0.13, 0.6), vec2(-0.05, 0.6), vec2(-0.1, 0.74)), sdTri(q, vec2(0.13, 0.6), vec2(0.05, 0.6), vec2(0.1, 0.74))));
+    throne = min(throne, sdTri(q, vec2(-0.04, 0.6), vec2(0.04, 0.6), vec2(0.0, 0.8)));
+    lay(c, vec3(0.1, 0.04, 0.09) + vec3(0.4, 0.1, 0.03) * smoothstep(0.03, 0.0, -throne) * 0.5, fill(throne));
+    lay(c, vec3(0.5, 0.05, 0.12), fill(sdBox(q - vec2(0.0, 0.32), vec2(0.09, 0.2))));
+    // Rock ledge he stands on.
+    float ledge = uFloor + 0.02 + 0.012 * vnoise(vec2(p.x * 9.0, 2.0)) - p.y;
+    vec3 lc = mix(vec3(0.16, 0.07, 0.08), vec3(0.04, 0.02, 0.04), smoothstep(uFloor, -uHalf.y, p.y)) * (0.75 + 0.5 * vnoise(p * 14.0));
+    lc += vec3(0.9, 0.3, 0.05) * smoothstep(0.03, 0.0, ledge) * 0.4;
+    lay(c, lc, smoothstep(-0.005, 0.005, ledge));
+    return c;
+}
+
+// 16 Haunted Hill: a crooked castle under a big moon, a dead tree, wonky tombstones.
+vec4 hauntedHill(vec2 p) {
+    float horizon = uFloor + 0.3;
+    vec4 c = skyLayer(p, horizon, 0.7);
+    // Purple wash: spooky by night, pastel-silly by day.
+    c.rgb = mix(c.rgb, c.rgb * vec3(0.85, 0.7, 1.1) + vec3(0.05, 0.0, 0.08), 0.6);
+    vec3 amb = ambient();
+    vec3 sil = mix(vec3(0.3, 0.24, 0.42), vec3(0.03, 0.02, 0.07), wNight) * mix(vec3(1.0), vec3(1.0, 0.7, 0.75), wDusk + wDawn);
+    // Hill with the castle.
+    float hill = horizon + 0.22 * exp(-pow((p.x + uHalf.x * 0.25) * 2.2, 2.0)) + 0.03 * sin(p.x * 5.0);
+    vec2 q = p - vec2(-uHalf.x * 0.25, horizon + 0.2);
+    q.x += q.y * 0.12;
+    float castle = min(sdBox(q - vec2(0.0, 0.1), vec2(0.12, 0.12)), min(sdBox(q - vec2(-0.13, 0.17), vec2(0.04, 0.19)), sdBox(q - vec2(0.13, 0.14), vec2(0.04, 0.16))));
+    castle = min(castle, min(sdTri(q, vec2(-0.185, 0.36), vec2(-0.075, 0.36), vec2(-0.13, 0.5)), sdTri(q, vec2(0.075, 0.3), vec2(0.185, 0.3), vec2(0.13, 0.43))));
+    castle = min(castle, sdTri(q, vec2(-0.06, 0.22), vec2(0.06, 0.22), vec2(0.0, 0.34)));
+    lay(c, sil * 0.8, fill(castle));
+    float lit = clamp(wNight + wDusk, 0.0, 1.0);
+    for (int i = 0; i < 3; i++) {
+        vec2 wp = i == 0 ? vec2(-0.13, 0.26) : (i == 1 ? vec2(0.13, 0.2) : vec2(0.0, 0.1));
+        float win = sdRoundBox(q - wp, vec2(0.014, 0.024), 0.012);
+        c.rgb += vec3(1.0, 0.6, 0.2) * exp(-max(win, 0.0) * 30.0) * 0.3 * lit;
+        layE(c, mix(sil * 0.4, vec3(1.0, 0.75, 0.3), lit), fill(win), lit);
+    }
+    lay(c, sil, fill(p.y - hill));
+    // Bats.
+    for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        vec2 bp = p - vec2((h21(vec2(fi, 91.0)) * 2.0 - 1.0) * uHalf.x * 0.8, horizon + 0.5 + h21(vec2(fi, 93.0)) * (uHalf.y - horizon - 0.7));
+        float bat = min(sdTri(bp, vec2(0.0, 0.0), vec2(-0.045, 0.02), vec2(-0.02, -0.012)), sdTri(bp, vec2(0.0, 0.0), vec2(0.045, 0.02), vec2(0.02, -0.012)));
+        lay(c, sil * 0.5, fill(bat));
+    }
+    // Dead tree on the right.
+    vec2 tq = p - vec2(uHalf.x * 0.72, uFloor);
+    float tree = sdCapsule(tq, vec2(0.0, -0.05), vec2(-0.02, 0.5), 0.04, 0.018);
+    tree = min(tree, sdCapsule(tq, vec2(-0.015, 0.3), vec2(-0.2, 0.52), 0.016, 0.005));
+    tree = min(tree, sdCapsule(tq, vec2(-0.02, 0.42), vec2(0.13, 0.62), 0.014, 0.004));
+    tree = min(tree, sdCapsule(tq, vec2(-0.12, 0.43), vec2(-0.14, 0.6), 0.008, 0.003));
+    lay(c, sil * 0.45, fill(tree));
+    // Ground and tombstones.
+    float gy = uFloor + 0.03 + 0.015 * sin(p.x * 5.0);
+    vec3 ground = mix(vec3(0.3, 0.42, 0.34), vec3(0.03, 0.04, 0.07), wNight * 0.9) * (0.85 + 0.25 * vnoise(vec2(p.x * 50.0, p.y * 8.0)));
+    ground = mix(ground, ground * 0.5, smoothstep(gy, -uHalf.y, p.y) * 0.5);
+    for (int i = 0; i < 3; i++) {
+        float fi = float(i);
+        vec2 sq = p - vec2((-0.75 + fi * 0.5) * uHalf.x + 0.05, gy + 0.07);
+        float a = (h21(vec2(fi, 97.0)) - 0.5) * 0.4;
+        sq = vec2(cos(a) * sq.x - sin(a) * sq.y, sin(a) * sq.x + cos(a) * sq.y);
+        float stone = min(sdBox(sq, vec2(0.05, 0.07)), length(sq - vec2(0.0, 0.07)) - 0.05);
+        vec3 sc = mix(vec3(0.55, 0.56, 0.62), vec3(0.12, 0.12, 0.2), wNight) * (0.85 + 0.2 * vnoise(sq * 60.0));
+        lay(c, sc, fill(stone));
+        lay(c, sc * 0.55, fill(min(abs(sq.x) - 0.004, abs(sq.y - 0.03) - 0.004)) * fill(max(abs(sq.x) - 0.025, abs(sq.y - 0.02) - 0.04)));
+    }
+    lay(c, ground, fill(p.y - gy));
+    // Low fog.
+    c.rgb = mix(c.rgb, mix(vec3(0.75, 0.7, 0.9), vec3(0.2, 0.18, 0.35), wNight), smoothstep(0.25, 0.0, abs(p.y - gy - 0.03)) * 0.35 * (0.5 + 0.5 * fbm(vec2(p.x * 3.0, 5.0))));
+    return c;
+}
+
+// 17 Evil HQ: his bedroom. A "world domination" corkboard, a lava lamp, a tiny bed.
+vec4 evilHq(vec2 p) {
+    vec3 light = mix(ambient() * 0.65 + vec3(0.06), vec3(0.2, 0.17, 0.3), wNight);
+    vec3 wall = mix(vec3(0.42, 0.3, 0.55), vec3(0.3, 0.2, 0.45), smoothstep(uFloor, uHalf.y, p.y));
+    // Striped wallpaper with tiny skulls.
+    wall *= 0.92 + 0.08 * step(0.5, fract(p.x * 4.0));
+    vec2 g = p * 7.0; vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+    if (mod(id.x + id.y, 2.0) < 0.5) wall = mix(wall, wall * 1.25, clamp(0.5 - (length(f * vec2(1.0, 1.15) - vec2(0.0, 0.03)) - 0.11) * 20.0, 0.0, 1.0));
+    vec4 c = vec4(wall * light, 0.0);
+    // Corkboard with a world map, pins and red string.
+    vec2 q = p - vec2(-uHalf.x * 0.25, uFloor + 0.95);
+    float board = sdRoundBox(q, vec2(0.32, 0.2), 0.01);
+    lay(c, vec3(0.45, 0.28, 0.14) * light, fill(board - 0.018));
+    lay(c, vec3(0.78, 0.6, 0.38) * (0.9 + 0.12 * vnoise(q * 60.0)) * light, fill(board));
+    float land = smoothstep(0.5, 0.56, fbm(q * 7.0 + 3.0));
+    lay(c, vec3(0.45, 0.68, 0.5) * light, land * fill(sdRoundBox(q, vec2(0.26, 0.15), 0.01)));
+    for (int i = 0; i < 4; i++) {
+        float fi = float(i);
+        vec2 pin = vec2(-0.2 + fi * 0.13, 0.08 * sin(fi * 2.4));
+        vec2 nxt = vec2(-0.2 + (fi + 1.0) * 0.13, 0.08 * sin((fi + 1.0) * 2.4));
+        if (i < 3) lay(c, vec3(0.9, 0.1, 0.15), fill(sdSeg(q, pin, nxt) - 0.003));
+        lay(c, vec3(1.0, 0.85, 0.2), fill(length(q - pin) - 0.012));
+    }
+    lay(c, vec3(0.9, 0.1, 0.15), fill(min(sdSeg(q, vec2(0.2, -0.1), vec2(0.27, -0.03)), sdSeg(q, vec2(0.2, -0.03), vec2(0.27, -0.1))) - 0.006));
+    // "Keep out" pennant.
+    vec2 pq = p - vec2(uHalf.x * 0.5, uFloor + 1.15);
+    lay(c, vec3(0.85, 0.15, 0.2) * light, fill(sdTri(pq, vec2(-0.12, 0.05), vec2(-0.12, -0.05), vec2(0.12, 0.0))));
+    // Lava lamp on a shelf: it glows.
+    vec2 lq = p - vec2(uHalf.x * 0.6, uFloor + 0.62);
+    lay(c, vec3(0.3, 0.2, 0.15) * light, fill(sdBox(lq - vec2(0.0, -0.02), vec2(0.16, 0.012))));
+    float lamp = sdRoundBox(lq - vec2(0.0, 0.11), vec2(0.035, 0.1), 0.03);
+    float blob = min(length(lq - vec2(0.005, 0.07)) - 0.022, length(lq - vec2(-0.008, 0.15)) - 0.016);
+    c.rgb += vec3(0.5, 1.0, 0.3) * exp(-max(lamp, 0.0) * 9.0) * (0.15 + 0.3 * wNight);
+    layE(c, vec3(0.15, 0.4, 0.12), fill(lamp), 0.3);
+    layE(c, vec3(0.6, 1.0, 0.35), fill(max(blob, lamp)), 0.9);
+    lay(c, vec3(0.25, 0.25, 0.3) * light, fill(min(sdBox(lq - vec2(0.0, 0.0), vec2(0.045, 0.015)), sdBox(lq - vec2(0.0, 0.215), vec2(0.03, 0.012)))));
+    // Skirting board, floor and a rug.
+    if (p.y < uFloor + 0.06) c = vec4(vec3(0.22, 0.15, 0.3) * light, 0.0);
+    if (p.y < uFloor + 0.02) {
+        vec3 wood = mix(vec3(0.42, 0.28, 0.22), vec3(0.3, 0.19, 0.16), step(0.5, fract(p.x * 2.5 + floor((uFloor - p.y) * 9.0) * 0.5)));
+        wood *= 0.9 + 0.12 * vnoise(vec2(p.x * 8.0, p.y * 120.0));
+        c = vec4(wood * light * mix(1.0, 0.6, smoothstep(uFloor, -uHalf.y, p.y)), 0.0);
+        float rug = sdEllipse(p - vec2(0.0, uFloor - 0.07), vec2(uHalf.x * 0.8, 0.07));
+        vec3 rc = mix(vec3(0.75, 0.12, 0.2), vec3(0.2, 0.05, 0.12), step(0.5, fract(length((p - vec2(0.0, uFloor - 0.07)) / vec2(uHalf.x * 0.8, 0.07)) * 3.0)));
+        lay(c, rc * light, fill(rug));
+    }
+    // Tiny bed on the left edge.
+    vec2 bq = p - vec2(-uHalf.x * 0.95, uFloor + 0.08);
+    lay(c, vec3(0.2, 0.12, 0.25) * light, fill(sdRoundBox(bq - vec2(0.0, 0.1), vec2(0.03, 0.2), 0.02)));
+    lay(c, vec3(0.6, 0.15, 0.25) * light, fill(sdRoundBox(bq - vec2(0.15, 0.0), vec2(0.17, 0.07), 0.03)));
+    lay(c, vec3(0.95, 0.92, 0.98) * light, fill(sdRoundBox(bq - vec2(0.07, 0.07), vec2(0.06, 0.035), 0.03)));
+    return c;
+}
+
 void main() {
     px = 2.0 * uHalf.y / uRes.y;
     vec2 p = (gl_FragCoord.xy / uRes - 0.5) * uHalf * 2.0;
@@ -760,9 +1132,19 @@ void main() {
     else if (uWorld < 8.5) c = boxFort(p);
     else if (uWorld < 9.5) c = rainforest(p);
     else if (uWorld < 10.5) c = palmBeach(p);
-    else c = blossomGarden(p);
+    else if (uWorld < 11.5) c = blossomGarden(p);
+    else if (uWorld < 12.5) c = trench(p);
+    else if (uWorld < 13.5) c = coralGarden(p);
+    else if (uWorld < 14.5) c = sunkenShip(p);
+    else if (uWorld < 15.5) c = lavaLair(p);
+    else if (uWorld < 16.5) c = hauntedHill(p);
+    else c = evilHq(p);
     // Gentle vignette keeps the edges dark on AMOLED.
     float v = smoothstep(1.4, 0.4, length(p / uHalf));
     c.rgb *= mix(0.55, 1.0, v);
+    // Finishing: a soft vignette and a breath of grain so nothing looks flat.
+    {
+        c.rgb += (h21(gl_FragCoord.xy * 0.37 + uSeed) - 0.5) * 0.018;
+    }
     gl_FragColor = vec4(clamp(c.rgb, 0.0, 1.0), clamp(c.a, 0.0, 1.0));
 }

@@ -20,7 +20,39 @@ data class CreatureInfo(
     val tricks: List<TrickInfo> = emptyList(),
 )
 
-val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO }
+val GLOWY_INFO = CreatureInfo(
+    5, "Glowy", "An anglerfish whose lure follows your finger.",
+    "Drag: the lure follows you. Touch the water: little fish gather and it gulps them. Tap: the lure flashes.",
+    0xFF80F2FF.toInt(), GLOWY_COATS.map { CoatInfo(it.name, it.body, it.glow) },
+    listOf(
+        EnvInfo("Midnight Trench", 12, c1 = 0xFF0A1F4D.toInt(), c2 = 0xFF4DE6FF.toInt()),
+        EnvInfo("Coral Garden", 13, c1 = 0xFF1FA6C7.toInt(), c2 = 0xFFFF8099.toInt()),
+        EnvInfo("Sunken Ship", 14, c1 = 0xFF14666B.toInt(), c2 = 0xFFFFD159.toInt()),
+    ),
+    listOf(
+        TrickInfo("feed", "Feed", "🐟"), TrickInfo("flash", "Flash the lure", "💡"), TrickInfo("puff", "Puff up", "🐡"),
+        TrickInfo("loop", "Loop", "🌀"), TrickInfo("bubbles", "Bubbles", "🫧"), TrickInfo("yawn", "Big yawn", "🥱"),
+        TrickInfo("stare", "Chase the lure", "👀"),
+    ),
+)
+
+val GROMBLE_INFO = CreatureInfo(
+    6, "Gromble", "Tries very hard to be evil. Fails adorably.",
+    "Finger far away: he growls. Finger close: he panics. Poke him three times. Hold him: secretly loves it.",
+    0xFFB380FF.toInt(), GROMBLE_COATS.map { CoatInfo(it.name, it.fur, it.horn) },
+    listOf(
+        EnvInfo("Lava Lair", 15, c1 = 0xFF4D0D0D.toInt(), c2 = 0xFFFF8C1A.toInt()),
+        EnvInfo("Haunted Hill", 16, c1 = 0xFF3D2E6B.toInt(), c2 = 0xFFFFBF4D.toInt()),
+        EnvInfo("Evil HQ", 17, c1 = 0xFF5C3D8C.toInt(), c2 = 0xFF99FF59.toInt()),
+    ),
+    listOf(
+        TrickInfo("laugh", "Evil laugh", "😈"), TrickInfo("plan", "Evil plan", "📜"), TrickInfo("fire", "Fireball", "🔥"),
+        TrickInfo("fly", "Fly", "🦇"), TrickInfo("boo", "BOO!", "👻"), TrickInfo("cape", "Cape swish", "🧛"),
+        TrickInfo("attack", "Attack!", "💥"), TrickInfo("pet", "Pet him", "🫶"),
+    ),
+)
+
+val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO }
 
 private val BASE_CREATURES = listOf(
     CreatureInfo(
