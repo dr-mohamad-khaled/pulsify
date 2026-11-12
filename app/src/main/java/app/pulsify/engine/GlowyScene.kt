@@ -19,13 +19,19 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /** A Glowy variant: body, belly, fins, lure glow, and how see-through it is. */
-data class GlowyCoat(val name: String, val body: Int, val belly: Int, val fin: Int, val glow: Int, val ghost: Float)
+data class GlowyCoat(val name: String, val body: Int, val belly: Int, val fin: Int, val glow: Int, val ghost: Float, val kind: Int = 0)
 
 val GLOWY_COATS = listOf(
     GlowyCoat("Amber", 0xFFF28C33.toInt(), 0xFFFFCC73.toInt(), 0xFFE6663F.toInt(), 0xFFFFD966.toInt(), 0f),
     GlowyCoat("Ghost", 0xFF59BFF2.toInt(), 0xFFCCF2FF.toInt(), 0xFF66B3FF.toInt(), 0xFF80F2FF.toInt(), 1f),
     GlowyCoat("Orchid", 0xFF9959E6.toInt(), 0xFFF2B3FF.toInt(), 0xFFB366FF.toInt(), 0xFF66FF80.toInt(), 0f),
     GlowyCoat("Coral", 0xFFFF6680.toInt(), 0xFFFFC2B3.toInt(), 0xFFFF8C66.toInt(), 0xFF66E6FF.toInt(), 0.35f),
+    // Other fish: same personality and tricks, different bodies.
+    GlowyCoat("Clownfish", 0xFFFF7417.toInt(), 0xFFFFA24D.toInt(), 0xFFFF8A2E.toInt(), 0xFFFFE0B3.toInt(), 0f, kind = 1),
+    GlowyCoat("Betta", 0xFF2E4BFF.toInt(), 0xFF9D3CFF.toInt(), 0xFFFF2E6E.toInt(), 0xFF8CB8FF.toInt(), 0.15f, kind = 2),
+    GlowyCoat("Pufferfish", 0xFFE3C35E.toInt(), 0xFFFFF4DB.toInt(), 0xFFC99A3E.toInt(), 0xFFFFE680.toInt(), 0f, kind = 3),
+    GlowyCoat("Koi", 0xFFFF5A1F.toInt(), 0xFFFFFBF5.toInt(), 0xFFFFE8DC.toInt(), 0xFFFFB38C.toInt(), 0.1f, kind = 4),
+    GlowyCoat("Neon Betta", 0xFFFF2E9A.toInt(), 0xFF35E0FF.toInt(), 0xFF8A2EFF.toInt(), 0xFF7DFFF2.toInt(), 0.25f, kind = 2),
 )
 
 /**
@@ -72,6 +78,7 @@ class GlowyScene(private val context: Context) : Creature {
     private var charge = 0f; private var spots = 1f
     private var blink = 1f; private var nextBlink = 3f
 
+    private var kind = 0
     private var act = Act.NONE
     private var actT = 0f
     private var nextIdle = 3f
@@ -99,7 +106,7 @@ class GlowyScene(private val context: Context) : Creature {
         val frag = context.assets.open("shaders/glowy.frag").bufferedReader().use { it.readText() }
         program = Gl.program(vert, frag)
         for (n in listOf("uQuad", "uRes", "uTime", "uPos", "uSize", "uPx", "uFace", "uPitch", "uSquash", "uPuff", "uMouth", "uEye",
-            "uFin", "uTail", "uLure", "uCharge", "uBody", "uBelly", "uFinC", "uGlow", "uSpots", "uGhost", "uPrey", "uFx", "uDim")) {
+            "uFin", "uTail", "uLure", "uCharge", "uBody", "uBelly", "uFinC", "uGlow", "uSpots", "uGhost", "uPrey", "uFx", "uDim", "uKind")) {
             uni[n] = GLES20.glGetUniformLocation(program, n)
         }
         val ids = IntArray(1)
@@ -240,6 +247,7 @@ class GlowyScene(private val context: Context) : Creature {
         ease(cBody, coat.body, k); ease(cBelly, coat.belly, k); ease(cFin, coat.fin, k)
         ease(cGlow, if (musicOn) Color.HSVToColor(floatArrayOf((time * 50f) % 360f, 0.6f, 1f)) else if (charging) Color.rgb(90, 255, 115) else coat.glow, if (colorsInit) dt * 3f else 1f)
         ghost += (coat.ghost - ghost) * min(1f, k)
+        kind = coat.kind
         colorsInit = true
 
         if (touchDown && !moved && !longFired && time - downAt > 0.6f) {
@@ -505,6 +513,7 @@ class GlowyScene(private val context: Context) : Creature {
         GLES20.glUniform3f(u("uGlow"), cGlow[0], cGlow[1], cGlow[2])
         GLES20.glUniform1f(u("uSpots"), spots.coerceIn(0f, 2f))
         GLES20.glUniform1f(u("uGhost"), ghost)
+        GLES20.glUniform1f(u("uKind"), kind.toFloat())
         preyBuf.position(0); preyBuf.put(preyOut); preyBuf.position(0)
         GLES20.glUniform4fv(u("uPrey"), 4, preyBuf)
         fxBuf.position(0); fxBuf.put(fxOut); fxBuf.position(0)

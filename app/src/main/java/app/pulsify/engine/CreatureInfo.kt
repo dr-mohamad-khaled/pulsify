@@ -21,7 +21,7 @@ data class CreatureInfo(
 )
 
 val GLOWY_INFO = CreatureInfo(
-    5, "Glowy", "An anglerfish whose lure follows your finger.",
+    5, "Glowy", "Anglerfish, clownfish, betta, puffer or koi. Follows your finger.",
     "Drag: the lure follows you. Touch the water: little fish gather and it gulps them. Tap: the lure flashes.",
     0xFF80F2FF.toInt(), GLOWY_COATS.map { CoatInfo(it.name, it.body, it.glow) },
     listOf(
@@ -52,7 +52,59 @@ val GROMBLE_INFO = CreatureInfo(
     ),
 )
 
-val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO }
+val NUTTY_INFO = CreatureInfo(
+    7, "Nutty", "Twitchy red squirrel. Always one second from panicking.",
+    "Tap: it freezes and puffs up. Drag: it hops after you. Hold: offer an acorn and watch it run off to bury it.",
+    0xFFF2AC6A.toInt(), NUTTY_COATS.map { CoatInfo(it.name, it.fur, it.light) },
+    listOf(
+        EnvInfo("Autumn Oak", 18, c1 = 0xFFE8A33A.toInt(), c2 = 0xFF6E4A30.toInt()),
+        EnvInfo("City Park", 19, c1 = 0xFF7EC8FF.toInt(), c2 = 0xFF5FB04F.toInt()),
+        EnvInfo("Snowy Pines", 20, c1 = 0xFFDDEBFF.toInt(), c2 = 0xFF2E6B5B.toInt()),
+    ),
+    listOf(
+        TrickInfo("nibble", "Nibble", "🌰"), TrickInfo("stash", "Bury a nut", "🕳️"), TrickInfo("lookout", "Lookout", "👀"),
+        TrickInfo("flick", "Tail flick", "🐿️"), TrickInfo("zoom", "Zoomies", "💨"), TrickInfo("catch", "Catch!", "🫴"),
+        TrickInfo("spin", "Spin", "🌀"), TrickInfo("scratch", "Scratch", "🦶"), TrickInfo("feed", "Give an acorn", "🎁"),
+        TrickInfo("drum", "Drum solo", "🥁"),
+    ),
+)
+
+val BOLT_INFO = CreatureInfo(
+    8, "Bolt", "Pocket robot. Runs on your battery. TV face shows how it feels.",
+    "Tap its face: new expression (tap fast and it overheats). Hold near it: it scans your finger.",
+    0xFF2DD4BF.toInt(), BOLT_COATS.map { CoatInfo(it.name, it.body, it.screen) },
+    listOf(
+        EnvInfo("Workshop", 21, c1 = 0xFF2DD4BF.toInt(), c2 = 0xFFFFB36B.toInt()),
+        EnvInfo("Arcade", 22, c1 = 0xFF9D4EDD.toInt(), c2 = 0xFF2DD4BF.toInt()),
+        EnvInfo("Moon Base", 23, c1 = 0xFF8A93AE.toInt(), c2 = 0xFF59B8FF.toInt()),
+    ),
+    listOf(
+        TrickInfo("clock", "What time?", "⏰"), TrickInfo("wave", "Wave", "👋"), TrickInfo("dance", "The robot", "🤖"),
+        TrickInfo("polish", "Polish screen", "✨"), TrickInfo("glitch", "Glitch", "📺"), TrickInfo("tune", "Tune antenna", "📡"),
+        TrickInfo("radar", "Radar", "🛰️"), TrickInfo("jump", "Jump", "⬆️"), TrickInfo("scan", "Scan", "🔍"),
+        TrickInfo("faces", "Faces", "😎"),
+    ),
+)
+
+val GLOOP_INFO = CreatureInfo(
+    9, "Gloop Gang", "A crew of jelly blobs with their own games. Pick how many.",
+    "Tap one: squish. Drag one and fling it into the others. Hold the screen: they all come over.",
+    0xFF8EE03B.toInt(),
+    GLOOP_SIZES.mapIndexed { i, n -> CoatInfo(if (n == 8) "Full gang" else "$n blobs", GLOOP_TRAITS[i * 2 % GLOOP_TRAITS.size].base, GLOOP_TRAITS[(i * 2 + 1) % GLOOP_TRAITS.size].base) },
+    listOf(
+        EnvInfo("Disco", 24, c1 = 0xFFCD78FF.toInt(), c2 = 0xFF8CFF96.toInt()),
+        EnvInfo("Bubble Bath", 25, c1 = 0xFF8FD9FF.toInt(), c2 = 0xFFFFD23F.toInt()),
+        EnvInfo("Outer Space", 26, c1 = 0xFF9D4EDD.toInt(), c2 = 0xFFFFB36B.toInt()),
+        EnvInfo("Candy Clouds", 27, c1 = 0xFFFFB6D9.toInt(), c2 = 0xFFC8B6FF.toInt()),
+    ),
+    listOf(
+        TrickInfo("tag", "Tag", "🏃"), TrickInfo("tower", "Jelly tower", "🗼"), TrickInfo("conga", "Conga line", "💃"),
+        TrickInfo("peekaboo", "Peekaboo", "🙈"), TrickInfo("bounce", "Bounce", "🔴"), TrickInfo("wave", "Mexican wave", "🌊"),
+        TrickInfo("squish", "Squish all", "🫠"),
+    ),
+)
+
+val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + NUTTY_INFO + BOLT_INFO + GLOOP_INFO }
 
 private val BASE_CREATURES = listOf(
     CreatureInfo(

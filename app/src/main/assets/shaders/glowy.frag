@@ -31,6 +31,7 @@ uniform float uGhost;      // 0 solid .. 1 see-through ghost variant
 uniform vec4  uPrey[4];    // x, y (sp space), direction, visible
 uniform vec4  uFx[6];      // x, y, life, kind: 1 bubble, 2 sparkle, 3 heart, 4 zzz, 5 "!", 6 note
 uniform float uDim;
+uniform float uKind;       // 0 anglerfish, 1 clownfish, 2 betta, 3 pufferfish, 4 koi
 
 float sdEllipse(vec2 p, vec2 r) { float k0 = length(p / r); float k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-4); }
 float sdRoundBox(vec2 p, vec2 b, float r) { vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
@@ -92,31 +93,67 @@ void main() {
     vec2 L = uLure.xy;
     float lureOn = uLure.z;
     float ghost = uGhost;
+    float kind = uKind;
+    float angler = step(kind, 0.5);
+    float clown = step(0.5, kind) * step(kind, 1.5);
+    float betta = step(1.5, kind) * step(kind, 2.5);
+    float puffer = step(2.5, kind) * step(kind, 3.5);
+    float koi = step(3.5, kind);
+    lureOn *= angler;
+    puff = max(puff, puffer * 0.35);
+    R = 0.3 * (1.0 + 0.3 * puff);
+    // Body proportions per fish.
+    vec2 bodyR = vec2(R * 1.06, R * 0.95);
+    if (betta > 0.5) bodyR = vec2(R * 1.05, R * 0.66);
+    if (koi > 0.5) bodyR = vec2(R * 1.22, R * 0.62);
+    if (clown > 0.5) bodyR = vec2(R * 1.1, R * 0.78);
 
     // ---- Lure halo behind everything ----
     {
         float dl = length(p - L);
         glowAdd(acc, uGlow, (exp(-dl * 5.5) * 0.5 + exp(-dl * 16.0) * 0.5) * lureOn * smoothstep(1.3, 0.8, length(p)));
+        // The other fish glow softly from inside instead.
+        glowAdd(acc, uGlow, exp(-length(p) * 4.0) * 0.18 * (1.0 - angler));
     }
 
     if (length(p) < 1.1) {
     // ---- Tail fin ----
     {
-        vec2 q = p - vec2(-R * 0.86, 0.0);
+        vec2 q = p - vec2(-bodyR.x * 0.82, 0.0);
         q = rot(q, -sin(uTail.x) * uTail.y);
         q.x = -q.x;
-        float wob = sin(uTail.x - q.x * 9.0) * uTail.y * 0.25 * q.x * 3.0;
+        float wob = sin(uTail.x - q.x * 9.0) * uTail.y * 0.25 * q.x * 3.0 * (1.0 + betta * 1.5);
         q.y += wob;
         float tf = max(sdEllipse(q - vec2(0.12, 0.0), vec2(0.17, 0.15)), -(sdEllipse(q - vec2(0.3, 0.0), vec2(0.1, 0.09))));
+        if (clown + puffer > 0.5) tf = sdEllipse(q - vec2(0.09, 0.0), vec2(0.11, 0.1 + 0.02 * puffer));
+        if (betta > 0.5) {
+            // A huge flowing veil tail with a rippling edge.
+            // A wide fan that flares out from the body and ripples at its edge.
+            vec2 fq = q + vec2(0.03, 0.0);
+            float ra = length(fq), an = atan(fq.y, fq.x);
+            float edge = 0.03 * sin(an * 7.0 + uTime * 3.0) + 0.015 * sin(an * 17.0 - uTime * 4.0);
+            tf = max(ra - (0.4 + edge), (abs(an) - 1.15) * ra);
+        }
+        if (koi > 0.5) tf = max(sdEllipse(q - vec2(0.14, 0.0), vec2(0.18, 0.17)), -(sdEllipse(q - vec2(0.36, 0.0), vec2(0.13, 0.11))));
         tf = max(tf, -q.x);
         if (tf < 0.02) {
             float rays = 0.75 + 0.25 * sin(atan(q.y, q.x) * 30.0);
-            over(acc, mix(uFinC, uGlow, 0.3 * smoothstep(0.0, 0.25, q.x)) * rays, fill(tf) * (0.8 - 0.3 * ghost));
+            vec3 tc = mix(uFinC, uGlow, 0.3 * smoothstep(0.0, 0.25, q.x)) * rays;
+            if (betta > 0.5) tc = mix(uFinC, uBody, smoothstep(0.45, 0.05, q.x)) * (0.8 + 0.3 * rays) + uGlow * 0.15 * sin(q.x * 40.0 + uTime * 2.0);
+            if (clown > 0.5) tc = mix(uFinC, vec3(0.02), smoothstep(-0.03, -0.005, tf));
+            over(acc, tc, fill(tf) * (0.8 - 0.3 * ghost + 0.1 * betta));
             glowAdd(acc, uGlow, smoothstep(0.012, 0.0, abs(tf)) * 0.2);
         }
     }
     // ---- Dorsal spines and belly fin ----
+    if (clown + koi > 0.5) fin(acc, rot(p - vec2(-0.04, bodyR.y * 0.85), 2.6 + 0.08 * sin(uTime * 3.0)), 0.16 + 0.03 * koi, 0.06, 0.85);
+    if (betta > 0.5) {
+        // Long flowing dorsal and anal fins.
+        fin(acc, rot(p - vec2(-0.02, bodyR.y * 0.8), 2.75 + 0.12 * sin(uTime * 2.2)), 0.3, 0.1, 0.8);
+        fin(acc, rot(p - vec2(-0.02, -bodyR.y * 0.8), -2.75 - 0.12 * sin(uTime * 2.2 + 1.0)), 0.3, 0.11, 0.8);
+    }
     for (int i = 0; i < 4; i++) {
+        if (angler + puffer < 0.5) break;
         float fi = float(i);
         float a = 2.1 + fi * 0.27;
         vec2 base = vec2(cos(a), sin(a)) * R * 0.92;
@@ -125,12 +162,19 @@ void main() {
         over(acc, mix(uFinC, uGlow, 0.3), fill(sd) * 0.85);
         glowAdd(acc, uGlow, exp(-length(p - tip) * 60.0) * 0.5 * uSpots);
     }
-    fin(acc, rot(p - vec2(-0.05, -R * 0.85), 1.9 + 0.2 * sin(uFin.x * 0.7)), 0.14, 0.05, 0.7);
+    if (betta < 0.5) fin(acc, rot(p - vec2(-0.05, -bodyR.y * 0.88), 1.9 + 0.2 * sin(uFin.x * 0.7)), 0.14, 0.05, 0.7);
 
     // ---- Body ----
     float ang = atan(p.y, p.x);
     float spikes = pow(max(0.0, cos(ang * 9.0 + 0.4)), 6.0) * 0.07 * smoothstep(0.25, 1.0, puff);
-    float body = sdEllipse(p, vec2(R * 1.06, R * 0.95)) - spikes;
+    spikes += puffer * pow(max(0.0, cos(ang * 14.0)), 10.0) * 0.035;
+    float body = sdEllipse(p, bodyR) - spikes;
+    // Koi: barbels at the mouth.
+    if (koi > 0.5) {
+        float bar = min(sdCapsule(p, vec2(bodyR.x * 0.92, -0.03), vec2(bodyR.x * 1.12, -0.09 + 0.01 * sin(uTime * 3.0)), 0.006, 0.002),
+                        sdCapsule(p, vec2(bodyR.x * 0.9, -0.04), vec2(bodyR.x * 1.02, -0.11), 0.005, 0.002));
+        over(acc, uBelly * 0.85, fill(bar));
+    }
     // Jaw geometry (hinge near the middle, mouth opens to the front).
     vec2 hinge = vec2(R * 0.12, -R * 0.22);
     float open = uMouth;
@@ -141,11 +185,31 @@ void main() {
     float mr = length(mq);
     float inMouth = step(a1, ma) * step(ma, a0) * step(0.02, mr);
     if (body < 0.03) {
-        vec2 q = p / (R * 1.15);
+        vec2 q = p / (bodyR * 1.1);
         float t = clamp(1.0 - dot(q, q), 0.0, 1.0);
         vec3 n = normalize(vec3(q, sqrt(t) + 0.25));
         float diff = smoothstep(-0.4, 0.9, dot(n, normalize(vec3(-0.3, 0.7, 0.65))));
         vec3 base = mix(uBelly, uBody, smoothstep(-0.55, 0.25, q.y + 0.25 * q.x));
+        if (clown > 0.5) {
+            // Three white bands with dark outlines.
+            float bx = p.x / bodyR.x;
+            float bands = min(min(abs(bx - 0.55) - 0.11, abs(bx + 0.02) - 0.14), abs(bx + 0.62) - 0.09);
+            bands += 0.04 * sin(q.y * 6.0);
+            base = mix(base, vec3(0.06, 0.03, 0.04), smoothstep(0.05, 0.0, abs(bands)) * 0.9);
+            base = mix(base, vec3(1.0, 0.98, 0.95), step(bands, -0.02));
+        }
+        if (koi > 0.5) {
+            // White koi with orange patches and a few black flecks.
+            float n = vnoise(p * 7.0 + 3.1) + 0.5 * vnoise(p * 15.0);
+            base = mix(uBelly, uBody, smoothstep(0.62, 0.7, n));
+            base = mix(base, vec3(0.05), smoothstep(1.08, 1.12, n + 0.35 * vnoise(p * 21.0 + 8.0)) * 0.8);
+        }
+        if (puffer > 0.5) {
+            // Leopard spots on the back.
+            vec2 g = p * 26.0; vec2 id = floor(g); vec2 f = fract(g) - 0.5;
+            float sp = length(f - (vec2(h21(id), h21(id + 4.0)) - 0.5) * 0.5) - 0.18;
+            base = mix(base, uFinC * 0.45, fill(sp / 26.0) * smoothstep(-0.2, 0.3, q.y) * 0.8);
+        }
         vec3 col = mix(base * vec3(0.35, 0.38, 0.6), base * 1.05, diff);
         // Lit by its own lure.
         float dl = length(p - L);
@@ -156,8 +220,17 @@ void main() {
         col += uGlow * exp(-length(p - vec2(-0.03, -0.05)) * 6.0) * (0.12 + 0.3 * ghost);
         // Rim.
         col += mix(uGlow, vec3(0.6, 0.8, 1.0), 0.5) * pow(1.0 - n.z, 2.5) * 0.55;
-        // Glowing freckles along the side.
+        // Scales shimmer (betta, koi).
+        if (betta + koi > 0.5) {
+            vec2 sc = p * vec2(30.0, 34.0);
+            sc.x += 0.5 * mod(floor(sc.y), 2.0);
+            vec2 sf = fract(sc) - 0.5;
+            float scale = smoothstep(0.5, 0.2, length(sf));
+            col += mix(uGlow, vec3(1.0), 0.5) * scale * 0.12 * (0.5 + 0.5 * sin(uTime * 2.0 + p.x * 20.0 + p.y * 9.0));
+        }
+        // Glowing freckles along the side (the anglerfish's signature).
         for (int i = 0; i < 7; i++) {
+            if (angler < 0.5) break;
             float fi = float(i);
             vec2 c = vec2(-0.2 + fi * 0.055, -0.02 + 0.07 * sin(fi * 1.9)) * (R / 0.3);
             float tw = 0.5 + 0.5 * sin(uTime * 2.5 + fi * 1.7);
@@ -187,8 +260,14 @@ void main() {
             // Closed: a long grumpy-cute lip line with two teeth poking up from the underbite.
             vec2 lip0 = hinge, lip1 = hinge + vec2(cos(a0), sin(a0)) * R * 0.9;
             float lip = sdSeg(p, lip0, lip1) - 0.005;
+            if (angler < 0.5) {
+                vec2 mp = p - vec2(bodyR.x * 0.82, -bodyR.y * 0.18);
+                lip = sdArc(mp * vec2(1.0, -1.0) + vec2(0.0, 0.03), 0.045, 0.9) - 0.006;
+                if (puffer > 0.5) lip = length(mp) - 0.022;
+            }
             over(acc, vec3(0.08, 0.03, 0.1), fill(lip) * fill(body + 0.01));
             for (int k = 0; k < 2; k++) {
+                if (angler < 0.5) break;
                 vec2 tb = mix(lip0, lip1, 0.55 + float(k) * 0.25);
                 float tooth = sdTri(p, tb + vec2(-0.016, -0.004), tb + vec2(0.016, -0.004), tb + vec2(0.0, 0.035));
                 over(acc, vec3(1.0, 0.98, 0.9), fill(tooth) * fill(body + 0.01));
@@ -197,8 +276,8 @@ void main() {
 
         // ---- Eye ----
         {
-            vec2 ec = p - vec2(R * 0.42, R * 0.3);
-            float r = 0.078 * (1.0 + 0.2 * puff);
+            vec2 ec = p - vec2(bodyR.x * 0.48, bodyR.y * 0.3);
+            float r = 0.078 * (1.0 + 0.2 * puff) * (1.0 - 0.18 * (betta + koi + clown) + 0.1 * puffer);
             float eyeD = length(ec) - r;
             float mode = uEye.y;
             if (mode < 0.5 || mode > 2.5) {
@@ -231,8 +310,8 @@ void main() {
     // ---- Pectoral fin (near side), fluttering ----
     fin(acc, rot(p - vec2(-0.03, -0.07), 2.75 + sin(uFin.x) * uFin.y), 0.17, 0.06, 0.85);
 
-    // ---- Stalk and lure ----
-    {
+    // ---- Stalk and lure (anglerfish only) ----
+    if (angler > 0.5) {
         vec2 a = vec2(R * 0.32, R * 0.86);
         vec2 ctrl = mix(a, L, 0.5) + vec2(-0.06, 0.16);
         float st = 1e5; vec2 prev = a;

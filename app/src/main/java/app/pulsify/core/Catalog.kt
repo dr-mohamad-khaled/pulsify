@@ -31,7 +31,6 @@ val COMING = listOf(
     ComingSoon("Sparky", Kind.CREATURE, "Bat with goggles and a sparkler.", 0xFFFF9F43.toInt(), 0xFF6C5CE7.toInt(), 8),
     ComingSoon("Cosmic loops", Kind.LOOP, "Earth, Saturn, black hole, nebula — seamless.", 0xFF5B8CFF.toInt(), 0xFFFFB36B.toInt(), 9),
     ComingSoon("Liquid Obsidian", Kind.WORLD, "Black chrome ferrofluid that spikes to bass.", 0xFFB8B8C8.toInt(), 0xFF9D4EDD.toInt(), 10),
-    ComingSoon("Gloop Gang", Kind.WORLD, "A jelly band on a tiny stage.", 0xFF4ADE80.toInt(), 0xFFFF7A59.toInt(), 11),
 )
 
 data class Discovery(val id: String, val title: String, val hint: String)

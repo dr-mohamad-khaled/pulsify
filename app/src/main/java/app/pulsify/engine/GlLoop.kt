@@ -59,7 +59,10 @@ class GlLoop(
     val kiwi = KiwiScene(context)
     val glowy = GlowyScene(context)
     val gromble = GrombleScene(context)
-    private val creatures: List<Creature> = listOf(mochi, kalboob, kitty, kiwi, glowy, gromble)
+    val nutty = NuttyScene(context)
+    val bolt = BoltScene(context)
+    val gloop = GloopScene(context)
+    private val creatures: List<Creature> = listOf(mochi, kalboob, kitty, kiwi, glowy, gromble, nutty, bolt, gloop)
     /** Discoveries and bond XP from the sky and every creature. */
     var listener: SceneListener? = null
         set(v) { field = v; scene.listener = v; creatures.forEach { it.listener = v } }

@@ -95,7 +95,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
         val frag = context.assets.open("shaders/sky.frag").bufferedReader().use { it.readText() }
         program = Gl.program(VERT, frag)
         for (n in listOf("uRes", "uTime", "uBass", "uMid", "uTreble", "uBeat", "uA1", "uA2", "uVariant", "uPar",
-            "uRip", "uShoot", "uShootDir", "uTouch", "uDim", "uBright", "uCharge", "uWish")) {
+            "uRip", "uShoot", "uShootDir", "uTouch", "uDim", "uBright", "uCharge", "uWish", "uNeb", "uNebOn", "uNebMap")) {
             uni[n] = GLES20.glGetUniformLocation(program, n)
         }
         val ids = IntArray(1)
@@ -308,6 +308,21 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
         GLES20.glUniform1f(u("uBright"), input.brightness)
         GLES20.glUniform2f(u("uCharge"), input.battery, if (input.charging) 1f else 0f)
         GLES20.glUniform1f(u("uWish"), wish)
+        ensureNebula(input.variant == 2)
+        GLES20.glUseProgram(program)
+        if (nebTex != 0) {
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nebTex)
+            GLES20.glUniform1i(u("uNeb"), 0)
+            // Cover fit, cropping the long side around the centre.
+            val ia = nebW.toFloat() / nebH; val sa = w.toFloat() / h
+            if (sa < ia) { val k = sa / ia; GLES20.glUniform4f(u("uNebMap"), k, 1f, (1f - k) * 0.5f, 0f) }
+            else { val k = ia / sa; GLES20.glUniform4f(u("uNebMap"), 1f, k, 0f, (1f - k) * 0.5f) }
+        }
+        GLES20.glUniform1f(u("uNebOn"), if (nebTex != 0) 1f else 0f)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+        GLES20.glEnableVertexAttribArray(0)
+        GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
     }
 
@@ -315,7 +330,32 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     val busy: Boolean
         get() = touchDown || sinceTouch < 2f || shootActive || showerLeft > 0 || wish > 0f
 
+    // The Nebula is a painted deep-space picture brought to life in the shader (flowing gas,
+    // bass-lit cores). Loaded only while the Nebula is shown.
+    private var nebTex = 0
+    private var nebW = 1; private var nebH = 1
+    private fun ensureNebula(want: Boolean) {
+        if (want && nebTex == 0) {
+            val bmp = try {
+                context.assets.open("sky/nebula.jpg").use { android.graphics.BitmapFactory.decodeStream(it) }
+            } catch (_: Throwable) { null } ?: return
+            nebW = bmp.width; nebH = bmp.height
+            val ids = IntArray(1); GLES20.glGenTextures(1, ids, 0); nebTex = ids[0]
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nebTex)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+            android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
+            bmp.recycle()
+        } else if (!want && nebTex != 0) {
+            GLES20.glDeleteTextures(1, intArrayOf(nebTex), 0); nebTex = 0
+        }
+    }
+
     fun release() {
+        if (nebTex != 0) GLES20.glDeleteTextures(1, intArrayOf(nebTex), 0)
+        nebTex = 0
         if (program != 0) GLES20.glDeleteProgram(program)
         if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0)
         program = 0; vbo = 0

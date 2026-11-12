@@ -24,6 +24,9 @@ uniform float uDim;       // 0 awake .. 1 asleep
 uniform float uBright;    // user brightness 0.6..1.4
 uniform vec2  uCharge;    // x: battery level 0..1, y: charging 0/1
 uniform float uWish;      // long-press wish glow 0..1
+uniform sampler2D uNeb;   // painted nebula (variant 2)
+uniform float uNebOn;
+uniform vec4  uNebMap;    // cover mapping: scale xy, offset xy
 
 float h21(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -111,8 +114,30 @@ void main() {
         float streak = 0.55 + 0.45 * vnoise(vec2(p.x * 38.0 + n * 9.0, uTime * 0.35));
         vec3 ac = mix(uA1, uA2, clamp((y - h) * 2.2, 0.0, 1.0));
         col += ac * curtain * streak * (0.22 + 0.45 * uMid + 0.2 * uBeat);
+    } else if (uNebOn > 0.5) {
+        // Painted nebula, alive: the gas flows (two-phase flow map), the whole cloud breathes
+        // slowly and swells with the bass, the brightest cores flare on the beat, and the
+        // ripples from your finger push the gas around.
+        vec2 iv = suv * uNebMap.xy + uNebMap.zw;
+        float z = 1.0 - 0.035 * (0.5 + 0.5 * sin(uTime * 0.045)) - 0.02 * uBass;
+        float ang = sin(uTime * 0.021) * 0.035;
+        vec2 c0 = vec2(0.5, 0.5);
+        vec2 q = iv - c0;
+        q = mat2(cos(ang), -sin(ang), sin(ang), cos(ang)) * q * z + c0 + uPar * vec2(0.012, 0.0) + disp * 0.6;
+        vec2 fl = vec2(vnoise(q * 4.0 + vec2(uTime * 0.02, 0.0)), vnoise(q * 4.0 + vec2(5.2, -uTime * 0.02))) - 0.5;
+        float ph = fract(uTime * 0.035);
+        float ph2 = fract(ph + 0.5);
+        float s = 0.022;
+        vec3 a = texture2D(uNeb, vec2(q.x, 1.0 - q.y) - fl * s * ph).rgb;
+        vec3 b = texture2D(uNeb, vec2(q.x, 1.0 - q.y) - fl * s * ph2).rgb;
+        vec3 neb = mix(a, b, abs(1.0 - 2.0 * ph));
+        float lum = dot(neb, vec3(0.299, 0.587, 0.114));
+        float core = smoothstep(0.35, 0.9, lum);
+        neb *= 0.92 + 0.5 * uBass * smoothstep(0.08, 0.6, lum) + 0.35 * uBeat * core;
+        neb += neb * core * 0.25 * (0.5 + 0.5 * sin(uTime * 0.7 + lum * 9.0));
+        col = col * 0.55 + neb;
     } else {
-        // Nebula clouds.
+        // Fallback when the picture is missing.
         float n1 = fbm(p * 1.7 + vec2(uTime * 0.01, 0.0) + uPar * 0.05);
         float n2 = fbm(p * 3.4 - n1 * 1.6 + uTime * 0.012);
         float dens = pow(n2, 3.0) * 1.7;

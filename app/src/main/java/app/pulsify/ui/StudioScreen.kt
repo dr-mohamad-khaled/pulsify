@@ -311,7 +311,7 @@ private fun LookPanel(state: AppState) {
         val info = app.pulsify.engine.creatureInfo(state.character)
         if (info != null) {
             Gap(12.dp)
-            MicroLabel(if (info.id == 4) "Species" else "Coat")
+            MicroLabel(when (info.id) { 4 -> "Species"; 5 -> "Fish"; 8 -> "Paint job"; 9 -> "How many"; else -> "Coat" })
             Gap(8.dp)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 info.coats.forEachIndexed { i, coat ->
