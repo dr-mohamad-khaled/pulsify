@@ -24,6 +24,7 @@ uniform vec2  uWing;       // open 0..1, fan spread 0..1
 uniform float uBeak;       // 0 closed .. 1 wide open
 uniform vec3  uEyeS;       // open 0..1, mode (0 normal, 1 happy, 2 asleep, 3 pinning), look up/down
 uniform vec2  uLegs;       // raise near foot, raise far foot (0..1)
+uniform vec2  uFeet;       // sideways offset of near / far foot (char space) while stepping
 uniform float uTailSway;
 uniform float uSquash;
 uniform float uSpecies;    // 0 ringneck, 1 budgie, 2 cockatiel, 3 lovebird
@@ -509,18 +510,21 @@ void main() {
     for (int s = 0; s < 2; s++) {
         float fs = float(s);
         float raise = s == 0 ? uLegs.x : uLegs.y;
-        vec2 fp = vec2(s == 0 ? 0.06 : -0.06, -0.5);
+        // A lifted foot leaves the branch a little and moves sideways with the step.
+        vec2 fp = vec2((s == 0 ? 0.06 : -0.06) + (s == 0 ? uFeet.x : uFeet.y), -0.5 + 0.065 * raise);
         vec3 skin = mix(vec3(0.5, 0.5, 0.54), vec3(0.75, 0.6, 0.56), tiel) * mix(vec3(1.0), uAmb, 0.5);
         // Feather trousers over the top of the leg.
         float thigh = sdEllipse(p - fp - vec2(-0.012, 0.085 + 0.03 * raise), vec2(0.034, 0.034));
-        if (raise < 0.5) {
-            float leg = sdCapsule(p, fp + vec2(-0.005, 0.05), fp + vec2(0.0, 0.012), 0.022, 0.02);
+        if (raise < 0.98) {
+            // The leg runs from under the feathers to the foot; toes curl up while lifted.
+            float leg = sdCapsule(p, fp + vec2(-0.005, 0.05 - 0.02 * raise), fp + vec2(0.0, 0.012), 0.022, 0.02);
             over(acc, skin * 0.8, fill(leg));
+            float curl = raise;
             for (int k = 0; k < 3; k++) {
                 float fk = float(k) - 1.0;
                 vec2 a = fp + vec2(0.0, 0.008);
-                vec2 t1 = a + vec2(fk * 0.034, -0.016);
-                vec2 t2 = t1 + vec2(fk * 0.012 + 0.006, -0.04);
+                vec2 t1 = a + vec2(fk * 0.034 * (1.0 - 0.45 * curl), -0.016 + 0.004 * curl);
+                vec2 t2 = t1 + vec2((fk * 0.012 + 0.006) * (1.0 - 0.6 * curl) - 0.01 * curl * fk, -0.04 * (1.0 - 0.55 * curl));
                 float toe = min(sdCapsule(p, a, t1, 0.017, 0.015), sdCapsule(p, t1, t2, 0.015, 0.011));
                 vec3 n = sphN(vec2((p.x - t1.x) / 0.02, 0.2));
                 vec3 sc = shade3(skin / mix(vec3(1.0), uAmb, 0.5), n, p, 0.5) * (0.9 + 0.15 * step(0.5, fract(p.y * 95.0)));

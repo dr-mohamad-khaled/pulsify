@@ -433,13 +433,13 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
         val p = ink.path; p.reset()
         for (i in 0..tn) { tailAt(i / tn.toFloat(), 0.8f); if (i == 0) p.moveTo(tmp[0], tmp[1]) else p.lineTo(tmp[0], tmp[1]) }
         for (i in tn downTo 0) { tailAt(i / tn.toFloat(), -0.8f); p.lineTo(tmp[0], tmp[1]) }
-        p.close(); c.drawPath(p, ink.color(col.dark))
+        p.close(); c.drawPath(p, ink.color(Ink.darken(col.tail, 0.18f)))
         // Three layers of strands: dark outer fluff, main colour, light highlights.
         var j = 0
         for (pass in 0..2) {
             val m = if (pass == 0) 90 else if (pass == 1) 110 else 60
             val colr = if (pass == 0) col.dark else if (pass == 1) col.tail else col.light
-            val alpha = if (pass == 2) 0.5f else if (pass == 1) 0.8f else 0.9f
+            val alpha = if (pass == 2) 0.5f else if (pass == 1) 0.85f else 0.6f
             val st = ink.stroke(colr, u * (if (pass == 2) 0.028f else if (pass == 1) 0.04f else 0.055f), alpha)
             for (q in 0 until m) {
                 val o = strandO[j] * (if (pass == 2) 0.55f else 1f); val k0 = strandK0[j]; val k1 = min(1f, k0 + strandLen[j])

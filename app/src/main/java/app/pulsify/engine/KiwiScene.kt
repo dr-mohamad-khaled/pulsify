@@ -84,6 +84,7 @@ class KiwiScene(private val context: Context) : Creature {
     private var sq = 1f; private var sqV = 0f
     private var blink = 1f; private var nextBlink = 3f
     private var stepPhase = 0f
+    private var footN = 0f; private var footF = 0f; private var footNT = 0f; private var footFT = 0f
 
     // Behaviour.
     private var act = Act.NONE
@@ -158,7 +159,7 @@ class KiwiScene(private val context: Context) : Creature {
         val bfrag = context.assets.open("shaders/bubble.frag").bufferedReader().use { it.readText() }
         program = Gl.program(vert, frag)
         for (n in listOf("uQuad", "uRes", "uTime", "uPos", "uSize", "uPx", "uFace", "uLean", "uHead", "uTurn", "uHang", "uFluff",
-            "uCrest", "uWing", "uBeak", "uEyeS", "uLegs", "uTailSway", "uSquash", "uSpecies", "uBody", "uBelly", "uHeadC", "uFaceC",
+            "uCrest", "uWing", "uBeak", "uEyeS", "uLegs", "uFeet", "uTailSway", "uSquash", "uSpecies", "uBody", "uBelly", "uHeadC", "uFaceC",
             "uWingC", "uEdgeC", "uTailC", "uBeakC", "uMark", "uAmb", "uRim", "uGlow", "uBranch", "uSeed", "uMillet", "uFx", "uDim")) {
             uni[n] = GLES20.glGetUniformLocation(program, n)
         }
@@ -664,16 +665,33 @@ class KiwiScene(private val context: Context) : Creature {
         }
 
         // ---- Integrate ----
-        // Sidestepping: small hops of the feet while x moves.
+        // Sidestepping like a real parrot on a perch: one foot lifts with curled toes, reaches
+        // sideways in the direction of travel and grips again while the other slides under the
+        // body; then they swap. The body bobs and sways a little on every step.
         val dxT = targetX - x
         vx += (dxT * 10f - vx * 6f) * dt
         x += vx * dt
-        if (abs(vx) > 0.04f && !flying) {
-            stepPhase += dt * 12f
-            val st = sin(stepPhase)
-            legNT = max(legNT, 0.45f * max(0f, st)); legFT = max(legFT, 0.45f * max(0f, -st))
-            hyT += 0.012f * abs(st)
-        }
+        val speed = abs(vx) / max(size, 0.05f)
+        if (speed > 0.06f && !flying) {
+            stepPhase += dt * (5f + min(speed, 1.5f) * 7f)
+            if (stepPhase > 1f) stepPhase -= 1f
+            val dirChar = (if (vx > 0f) 1f else -1f) * (if (face < 0f) -1f else 1f)
+            val stride = 0.045f
+            // The leading foot (on the side we move to) goes first.
+            val leadNear = dirChar > 0f
+            for (fIdx in 0..1) {
+                val ph = (stepPhase + (if ((fIdx == 0) == leadNear) 0f else 0.5f)) % 1f
+                val raise: Float; val off: Float
+                if (ph < 0.5f) { val k = ph / 0.5f; raise = sin(k * PI.toFloat()); off = (-stride + 2f * stride * easeF(k)) * dirChar }
+                else { val k = (ph - 0.5f) / 0.5f; raise = 0f; off = (stride - 2f * stride * k) * dirChar }
+                if (fIdx == 0) { legNT = max(legNT, raise * 0.75f); footNT = off } else { legFT = max(legFT, raise * 0.75f); footFT = off }
+            }
+            hyT += 0.01f * abs(sin(stepPhase * 2f * PI.toFloat()))
+            leanT += 0.06f * sin(stepPhase * 2f * PI.toFloat())
+            swayT += 0.12f * sin(stepPhase * 2f * PI.toFloat())
+        } else { footNT = 0f; footFT = 0f }
+        footN += (footNT - footN) * min(1f, dt * 18f)
+        footF += (footFT - footF) * min(1f, dt * 18f)
         if (act == Act.NONE && !following && !dancing && sinceTouch > 4f) targetX *= max(0f, 1f - dt * 0.15f)
 
         val kf = min(1f, dt * (if (flying) 3.5f else 8f))
@@ -779,6 +797,7 @@ class KiwiScene(private val context: Context) : Creature {
         GLES20.glUniform1f(u("uBeak"), beak.coerceIn(0f, 1f))
         GLES20.glUniform3f(u("uEyeS"), eyeOpen, eyeMode, eyeLook)
         GLES20.glUniform2f(u("uLegs"), legNear, legFar)
+        GLES20.glUniform2f(u("uFeet"), footN, footF)
         GLES20.glUniform1f(u("uTailSway"), tailSway)
         GLES20.glUniform1f(u("uSquash"), sq)
         GLES20.glUniform1f(u("uSpecies"), species.toFloat())
