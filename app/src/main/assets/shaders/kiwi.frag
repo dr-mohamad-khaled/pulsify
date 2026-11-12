@@ -21,6 +21,7 @@ uniform float uHang;       // 0 perched .. 1 hanging upside-down under the branc
 uniform float uFluff;      // 0 .. 1 puffed feathers
 uniform float uCrest;      // 0 down .. 1 raised
 uniform vec2  uWing;       // open 0..1, fan spread 0..1
+uniform vec2  uWingPull;   // left / right wing pulled open by a finger (0..1)
 uniform float uBeak;       // 0 closed .. 1 wide open
 uniform vec3  uEyeS;       // open 0..1, mode (0 normal, 1 happy, 2 asleep, 3 pinning), look up/down
 uniform vec2  uLegs;       // raise near foot, raise far foot (0..1)
@@ -334,8 +335,10 @@ void main() {
         float s = k == 0 ? -1.0 : 1.0;
         vec2 sh = vec2(s * 0.1, bc.y + br.y * 0.55);
         vec2 q = b - sh; q.x *= s;                       // local space: +x points away from the body
-        q = rot(q, -2.1 * wo);                           // raise the wing up and out
-        float spread = uWing.y;
+        float pl = k == 0 ? uWingPull.x : uWingPull.y;   // a finger pulling this wing open
+        q = rot(q, -2.1 * max(wo, pl * 0.8));            // raise the wing up and out
+        q.y /= 1.0 + 0.35 * pl;                          // and stretch it toward the finger
+        float spread = max(uWing.y, pl);
         float wl = br.y / 0.29;
         vec2 wcen = vec2(0.035, -0.17 * wl), wr = vec2(0.085, 0.22 * wl);
         float wing = sdEllipse(rot(q - wcen, -0.1), wr);

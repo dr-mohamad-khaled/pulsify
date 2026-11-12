@@ -85,6 +85,10 @@ class KiwiScene(private val context: Context) : Creature {
     private var blink = 1f; private var nextBlink = 3f
     private var stepPhase = 0f
     private var footN = 0f; private var footF = 0f; private var footNT = 0f; private var footFT = 0f
+    // Sideways swipes (or home-screen page scrolls) grab a wing and pull it open with the finger.
+    private var pullL = 0f; private var pullR = 0f; private var pullLT = 0f; private var pullRT = 0f
+    private var swipeX0 = 0f; private var swipeY0 = 0f; private var swiping = false
+    private var flutterT = 0f; private var lastPar = 0f
 
     // Behaviour.
     private var act = Act.NONE
@@ -159,7 +163,7 @@ class KiwiScene(private val context: Context) : Creature {
         val bfrag = context.assets.open("shaders/bubble.frag").bufferedReader().use { it.readText() }
         program = Gl.program(vert, frag)
         for (n in listOf("uQuad", "uRes", "uTime", "uPos", "uSize", "uPx", "uFace", "uLean", "uHead", "uTurn", "uHang", "uFluff",
-            "uCrest", "uWing", "uBeak", "uEyeS", "uLegs", "uFeet", "uTailSway", "uSquash", "uSpecies", "uBody", "uBelly", "uHeadC", "uFaceC",
+            "uCrest", "uWing", "uWingPull", "uBeak", "uEyeS", "uLegs", "uFeet", "uTailSway", "uSquash", "uSpecies", "uBody", "uBelly", "uHeadC", "uFaceC",
             "uWingC", "uEdgeC", "uTailC", "uBeakC", "uMark", "uAmb", "uRim", "uGlow", "uBranch", "uSeed", "uMillet", "uFx", "uDim")) {
             uni[n] = GLES20.glGetUniformLocation(program, n)
         }
@@ -229,6 +233,7 @@ class KiwiScene(private val context: Context) : Creature {
         sinceTouch = 0f
         tX = ux; tY = uy; moved = false; longFired = false; downAt = time; touchDown = true
         downOnBody = onBody(ux, uy)
+        swipeX0 = ux; swipeY0 = uy; swiping = false
         if (!downOnBody && act != Act.FLY && act != Act.SEED) { following = true; followX = ux }
         return true
     }
@@ -238,6 +243,15 @@ class KiwiScene(private val context: Context) : Creature {
         val (ux, uy) = toUv(nx, ny)
         if (hypot(ux - tX, uy - tY) > 0.03f) moved = true
         if (!downOnBody) { followX = ux; tY = uy; tX = ux }
+        // A clear sideways swipe: grab the wing on the finger's side and pull it open.
+        if (!downOnBody && act != Act.FLY && !swiping && abs(ux - swipeX0) > 0.1f && abs(ux - swipeX0) > abs(uy - swipeY0) * 1.3f) {
+            swiping = true; following = false
+        }
+        if (swiping) {
+            val d = ux - birdX
+            val amt = (abs(d) / (size * 1.6f)).coerceIn(0.15f, 1f)
+            if (d < 0f) { pullLT = amt; pullRT = 0f } else { pullRT = amt; pullLT = 0f }
+        }
         sinceTouch = 0f
         return true
     }
@@ -245,6 +259,12 @@ class KiwiScene(private val context: Context) : Creature {
     override fun touchUp(): Boolean {
         if (!touchDown) return false
         touchDown = false; following = false; sinceTouch = 0f
+        if (swiping) {
+            // Let go: the wing snaps back with a quick flutter and a squawk.
+            swiping = false; pullLT = 0f; pullRT = 0f; flutterT = 0.6f
+            if (bubbleT > bubbleDur) say(listOf("hey!", "my wing!", "rawk!", "wheee").random(), 0f)
+            return true
+        }
         val tap = !moved && time - downAt < 0.35f
         if (act == Act.SCRATCH) { act = Act.NONE; spawnFx(1f, 0.05f, 0.45f, 0.9f) }
         if (tap) { if (downOnBody) tapBody() else tapBackground(tX, tY) }
@@ -690,6 +710,20 @@ class KiwiScene(private val context: Context) : Creature {
             leanT += 0.06f * sin(stepPhase * 2f * PI.toFloat())
             swayT += 0.12f * sin(stepPhase * 2f * PI.toFloat())
         } else { footNT = 0f; footFT = 0f }
+        // Home-screen page scrolls pull the wings too.
+        val parV = (input.parallax - lastPar) / max(dt, 1e-3f)
+        lastPar = input.parallax
+        if (!touchDown && abs(parV) > 0.6f) {
+            val amt = (abs(parV) * 0.35f).coerceIn(0f, 1f)
+            if (parV < 0f) pullLT = max(pullLT, amt) else pullRT = max(pullRT, amt)
+        } else if (!touchDown) { pullLT *= max(0f, 1f - dt * 6f); pullRT *= max(0f, 1f - dt * 6f) }
+        pullL += (pullLT - pullL) * min(1f, dt * 14f)
+        pullR += (pullRT - pullR) * min(1f, dt * 14f)
+        if (pullL + pullR > 0.1f) {
+            leanT += 0.1f * (pullR - pullL); crestT = max(crestT, 0.8f); lookT = 0.2f
+            hxT += 0.03f * (pullR - pullL)
+        }
+        if (flutterT > 0f) { flutterT -= dt; wingT = max(wingT, 0.35f * abs(sin(time * 34f)) * (flutterT / 0.6f)); spreadT = max(spreadT, 0.4f) }
         footN += (footNT - footN) * min(1f, dt * 18f)
         footF += (footFT - footF) * min(1f, dt * 18f)
         if (act == Act.NONE && !following && !dancing && sinceTouch > 4f) targetX *= max(0f, 1f - dt * 0.15f)
@@ -798,6 +832,8 @@ class KiwiScene(private val context: Context) : Creature {
         GLES20.glUniform3f(u("uEyeS"), eyeOpen, eyeMode, eyeLook)
         GLES20.glUniform2f(u("uLegs"), legNear, legFar)
         GLES20.glUniform2f(u("uFeet"), footN, footF)
+        // Screen left/right to the bird's own left/right (it can face either way).
+        if (face >= 0f) GLES20.glUniform2f(u("uWingPull"), pullL, pullR) else GLES20.glUniform2f(u("uWingPull"), pullR, pullL)
         GLES20.glUniform1f(u("uTailSway"), tailSway)
         GLES20.glUniform1f(u("uSquash"), sq)
         GLES20.glUniform1f(u("uSpecies"), species.toFloat())
