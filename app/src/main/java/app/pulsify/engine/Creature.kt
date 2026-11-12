@@ -22,3 +22,7 @@ interface Creature {
     fun draw(input: SceneInput)
     fun release()
 }
+
+/** Seconds between idle tricks: always at least 3 tricks a minute, even with long tricks. */
+const val TRICK_GAP_MIN = 4f
+const val TRICK_GAP_RANGE = 4f

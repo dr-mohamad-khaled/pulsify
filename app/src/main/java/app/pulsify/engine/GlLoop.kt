@@ -43,9 +43,16 @@ class GlLoop(
 ) {
     val scene = SkyScene(context)
     val world = WorldScene(context)
-    private var skyOk = false
-    private var worldOk = false
+    // Parts are compiled on first use only (and the creature you leave is released), so opening
+    // a creature costs one shader, not all of them, and only what is on screen sits in memory.
+    private var skyState = 0      // 0 not loaded, 1 ok, -1 failed
+    private var worldState = 0
+    private val skyOk get() = skyState == 1
+    private val worldOk get() = worldState != -1
     private val okCreatures = HashSet<Creature>()
+    private val badCreatures = HashSet<Creature>()
+    private var loadedCreature: Creature? = null
+    private var rw = 0; private var rh = 0
     val mochi = MochiScene(context)
     val kalboob = KalboobScene(context)
     val kitty = KittyScene(context)
@@ -57,8 +64,9 @@ class GlLoop(
     var listener: SceneListener? = null
         set(v) { field = v; scene.listener = v; creatures.forEach { it.listener = v } }
     /** The creature for character id 1, 2, ... (0 = sky only). */
-    private val active: Creature? get() = creatures.getOrNull(input.character - 1)?.takeIf { it in okCreatures }
-    private val worldOn: Boolean get() = input.world >= 0 && worldOk
+    private val active: Creature? get() = creatures.getOrNull(input.character - 1)?.takeIf { it in okCreatures && it === loadedCreature }
+    private val worldOn: Boolean get() = input.world >= 0 && input.video < 0 && worldState == 1
+    private val video = VideoScene(context)
     val input = SceneInput()
     @Volatile var batterySaver = false
 
@@ -140,13 +148,7 @@ class GlLoop(
                 return@run
             }
             EGL14.eglSwapInterval(display, 1)
-            if (!sceneReady) {
-                // Each part compiles on its own: a shader this GPU rejects disables only that part.
-                skyOk = safeInit("sky") { scene.onSurfaceCreated() }
-                worldOk = safeInit("world") { world.onSurfaceCreated() }
-                creatures.forEach { c -> if (safeInit(c.javaClass.simpleName) { c.onSurfaceCreated() }) okCreatures += c }
-                sceneReady = true
-            }
+            sceneReady = true
             surfW = maxOf(1, width); surfH = maxOf(1, height)
             // Aim for about 720 px on the short side: sharp after upscaling, far cheaper than native.
             val short = minOf(surfW, surfH).toFloat()
@@ -213,9 +215,34 @@ class GlLoop(
     }
 
     private fun sizeAll(width: Int, height: Int) {
+        rw = width; rh = height
         if (skyOk) scene.onSurfaceChanged(width, height)
-        if (worldOk) safeInit("world size") { world.onSurfaceChanged(width, height) }
-        okCreatures.forEach { it.onSurfaceChanged(width, height) }
+        if (worldState == 1) safeInit("world size") { world.onSurfaceChanged(width, height) }
+        loadedCreature?.takeIf { it in okCreatures }?.onSurfaceChanged(width, height)
+        video.onSurfaceChanged(width, height)
+    }
+
+    /** Loads what this frame shows and releases what it no longer shows. Each part compiles on its
+     *  own: a shader this GPU rejects disables only that part. */
+    private fun ensureParts() {
+        val wantWorld = input.world >= 0 && input.video < 0
+        val wantSky = input.world < 0 && input.video < 0
+        if (wantSky && skyState == 0) {
+            skyState = if (safeInit("sky") { scene.onSurfaceCreated(); if (rw > 0) scene.onSurfaceChanged(rw, rh) }) 1 else -1
+        } else if (!wantSky && skyState == 1) { scene.release(); skyState = 0 }
+        if (wantWorld && worldState == 0) {
+            worldState = if (safeInit("world") { world.onSurfaceCreated(); if (rw > 0) world.onSurfaceChanged(rw, rh) }) 1 else -1
+        } else if (!wantWorld && worldState == 1) { world.release(); worldState = 0 }
+        val want = if (input.video >= 0) null else creatures.getOrNull(input.character - 1)
+        if (want !== loadedCreature) {
+            loadedCreature?.let { if (it in okCreatures) { it.release(); okCreatures.remove(it) } }
+            loadedCreature = want
+            if (want != null && want !in badCreatures) {
+                if (safeInit(want.javaClass.simpleName) { want.onSurfaceCreated(); if (rw > 0) want.onSurfaceChanged(rw, rh) }) okCreatures += want
+                else badCreatures += want
+            }
+        }
+        video.ensure(input.video)
     }
 
     private inline fun safeInit(what: String, block: () -> Unit): Boolean = try {
@@ -241,6 +268,7 @@ class GlLoop(
         handler.post {
             if (run == running) return@post
             running = run
+            video.setPlaying(run)
             val c = choreographer ?: return@post
             if (run) {
                 lastFrameNs = 0L; lastVsyncNs = 0L; vsyncsSinceRender = 0
@@ -290,7 +318,10 @@ class GlLoop(
                 running = false
                 choreographer?.removeFrameCallback(frameCallback)
                 if (sceneReady && eglSurface != EGL14.EGL_NO_SURFACE) {
-                    scene.release(); world.release(); creatures.forEach { it.release() }
+                    if (skyState == 1) scene.release()
+                    if (worldState == 1) world.release()
+                    okCreatures.forEach { it.release() }; okCreatures.clear(); loadedCreature = null
+                    video.release()
                     releaseTarget()
                     if (blitProg != 0) GLES20.glDeleteProgram(blitProg)
                     if (blitVbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(blitVbo), 0)
@@ -318,8 +349,8 @@ class GlLoop(
         Log.e("Pulsify", "Frame failed", t)
         if (frameErrors <= 3) app.pulsify.core.CrashLog.note("Frame error: ${t.javaClass.simpleName}: ${t.message} @ ${t.stackTrace.firstOrNull()}")
         val bad = active
-        if (frameErrors >= 3 && bad != null) { okCreatures.remove(bad); frameErrors = 0 }
-        else if (frameErrors >= 6) { worldOk = false; frameErrors = 0 }
+        if (frameErrors >= 3 && bad != null) { okCreatures.remove(bad); badCreatures += bad; frameErrors = 0 }
+        else if (frameErrors >= 6) { if (worldState == 1) world.release(); worldState = -1; frameErrors = 0 }
         try { EGL14.eglSwapBuffers(display, eglSurface) } catch (_: Throwable) {}
     }
 
@@ -336,6 +367,9 @@ class GlLoop(
         lastVsyncNs = now
         vsyncsSinceRender++
 
+        // Video loops draw exactly when the decoder has a new frame (24/30 fps, no judder).
+        // (At least 4 times a second anyway, so a change of wallpaper is noticed.)
+        if (input.video >= 0 && !video.wantsFrame && lastFrameNs != 0L && now - lastFrameNs < 250_000_000L) return
         val audioActive = input.audio.source != AudioFrame.Source.NONE
         val busy = (if (worldOn) world.busy else scene.busy) || active?.busy == true
         // Frame budget: full rate while anything moves fast, a steady lower rate when calm.
@@ -348,18 +382,22 @@ class GlLoop(
         // Render on a fixed whole number of vsyncs so the rhythm is even.
         val hz = 1e9f / vsyncNs
         val every = if (targetFps >= 60) maxOf(1, (hz / 60f + 0.15f).toInt()) else maxOf(1, Math.round(hz / targetFps))
-        if (lastFrameNs != 0L && vsyncsSinceRender < every) return
+        if (input.video < 0 && lastFrameNs != 0L && vsyncsSinceRender < every) return
         vsyncsSinceRender = 0
         val dt = if (lastFrameNs == 0L) 1f / 60f else min(0.05f, (now - lastFrameNs) / 1e9f)
         lastFrameNs = now
 
         val t0 = System.nanoTime()
         provideInput(input, dt)
-        val offscreen = fbo != 0
+        ensureParts()
+        // Video is drawn straight to the screen at full sharpness (sampling it costs almost nothing).
+        val offscreen = fbo != 0 && input.video < 0
         Gl.target = if (offscreen) fbo else 0
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
         GLES20.glViewport(0, 0, if (offscreen) fbW else surfW, if (offscreen) fbH else surfH)
-        if (worldOn) {
+        if (input.video >= 0) {
+            video.draw()
+        } else if (worldOn) {
             world.update(dt, input); world.draw(input)
         } else if (skyOk) {
             scene.update(dt, input); scene.draw(input)
@@ -398,7 +436,7 @@ class GlLoop(
         workAvgNs = if (workAvgNs == 0f) work else workAvgNs * 0.9f + work * 0.1f
         val budget = vsyncNs * every
         if (work > budget * 1.1f) slowFrames++ else if (slowFrames > 0) slowFrames--
-        if (maxScale - minScale < 0.01f) return
+        if (maxScale - minScale < 0.01f || input.video >= 0) return
         if ((workAvgNs > budget * 0.6f || slowFrames > 6) && scale > minScale + 0.01f && now - lastScaleChangeNs > 1_500_000_000L) {
             scale = maxOf(minScale, scale - 0.1f); lastScaleChangeNs = now; slowFrames = 0
             setupTarget()

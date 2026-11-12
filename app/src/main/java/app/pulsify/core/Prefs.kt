@@ -17,6 +17,11 @@ class Prefs(context: Context) {
         get() = sp.getInt(K_CHAR, 1)
         set(v) = sp.edit().putInt(K_CHAR, v).apply()
 
+    /** The chosen video loop, or -1 when a creature / sky is the wallpaper. */
+    var video: Int
+        get() = sp.getInt(K_VIDEO, -1)
+        set(v) = sp.edit().putInt(K_VIDEO, v).apply()
+
     /** Each creature remembers its own coat. */
     var coat: Int
         get() = sp.getInt(K_COAT + "_" + character, 0)
@@ -92,6 +97,7 @@ class Prefs(context: Context) {
 
     companion object {
         const val K_CHAR = "character"
+        const val K_VIDEO = "video"
         const val K_COAT = "coat"
         const val K_ENV = "env"
         const val K_VARIANT = "variant"

@@ -122,7 +122,8 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                             tile, state,
                             modifier = Modifier.weight(1f).enter(5 + row * 2 + i, 40L),
                             onOpen = {
-                                if (tile.creature > 0) { state.applyCharacter(tile.creature); onOpenStudio() }
+                                if (tile.video >= 0) { state.applyVideo(tile.video); onOpenStudio() }
+                                else if (tile.creature > 0) { state.applyCharacter(tile.creature); onOpenStudio() }
                                 else if (tile.variant != null) { state.applyCharacter(0); state.applyVariant(tile.variant); onOpenStudio() }
                                 else tile.coming?.let { cs ->
                                     state.toast = AppState.Toast("${cs.name} is in the lab", "Arrives in milestone ${cs.milestone}. Each one is hand-built, one at a time.")
@@ -236,7 +237,7 @@ private fun Hero(state: AppState, onOpenStudio: () -> Unit, onLoop: (GlLoop) -> 
                 Text(name, style = T.display, color = c.text)
             }
             Gap(2.dp)
-            Text(moodLine(state.character), style = T.body, color = c.sub, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(app.pulsify.engine.videoLoop(state.video)?.line ?: moodLine(state.character), style = T.body, color = c.sub, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Gap(16.dp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GlowButton("Open Studio", Modifier.weight(1f), onClick = onOpenStudio)
@@ -325,7 +326,7 @@ private fun moodLine(character: Int): String {
     }
 }
 
-private class Tile(val title: String, val line: String, val label: String, val c1: Int, val c2: Int, val style: Int, val variant: Int? = null, val coming: ComingSoon? = null, val creature: Int = 0)
+private class Tile(val title: String, val line: String, val label: String, val c1: Int, val c2: Int, val style: Int, val variant: Int? = null, val coming: ComingSoon? = null, val creature: Int = 0, val video: Int = -1)
 
 private fun buildTiles(filter: Kind?): List<Tile> {
     val out = mutableListOf<Tile>()
@@ -337,6 +338,9 @@ private fun buildTiles(filter: Kind?): List<Tile> {
     if (filter == null || filter == Kind.WORLD) {
         SKY_VARIANTS.forEach { v -> out += Tile(v.name, v.tagline, "Live world", v.accent1, v.accent2, v.id, variant = v.id) }
     }
+    if (filter == null || filter == Kind.LOOP) {
+        app.pulsify.engine.VIDEO_LOOPS.forEach { v -> out += Tile(v.name, v.line, "Video loop", v.c1, v.c2, 2, video = v.id) }
+    }
     COMING.filter { filter == null || it.kind == filter }.forEach { cs ->
         out += Tile(cs.name, cs.line, "${cs.kind.label.dropLast(1)} · M${cs.milestone}", cs.c1, cs.c2, if (cs.kind == Kind.CREATURE) 3 else 2, coming = cs)
     }
@@ -346,7 +350,9 @@ private fun buildTiles(filter: Kind?): List<Tile> {
 @Composable
 private fun TileCard(tile: Tile, state: AppState, modifier: Modifier, onOpen: () -> Unit) {
     val c = LocalPulse.current
-    val selected = if (tile.creature > 0) state.character == tile.creature else tile.variant != null && state.character == 0 && tile.variant == state.variant
+    val selected = if (tile.video >= 0) state.video == tile.video
+        else if (state.video >= 0) false
+        else if (tile.creature > 0) state.character == tile.creature else tile.variant != null && state.character == 0 && tile.variant == state.variant
     Column(
         modifier.clip(RoundedCornerShape(24.dp)).background(c.surface)
             .border(
@@ -358,10 +364,13 @@ private fun TileCard(tile: Tile, state: AppState, modifier: Modifier, onOpen: ()
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.92f)) {
             val ctx = LocalContext.current
-            val pic = remember(tile.creature) {
-                if (tile.creature <= 0) null else try {
-                    ctx.assets.open("thumbs/creature_${tile.creature}.jpg").use { android.graphics.BitmapFactory.decodeStream(it) }?.asImageBitmap()
-                } catch (_: Throwable) { null }
+            val pic = remember(tile.creature, tile.video, tile.variant) {
+                when {
+                    tile.video >= 0 -> loadThumb(ctx, "thumbs/loop_${tile.video}.jpg")
+                    tile.creature > 0 -> loadThumb(ctx, "thumbs/creature_${tile.creature}.jpg")
+                    tile.variant != null -> loadThumb(ctx, "thumbs/sky_${tile.variant}.jpg")
+                    else -> null
+                }
             }
             if (pic != null) {
                 androidx.compose.foundation.Image(pic, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)

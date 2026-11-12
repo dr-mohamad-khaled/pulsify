@@ -197,15 +197,16 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
                 ) { Box(Modifier.width(44.dp).height(5.dp).clip(RoundedCornerShape(50)).background(c.faint)) }
 
                 Row(Modifier.padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Tab.values().forEach { t ->
-                        val sel = dock == Dock.OPEN && tab == t
+                    val isLoop = state.video >= 0
+                    (if (isLoop) listOf(Tab.LOOK) else Tab.values().toList()).forEach { t ->
+                        val sel = dock == Dock.OPEN && (tab == t || isLoop)
                         Box(
                             Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(14.dp))
                                 .background(if (sel) c.accent.copy(alpha = 0.16f) else Color.Transparent)
                                 .border(1.dp, if (sel) c.accent.copy(alpha = 0.55f) else Color.Transparent, RoundedCornerShape(14.dp))
                                 .pressable { tab = t; dock = Dock.OPEN },
                             contentAlignment = Alignment.Center,
-                        ) { Text(t.label, style = T.bodyStrong, color = if (sel) c.accent else c.sub) }
+                        ) { Text(if (isLoop) "Video loops" else t.label, style = T.bodyStrong, color = if (sel) c.accent else c.sub) }
                     }
                 }
 
@@ -213,10 +214,10 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
                     AnimatedContent(tab, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "panel") { t ->
                         Box(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp)) {
                             when (t) {
-                                Tab.LOOK -> LookPanel(state)
-                                Tab.TRICKS -> TricksPanel(state, loop)
-                                Tab.MOOD -> MoodPanel()
-                                Tab.MUSIC -> MusicPanel(state, source, spectrum, tick)
+                                Tab.LOOK -> if (state.video >= 0) LoopsPanel(state) else LookPanel(state)
+                                Tab.TRICKS -> if (state.video >= 0) LoopsPanel(state) else TricksPanel(state, loop)
+                                Tab.MOOD -> if (state.video >= 0) LoopsPanel(state) else MoodPanel()
+                                Tab.MUSIC -> if (state.video >= 0) LoopsPanel(state) else MusicPanel(state, source, spectrum, tick)
                             }
                         }
                     }
@@ -259,6 +260,43 @@ private fun RoundIcon(onClick: () -> Unit, content: @Composable () -> Unit) {
     ) { content() }
 }
 
+/** Picks a video loop; the last pill goes back to the creatures. */
+@Composable
+private fun LoopsPanel(state: AppState) {
+    val c = LocalPulse.current
+    val ctx = LocalContext.current
+    Column {
+        MicroLabel("Video loops")
+        Gap(8.dp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            app.pulsify.engine.VIDEO_LOOPS.forEach { v ->
+                val sel = state.video == v.id
+                val pic = remember(v.id) { loadThumb(ctx, "thumbs/loop_${v.id}.jpg") }
+                Column(
+                    Modifier.width(92.dp).clip(RoundedCornerShape(18.dp))
+                        .border(if (sel) 2.dp else 1.dp, if (sel) c.accent else c.border.copy(alpha = 0.6f), RoundedCornerShape(18.dp))
+                        .pressable { state.applyVideo(v.id) },
+                ) {
+                    Box(Modifier.fillMaxWidth().height(132.dp).background(Color.Black)) {
+                        if (pic != null) androidx.compose.foundation.Image(pic, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    }
+                    Text(v.name, style = T.small, color = if (sel) c.text else c.sub, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(8.dp))
+                }
+            }
+        }
+        Gap(12.dp)
+        Text(app.pulsify.engine.videoLoop(state.video)?.line ?: "", style = T.body, color = c.sub)
+        Gap(4.dp)
+        Text("Seamless loop, no sound. It pauses whenever your home screen is hidden.", style = T.small, color = c.faint)
+        Gap(12.dp)
+        MicroLabel("Or a creature")
+        Gap(8.dp)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            app.pulsify.engine.CREATURES.forEach { cr -> Pill(cr.name, false) { state.applyCharacter(cr.id) } }
+        }
+    }
+}
+
 @Composable
 private fun LookPanel(state: AppState) {
     val c = LocalPulse.current
@@ -268,6 +306,7 @@ private fun LookPanel(state: AppState) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             app.pulsify.engine.CREATURES.forEach { cr -> Pill(cr.name, state.character == cr.id) { state.applyCharacter(cr.id) } }
             Pill("Just the sky", state.character == 0) { state.applyCharacter(0) }
+            Pill("Video loops", false) { state.applyVideo(0) }
         }
         val info = app.pulsify.engine.creatureInfo(state.character)
         if (info != null) {
@@ -582,3 +621,8 @@ fun EnvTile(e: app.pulsify.engine.EnvInfo, selected: Boolean, modifier: Modifier
 
 private fun Modifier.androidx_semantics(desc: String): Modifier =
     this.then(Modifier.semantics(mergeDescendants = true) { contentDescription = desc })
+
+/** Decodes a small asset picture for a tile (null when missing). */
+fun loadThumb(ctx: android.content.Context, path: String): androidx.compose.ui.graphics.ImageBitmap? = try {
+    ctx.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it) }?.asImageBitmap()
+} catch (_: Throwable) { null }

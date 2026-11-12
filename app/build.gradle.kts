@@ -13,8 +13,8 @@ android {
         applicationId = "app.pulsify.v3"
         minSdk = 26
         targetSdk = 35
-        versionCode = 45
-        versionName = "4.5.0"
+        versionCode = 46
+        versionName = "4.6.0"
     }
 
     // A fixed test key, so every build from GitHub installs as an update over the last one.
@@ -41,6 +41,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
+    androidResources { noCompress += listOf("mp4") }
 }
 
 dependencies {
@@ -55,4 +56,5 @@ dependencies {
     implementation("androidx.compose.animation:animation")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
 }

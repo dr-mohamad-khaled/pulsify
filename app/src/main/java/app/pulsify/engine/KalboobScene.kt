@@ -94,7 +94,7 @@ class KalboobScene(private val context: Context) : Creature {
     // Behaviour.
     private var act = Act.NONE
     private var actT = 0f
-    private var nextIdle = 6f
+    private var nextIdle = 3f
     private val lastActs = ArrayDeque<Act>()
     private var greetedMorning = false
     private var awakeFor = 0f
@@ -331,7 +331,7 @@ class KalboobScene(private val context: Context) : Creature {
         } else sustain = 0f
 
         // Idle actions.
-        if (act == Act.NONE && !asleep && !charging && !low && !touchDown && sinceTouch > 3f && ballState == 0) {
+        if (act == Act.NONE && !asleep && !touchDown && sinceTouch > 3f && ballState == 0) {
             nextIdle -= dt
             if (nextIdle <= 0f) {
                 val pool = mutableListOf(Act.SNIFF, Act.DIG, Act.BUTTERFLY, Act.YAWN, Act.PAW)
@@ -339,7 +339,7 @@ class KalboobScene(private val context: Context) : Creature {
                 val pick = pool.random()
                 lastActs.addLast(pick); if (lastActs.size > 2) lastActs.removeFirst()
                 startAct(pick)
-                nextIdle = 7f + Random.nextFloat() * 7f
+                nextIdle = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
             }
         }
 

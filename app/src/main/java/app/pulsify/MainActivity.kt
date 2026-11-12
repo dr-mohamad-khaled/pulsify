@@ -70,6 +70,26 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.Transparent.toArgb()),
         )
         super.onCreate(savedInstanceState)
+        // Debug builds only: a clean full-screen wallpaper with no UI, for the CI portrait shots.
+        val portrait = BuildConfig.DEBUG && intent?.hasExtra("portrait") == true
+        if (portrait) {
+            val i = intent
+            val p = Pulse.prefs
+            val v = i.getIntExtra("video", -1)
+            if (v >= 0) p.video = v else {
+                p.video = -1
+                p.character = i.getIntExtra("char", 1)
+                if (i.hasExtra("env")) p.env = i.getIntExtra("env", 0)
+                if (i.hasExtra("coat")) p.coat = i.getIntExtra("coat", 0)
+                if (i.hasExtra("variant")) p.variant = i.getIntExtra("variant", 0)
+            }
+            Pulse.previewMood = when (i.getStringExtra("mood")) {
+                "night" -> app.pulsify.core.Mood.NIGHT; "evening" -> app.pulsify.core.Mood.EVENING
+                "morning" -> app.pulsify.core.Mood.MORNING; else -> app.pulsify.core.Mood.DAY
+            }
+            setContent { app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true) }
+            return
+        }
         setContent { App() }
     }
 }

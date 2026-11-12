@@ -46,6 +46,7 @@ class WorldScene(private val context: Context) {
     private var imgW = 1; private var imgH = 1
     private var loadedWorld = -2
     private var imageMode = false
+    private var hasNightImg = false
     private var groundFrac = 0.75f
     /** The ground line in uv for the current image world (NaN when the world has no picture). */
     var groundY = Float.NaN; private set
@@ -58,9 +59,8 @@ class WorldScene(private val context: Context) {
 
     fun onSurfaceCreated() {
         val vert = "attribute vec2 aPos;\nvoid main(){ gl_Position = vec4(aPos, 0.0, 1.0); }\n"
-        worldProg = Gl.program(vert, context.assets.open("shaders/world.frag").bufferedReader().use { it.readText() })
+        // world.frag (the old procedural paintings) is big: compiled only if a world has no pictures.
         overlayProg = Gl.program(vert, context.assets.open("shaders/overlay.frag").bufferedReader().use { it.readText() })
-        for (n in listOf("uRes", "uHalf", "uFloor", "uWorld", "uHour", "uSeed")) wu[n] = GLES20.glGetUniformLocation(worldProg, n)
         try {
             imgProg = Gl.program(vert, context.assets.open("shaders/imgworld.frag").bufferedReader().use { it.readText() })
             for (n in listOf("uDay", "uNight", "uRes", "uMap", "uNightK", "uDusk", "uHasNight")) iu[n] = GLES20.glGetUniformLocation(imgProg, n)
@@ -143,11 +143,13 @@ class WorldScene(private val context: Context) {
         groundY = Float.NaN
         if (spec != null && imgProg != 0) {
             try {
-                val day = decode("worlds/w${world}_day.jpg")
-                if (day != null) {
-                    imgW = day.width; imgH = day.height
-                    dayTex = upload(day); day.recycle()
-                    decode("worlds/w${world}_night.jpg")?.let { nightTex = upload(it); it.recycle() }
+                // Only the size now; the pictures are decoded when the painting is drawn, and only
+                // the ones the time of day needs (one at noon or midnight, both at dusk).
+                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.assets.open("worlds/w${world}_day.jpg").use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
+                if (o.outWidth > 0) {
+                    imgW = o.outWidth; imgH = o.outHeight
+                    hasNightImg = try { context.assets.open("worlds/w${world}_night.jpg").close(); true } catch (_: java.io.IOException) { false }
                     groundFrac = spec
                     imageMode = true
                 }
@@ -208,20 +210,35 @@ class WorldScene(private val context: Context) {
 
     private fun drawWorld(input: SceneInput, rw: Int, rh: Int) {
         if (imageMode) {
+            val nk = nightAmount(input.hour)
+            val needDay = nk < 0.999f || !hasNightImg
+            val needNight = nk > 0.001f && hasNightImg
+            if (needDay && dayTex == 0) decode("worlds/w${loadedWorld}_day.jpg")?.let { dayTex = upload(it); it.recycle() }
+            if (!needDay && dayTex != 0) { GLES20.glDeleteTextures(1, intArrayOf(dayTex), 0); dayTex = 0 }
+            if (needNight && nightTex == 0) decode("worlds/w${loadedWorld}_night.jpg")?.let { nightTex = upload(it); it.recycle() }
+            if (!needNight && nightTex != 0) { GLES20.glDeleteTextures(1, intArrayOf(nightTex), 0); nightTex = 0 }
+            val dTex = if (dayTex != 0) dayTex else nightTex
+            val nTex = if (nightTex != 0) nightTex else dayTex
+            if (dTex == 0) { GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT); return }
             bindTri(imgProg)
             computeMap()
-            GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, dayTex)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, dTex)
             GLES20.glUniform1i(iu["uDay"]!!, 0)
-            GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (nightTex != 0) nightTex else dayTex)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nTex)
             GLES20.glUniform1i(iu["uNight"]!!, 1)
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glUniform2f(iu["uRes"]!!, rw.toFloat(), rh.toFloat())
             GLES20.glUniform4f(iu["uMap"]!!, map[0], map[1], map[2], map[3])
-            GLES20.glUniform1f(iu["uNightK"]!!, nightAmount(input.hour))
+            GLES20.glUniform1f(iu["uNightK"]!!, if (hasNightImg) nk else nk)
             GLES20.glUniform1f(iu["uDusk"]!!, duskAmount(input.hour))
-            GLES20.glUniform1f(iu["uHasNight"]!!, if (nightTex != 0) 1f else 0f)
+            GLES20.glUniform1f(iu["uHasNight"]!!, if (hasNightImg) 1f else 0f)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
             return
+        }
+        if (worldProg == 0) {
+            val vert = "attribute vec2 aPos;\nvoid main(){ gl_Position = vec4(aPos, 0.0, 1.0); }\n"
+            worldProg = Gl.program(vert, context.assets.open("shaders/world.frag").bufferedReader().use { it.readText() })
+            for (n in listOf("uRes", "uHalf", "uFloor", "uWorld", "uHour", "uSeed")) wu[n] = GLES20.glGetUniformLocation(worldProg, n)
         }
         bindTri(worldProg)
         val m = min(w, h).toFloat()

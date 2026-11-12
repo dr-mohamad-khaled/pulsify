@@ -87,7 +87,7 @@ class MochiScene(private val context: Context) : Creature {
     // Behaviour.
     private var act = Act.NONE
     private var actT = 0f
-    private var nextIdleAct = 7f
+    private var nextIdleAct = 3f
     private val lastActs = ArrayDeque<Act>()
     private var wasCharging = false
     private var greetedMorning = false
@@ -432,7 +432,7 @@ class MochiScene(private val context: Context) : Creature {
         // Idle actions.
         actT += dt
         val asleep = isAsleep()
-        if (act == Act.NONE && !asleep && !chasing && !charging && !low && !touchDown && sinceTouch > 3f) {
+        if (act == Act.NONE && !asleep && !chasing && !touchDown && sinceTouch > 3f) {
             nextIdleAct -= dt
             if (nextIdleAct <= 0f) {
                 val pool = mutableListOf(Act.BUBBLE, Act.STAR, Act.BIRD, Act.PRESS, Act.WOBBLE)
@@ -440,7 +440,7 @@ class MochiScene(private val context: Context) : Creature {
                 val pick = pool.random()
                 lastActs.addLast(pick); if (lastActs.size > 2) lastActs.removeFirst()
                 startAct(pick)
-                nextIdleAct = 7f + Random.nextFloat() * 7f
+                nextIdleAct = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
             }
         }
 

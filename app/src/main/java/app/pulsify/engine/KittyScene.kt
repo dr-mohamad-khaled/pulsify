@@ -80,7 +80,7 @@ class KittyScene(private val context: Context) : Creature {
 
     private var act = Act.NONE
     private var actT = 0f
-    private var nextIdle = 6f
+    private var nextIdle = 3f
     private val lastActs = ArrayDeque<Act>()
     private var greetedMorning = false
     private var pounceX = 0f
@@ -299,7 +299,7 @@ class KittyScene(private val context: Context) : Creature {
             if (downOnBody) startAct(Act.PURR) else { dotX = tX; dotY = tY; dotVis = 1f; startAct(Act.STALK) }
         }
 
-        if (act == Act.NONE && !charging && !low && !touchDown && sinceTouch > 3f) {
+        if (act == Act.NONE && !touchDown && sinceTouch > 3f) {
             nextIdle -= dt
             if (nextIdle <= 0f) {
                 val pool = mutableListOf(Act.GROOM, Act.KNEAD, Act.LOAF, Act.KNOCK, Act.ZOOM, Act.CUCUMBER, Act.BOX)
@@ -307,7 +307,7 @@ class KittyScene(private val context: Context) : Creature {
                 val pick = pool.random()
                 lastActs.addLast(pick); if (lastActs.size > 3) lastActs.removeFirst()
                 startAct(pick)
-                nextIdle = 7f + Random.nextFloat() * 7f
+                nextIdle = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
             }
         }
 

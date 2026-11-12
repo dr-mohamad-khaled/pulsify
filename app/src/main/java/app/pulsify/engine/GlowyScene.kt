@@ -74,7 +74,7 @@ class GlowyScene(private val context: Context) : Creature {
 
     private var act = Act.NONE
     private var actT = 0f
-    private var nextIdle = 6f
+    private var nextIdle = 3f
     private var lastAct = Act.NONE
     private var mood = Mood.DAY
     var sinceTouch = 99f; private set
@@ -257,7 +257,7 @@ class GlowyScene(private val context: Context) : Creature {
                     else -> listOf(Act.YAWN, Act.BUBBLES, Act.LOOP, Act.PUFF, Act.STARE).filter { it != lastAct }.random()
                 }
                 startAct(pick)
-                nextIdle = 6f + Random.nextFloat() * 6f
+                nextIdle = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
             }
         }
 

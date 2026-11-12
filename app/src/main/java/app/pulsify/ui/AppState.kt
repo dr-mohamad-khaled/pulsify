@@ -24,6 +24,7 @@ class AppState {
     var screen by mutableStateOf(Screen.HOME)
     var variant by mutableIntStateOf(0); private set
     var character by mutableIntStateOf(1); private set
+    var video by mutableIntStateOf(-1); private set
     var coat by mutableIntStateOf(0); private set
     var env by mutableIntStateOf(0); private set
     var accent by mutableIntStateOf(0); private set
@@ -52,6 +53,7 @@ class AppState {
         val p = Pulse.prefs
         variant = p.variant
         character = p.character
+        video = p.video
         coat = p.coat
         env = p.env
         accent = p.accent
@@ -64,12 +66,13 @@ class AppState {
     }
 
     fun applyVariant(v: Int) { Pulse.prefs.variant = v }
-    fun applyCharacter(c: Int) { Pulse.prefs.character = c }
+    fun applyCharacter(c: Int) { Pulse.prefs.video = -1; Pulse.prefs.character = c }
+    fun applyVideo(v: Int) { Pulse.prefs.video = v }
     fun applyCoat(c: Int) { Pulse.prefs.coat = c }
     fun applyEnv(e: Int) { Pulse.prefs.env = e }
 
     val displayName: String
-        get() = app.pulsify.engine.creatureInfo(character)?.name ?: SKY_VARIANTS[variant.coerceIn(0, SKY_VARIANTS.size - 1)].name
+        get() = app.pulsify.engine.videoLoop(video)?.name ?: app.pulsify.engine.creatureInfo(character)?.name ?: SKY_VARIANTS[variant.coerceIn(0, SKY_VARIANTS.size - 1)].name
     fun applyAccent(argb: Int) { Pulse.prefs.accent = argb }
     fun applyBrightness(b: Float) { Pulse.prefs.brightness = b }
     fun applyMusicReact(on: Boolean) { Pulse.prefs.musicReact = on }

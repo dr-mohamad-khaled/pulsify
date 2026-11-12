@@ -16,6 +16,7 @@ data class Settings(
     val musicReact: Boolean,
     val shuffleOnUnlock: Boolean,
     val kiwiWords: String = "",
+    val video: Int = -1,
 )
 
 /** Process-wide services shared by the app screens and the live wallpaper. */
@@ -68,6 +69,7 @@ object Pulse {
             musicReact = prefs.musicReact,
             shuffleOnUnlock = prefs.shuffleOnUnlock,
             kiwiWords = prefs.kiwiWords,
+            video = prefs.video,
         )
     }
 
@@ -88,6 +90,7 @@ object Pulse {
         val s = settings
         device.poll()
         i.character = s.character
+        i.video = s.video
         i.coat = s.coat
         val info = app.pulsify.engine.creatureInfo(s.character)
         if (info != null) {

@@ -88,7 +88,7 @@ class KiwiScene(private val context: Context) : Creature {
     // Behaviour.
     private var act = Act.NONE
     private var actT = 0f
-    private var nextIdle = 5f
+    private var nextIdle = 3f
     private val lastActs = ArrayDeque<Act>()
     private var greetedMorning = false
     private var mood = Mood.DAY
@@ -455,7 +455,7 @@ class KiwiScene(private val context: Context) : Creature {
                 val pick = when {
                     charging -> Act.NIBBLE
                     low -> Act.TALK
-                    night -> Act.NONE
+                    night -> listOf(Act.PREEN, Act.ONELEG, Act.STRETCH).random()
                     else -> {
                         val pool = mutableListOf(Act.TALK, Act.WHISTLE, Act.PREEN, Act.BOB, Act.ONELEG, Act.STRETCH, Act.HANG, Act.TALK)
                         if (Random.nextFloat() < 0.18f) pool += Act.FLY
@@ -468,7 +468,7 @@ class KiwiScene(private val context: Context) : Creature {
                     startAct(pick)
                     if (pick == Act.TALK) say(pickPhrase(input), 0f)
                 }
-                nextIdle = 6f + Random.nextFloat() * 7f
+                nextIdle = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
             }
         }
 

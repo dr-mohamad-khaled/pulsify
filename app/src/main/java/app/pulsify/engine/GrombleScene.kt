@@ -70,7 +70,7 @@ class GrombleScene(private val context: Context) : Creature {
 
     private var act = Act.NONE
     private var actT = 0f
-    private var nextIdle = 5f
+    private var nextIdle = 3f
     private var lastAct = Act.NONE
     private var pokes = 0; private var lastPoke = -9f
     private var mood = Mood.DAY
@@ -263,7 +263,7 @@ class GrombleScene(private val context: Context) : Creature {
             if (nextIdle <= 0f) {
                 val pick = if (charging) Act.ZAP else listOf(Act.LAUGH, Act.PLAN, Act.FIRE, Act.FLY, Act.BOO, Act.CAPE).filter { it != lastAct }.random()
                 startAct(pick)
-                nextIdle = 5f + Random.nextFloat() * 6f
+                nextIdle = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
             }
         }
 
