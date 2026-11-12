@@ -303,7 +303,8 @@ class WorldScene(private val context: Context) {
          * Worlds that have pictures, and where their ground is: the fraction of the picture's
          * height, from the top, where a creature's feet touch the ground.
          */
-        val WORLD_IMAGES: Map<Int, Float> = mapOf()
+        /** World id -> where the creature's feet touch the picture (fraction from the top). */
+        val WORLD_IMAGES: Map<Int, Float> = mapOf(1 to 0.8f, 2 to 0.82f, 3 to 0.8f, 4 to 0.8f, 5 to 0.79f, 6 to 0.83f, 7 to 0.79f, 8 to 0.83f, 9 to 0.86f, 10 to 0.84f, 11 to 0.84f, 12 to 0.86f, 13 to 0.86f, 14 to 0.86f, 15 to 0.85f, 16 to 0.81f, 17 to 0.83f)
 
         private fun smooth(a: Float, b: Float, x: Float): Float {
             val t = ((x - a) / (b - a)).coerceIn(0f, 1f)
