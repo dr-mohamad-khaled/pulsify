@@ -316,9 +316,9 @@ void main() {
     float tiltB = -0.2;
     vec2 hc = vec2(0.045, bc.y + br.y / fl * 0.98 + R * 0.5) + uHead.xy;
     vec2 sh = vec2(-0.045, bc.y + br.y * 0.55);
-    // Head rotation: near profile at rest, straight at you when it talks, all the way back when tucked.
+    // Head rotation: looking at you at rest, all the way back when tucked or preening.
     float fwd = smoothstep(0.0, 1.0, uHead.w * 0.5 + 0.5);
-    float yaw = mix(2.5, mix(1.0, 0.0, uTurn), fwd);
+    float yaw = mix(2.5, mix(0.28, 0.0, uTurn), fwd);   // faces you by default, with a slight three-quarter turn
     float pitch = (uHead.z * 0.85 - 0.04) * mix(-0.3, 1.0, fwd);
     vec4 cs = vec4(cos(yaw), sin(yaw), cos(pitch), sin(pitch));
     float bs = 1.3 * ring + 0.8 * budgie + 0.9 * tiel + 1.15 * love;
