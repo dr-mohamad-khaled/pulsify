@@ -115,9 +115,15 @@ class GrombleScene(private val context: Context) : Creature {
     private val halfW get() = 0.5f * w / min(w, h)
     private val halfH get() = 0.5f * h / min(w, h)
 
+    private var ground = Float.NaN
+    override fun setGround(y: Float) {
+        if (y == ground || (y.isNaN() && ground.isNaN())) return
+        ground = y; layout()
+    }
+
     private fun layout() {
         size = min(0.6f, halfW * 2f * 0.62f)
-        var floor = -halfH + 0.3f
+        var floor = if (ground.isNaN()) -halfH + 0.3f else ground
         if (h.toFloat() / w < 1.5f) { size = min(0.42f, halfH * 0.9f); floor = -halfH + 0.12f }
         if (bottomInset > 0f) {
             floor = -halfH + bottomInset * 2f * halfH + 0.04f

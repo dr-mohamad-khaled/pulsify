@@ -256,24 +256,25 @@ void main() {
     vec2 p = sp;
     vec2 pivot = G - vec2(0.0, uBranch.y / uSize);
     p = rot(p - pivot, PI * uHang) + pivot;
-    float face = abs(uFace) < 0.15 ? 0.15 * (uFace < 0.0 ? -1.0 : 1.0) : uFace;
-    p.x /= face;
+    float face = uFace < 0.0 ? -1.0 : 1.0;
+    p.x *= face;
     p.y = (p.y - G.y) / uSquash + G.y;
     p.x *= sqrt(uSquash);
     // Body lean around the hip.
     vec2 hip = vec2(0.0, -0.4);
-    vec2 b = rot(p - hip, uLean) + hip;
+    vec2 b = rot(p - hip, (uLean - 0.12) * 0.18) + hip;
+    b.y += max(uLean - 0.12, 0.0) * 0.12 * smoothstep(-0.45, 0.1, b.y);   // leaning in = head and chest dip
     float fl = 1.0 + 0.16 * uFluff;
     bool near = length(b - vec2(0.0, -0.15)) < 1.25;
 
     // ---- Tail: behind the branch ----
     float tailLen = 0.86 * ring + 0.5 * budgie + 0.62 * tiel + 0.22 * love;
     if (near) {
-        vec2 tb = vec2(-0.09, -0.43);
-        vec2 q = rot(b - tb, -uTailSway);
-        vec2 dir = normalize(vec2(-0.22, -1.0));
+        vec2 tb = vec2(0.0, -0.4);
+        vec2 q = rot(b - tb, -uTailSway * 0.6);
+        vec2 dir = vec2(0.0, -1.0);
         vec2 tip = dir * tailLen;
-        float r0 = 0.065 * (1.0 - love * 0.0), r1 = mix(0.012, 0.055, love) + 0.02 * tiel;
+        float r0 = 0.075 + 0.02 * love, r1 = mix(0.014, 0.065, love) + 0.02 * tiel;
         float tail = sdCapsule(q, vec2(0.0), tip, r0, r1);
         if (tail < 0.04) {
             float along = clamp(dot(q, dir) / tailLen, 0.0, 1.0);
@@ -308,44 +309,74 @@ void main() {
 
 
     if (near) {
-    // Real parrot proportions: a small head flowing into a long, sleek, upright body.
+    // Front view: a small head on a sleek upright body, wings folded down both sides.
     float wo = uWing.x;
-    vec2 br = (vec2(0.15, 0.29) * ring + vec2(0.15, 0.245) * budgie + vec2(0.15, 0.265) * tiel + vec2(0.168, 0.24) * love) * fl;
-    vec2 bc = vec2(-0.035, -0.46 + br.y / fl);
-    float R = (0.14 * ring + 0.142 * budgie + 0.138 * tiel + 0.152 * love) * (1.0 + 0.1 * uFluff);
-    float tiltB = -0.2;
-    vec2 hc = vec2(0.045, bc.y + br.y / fl * 0.98 + R * 0.5) + uHead.xy;
-    vec2 sh = vec2(-0.045, bc.y + br.y * 0.55);
-    // Head rotation: looking at you at rest, all the way back when tucked or preening.
+    vec2 br = (vec2(0.165, 0.29) * ring + vec2(0.165, 0.25) * budgie + vec2(0.165, 0.265) * tiel + vec2(0.18, 0.24) * love) * fl;
+    vec2 bc = vec2(0.0, -0.46 + br.y / fl);
+    float R = (0.14 * ring + 0.145 * budgie + 0.14 * tiel + 0.155 * love) * (1.0 + 0.1 * uFluff);
+    float tiltB = 0.0;
+    vec2 hc = vec2(0.0, bc.y + br.y / fl * 0.98 + R * 0.45) + uHead.xy;
+    // Head rotation: facing you, glancing side to side; all the way round when tucked or preening.
     float fwd = smoothstep(0.0, 1.0, uHead.w * 0.5 + 0.5);
-    float yaw = mix(2.5, mix(0.28, 0.0, uTurn), fwd);   // faces you by default, with a slight three-quarter turn
-    float pitch = (uHead.z * 0.85 - 0.04) * mix(-0.3, 1.0, fwd);
+    float glance = 0.32 * sin(uTime * 0.37) * smoothstep(0.3, 0.9, sin(uTime * 0.11) * 0.5 + 0.5);
+    float yaw = mix(2.6, glance * (1.0 - uTurn), fwd);
+    float pitch = (uHead.z * 0.85 - 0.06) * mix(-0.3, 1.0, fwd);
     vec4 cs = vec4(cos(yaw), sin(yaw), cos(pitch), sin(pitch));
     float bs = 1.3 * ring + 0.8 * budgie + 0.9 * tiel + 1.15 * love;
     vec2 hq = (b - hc) / R;
     float aaH = 1.6 * uPx / R;
     bool beakBehind = toView(vec3(0.0, -0.1, 0.9), cs).z < 0.15;
-
-    // ---- Far wing, visible only when flapping ----
-    if (wo > 0.05) {
-        vec2 q = rot(b - sh - vec2(0.06, 0.0), 2.35 * wo - 0.25);
-        q.x = -q.x;
-        float far = sdEllipse(q - vec2(-0.02, -0.2), vec2(0.09, 0.26));
-        over(acc, shade3(uWingC * 0.62, sphN((q - vec2(-0.02, -0.2)) / vec2(0.11, 0.3)), q, 0.0), fillSoft(feathery(far, q, 0.8)) * smoothstep(0.05, 0.3, wo));
-    }
     if (beakBehind) drawBeak(acc, hq, cs, bs, ring, budgie, aaH, b);
+
+    // ---- Wings: one down each side of the body, behind its front edge. They lift and fan out to fly. ----
+    for (int k = 0; k < 2; k++) {
+        float s = k == 0 ? -1.0 : 1.0;
+        vec2 sh = vec2(s * 0.1, bc.y + br.y * 0.55);
+        vec2 q = b - sh; q.x *= s;                       // local space: +x points away from the body
+        q = rot(q, -2.1 * wo);                           // raise the wing up and out
+        float spread = uWing.y;
+        float wl = br.y / 0.29;
+        vec2 wcen = vec2(0.035, -0.17 * wl), wr = vec2(0.085, 0.22 * wl);
+        float wing = sdEllipse(rot(q - wcen, -0.1), wr);
+        float prim = sdCapsule(q, vec2(0.02, -0.25 * wl), vec2(-0.05, -0.56 * wl), 0.05, 0.01);
+        float fan = 1e5;
+        if (spread > 0.05) {
+            for (int i = 0; i < 5; i++) {
+                float fi = float(i);
+                vec2 dir = rot(vec2(0.15, -1.0), (fi - 2.0) * 0.22 * spread);
+                fan = min(fan, sdCapsule(q, vec2(0.03, -0.18), vec2(0.03, -0.18) + normalize(dir) * (0.42 - abs(fi - 2.0) * 0.03), 0.04, 0.012));
+            }
+        }
+        float w = min(min(wing, prim), fan);
+        if (w < 0.05) {
+            vec3 n = sphN(rot(q - wcen - vec2(0.0, -0.06), -0.1) / vec2(0.13, 0.36 * wl));
+            n = normalize(n + vec3(0.35, 0.0, 0.0)); n.x *= s;
+            float coverts = smoothstep(-0.3 * wl, -0.18 * wl, q.y);
+            vec3 base = mix(uWingC, uBody * 1.05, smoothstep(-0.12, 0.02, q.y) * 0.45 * (1.0 - budgie));
+            float sc = scallops(q - vec2(0.0, 0.02), 24.0);
+            base = mix(base, uEdgeC, sc * coverts * (0.3 + 0.6 * budgie));
+            vec3 flight = mix(uWingC * 0.72, uTailC * 0.8, 0.55);
+            float strips = smoothstep(0.6, 0.95, sin(dot(q, vec2(1.0, 0.25)) * 105.0));
+            flight = mix(flight, flight * 0.55, strips * 0.6);
+            base = mix(flight, base, coverts);
+            base = mix(base, base * 0.5, smoothstep(-0.42 * wl, -0.56 * wl, q.y) * 0.55);
+            float bar = smoothstep(0.02, 0.0, abs(q.x - 0.06) - 0.016) * smoothstep(-0.26, -0.08, q.y) * smoothstep(0.02, -0.06, q.y);
+            base = mix(base, vec3(0.96), bar * tiel);
+            over(acc, shade3(base, n, q, 0.12), fillSoft(feathery(w, q, 0.4)));
+        }
+    }
 
     // ---- Crest (cockatiel) or a small raised tuft, rooted on top of the head ----
     {
         vec3 root = toView(vec3(0.0, 0.97, -0.12), cs);
         vec2 a = root.xy;
-        float back = -cs.y;
+        float back = -cs.y + 0.35;                 // from the front it sweeps up and a little to one side
         float up = mix(0.25, 1.0, uCrest);
         float best = 1e5;
         if (tiel > 0.5) {
             for (int k = 0; k < 4; k++) {
                 float fk = float(k);
-                vec2 aa2 = a + vec2(back * 0.06 * fk, -0.03 * fk);
+                vec2 aa2 = a + vec2(back * 0.06 * fk - 0.08 + 0.05 * fk, -0.03 * fk);
                 vec2 dir = normalize(vec2(back * (1.25 - up) * 1.1 + back * 0.12 * fk, up + 0.1));
                 vec2 c1 = aa2 + dir * (0.6 + 0.1 * fk);
                 vec2 c2 = c1 + normalize(dir + vec2(back * 0.9, -0.1)) * 0.45;
@@ -355,8 +386,8 @@ void main() {
         } else if (uCrest > 0.08) {
             for (int k = 0; k < 3; k++) {
                 float fk = float(k);
-                vec2 aa2 = a + vec2(back * (0.1 + 0.14 * fk), -0.03 - 0.05 * fk);
-                vec2 dir = normalize(vec2(back * (0.5 + 0.3 * fk), 1.0));
+                vec2 aa2 = a + vec2((fk - 1.0) * 0.18, -0.03 - 0.03 * abs(fk - 1.0));
+                vec2 dir = normalize(vec2((fk - 1.0) * 0.5 + back * 0.3, 1.0));
                 best = min(best, sdCapsule(hq, aa2, aa2 + dir * 0.22 * uCrest, 0.09, 0.02));
             }
             over(acc, shade3(mix(uHeadC, uBody, love), sphN(vec2(0.0, 0.4)), b, 0.0), clamp(0.5 - best / (aaH * 1.5), 0.0, 1.0));
@@ -366,23 +397,20 @@ void main() {
     // ---- Body, neck and head as one smooth form ----
     vec3 hN = vec3(0.0); vec3 hH = vec3(0.0); float inHead = 0.0; vec3 headBase = uHeadC;
     {
-        vec2 bl = rot(b - bc, tiltB);
+        vec2 bl = b - bc;
         float bd = sdEllipse(bl, br);
         float hdd = (length(hq) - 1.0) * R;
         float kk = 0.085;
         float hmix = clamp(0.5 + 0.5 * (bd - hdd) / kk, 0.0, 1.0);          // 1 = head, 0 = body
         float d = mix(bd, hdd, hmix) - kk * hmix * (1.0 - hmix);
         if (d < 0.05) {
-            vec3 nB = sphN(bl / br); nB.xy = rot(nB.xy, -tiltB);
+            vec3 nB = sphN(bl / br);
             hN = sphN(hq);
             vec3 n = normalize(mix(nB, hN, smoothstep(0.15, 0.85, hmix)));
-            // Body colouring in body-fixed coordinates: yellower belly in front, rump, rows of feathers.
-            float cb = cos(0.75), sb = sin(0.75);
-            vec3 hb = vec3(nB.x * cb - nB.z * sb, nB.y, nB.x * sb + nB.z * cb);
-            vec3 base = mix(uBody, uBelly, smoothstep(-0.1, 0.65, hb.z) * 0.85);
-            base = mix(base, uMark.rgb, love * uMark.a * smoothstep(-0.35, -0.7, hb.z) * smoothstep(0.0, -0.4, hb.y));
-            float rows = scallops(vec2(atan(hb.x, hb.z + 1.4) * 1.5, hb.y * 1.25), 7.0);
-            base *= 1.0 - 0.1 * rows * smoothstep(0.75, 0.3, hmix);
+            // Front of the body: a lighter, yellower breast down the middle, feather rows across it.
+            vec3 base = mix(uBody, uBelly, smoothstep(0.35, 0.85, nB.z) * 0.85);
+            float rows = scallops(vec2(nB.x * 1.6, nB.y * 1.3 + 0.3), 5.0);
+            base *= 1.0 - 0.045 * rows * smoothstep(0.75, 0.3, hmix) * (0.6 + 0.4 * vnoise(bl * 40.0));
             // Head colouring in head-fixed coordinates.
             hH = toHead(hN, cs);
             vec3 h = hH;
@@ -477,55 +505,17 @@ void main() {
     }
     if (!beakBehind) drawBeak(acc, hq, cs, bs, ring, budgie, aaH, b);
 
-    // ---- Near wing: long, folded along the back, scalloped coverts and dark teal flight feathers ----
-    {
-        vec2 q = rot(b - sh, 2.35 * wo);
-        float spread = uWing.y;
-        float wl = br.y / 0.29;
-        vec2 wcen = vec2(-0.05, -0.16 * wl), wr = vec2(0.092, 0.2 * wl);
-        float wing = sdEllipse(rot(q - wcen, 0.26), wr);
-        vec2 ptip = vec2(-0.15, -0.52 * wl);
-        float prim = sdCapsule(q, vec2(-0.07, -0.22 * wl), ptip, 0.055, 0.008);
-        float fan = 1e5;
-        if (spread > 0.05) {
-            for (int i = 0; i < 5; i++) {
-                float fi = float(i);
-                vec2 dir = rot(vec2(-0.25, -1.0), (fi - 2.0) * 0.2 * spread);
-                fan = min(fan, sdCapsule(q, vec2(-0.06, -0.2), vec2(-0.06, -0.2) + normalize(dir) * (0.42 - abs(fi - 2.0) * 0.03), 0.038, 0.012));
-            }
-        }
-        float w = min(min(wing, prim), fan);
-        over(acc, vec3(0.0, 0.03, 0.04), smoothstep(0.03, -0.01, sdEllipse(rot(q - wcen - vec2(0.022, -0.015), 0.26), wr)) * 0.3 * (1.0 - wo) * step(sdEllipse(rot(b - bc, tiltB), br), 0.0));
-        if (w < 0.05) {
-            vec3 n = sphN(rot(q - wcen - vec2(0.0, -0.08), 0.26) / vec2(0.14, 0.36 * wl));
-            n = normalize(n + vec3(-0.3, 0.0, 0.0));
-            float coverts = smoothstep(-0.3 * wl, -0.19 * wl, q.y);
-            vec3 base = mix(uWingC, uBody * 1.05, smoothstep(-0.12, 0.0, q.y) * 0.5 * (1.0 - budgie));
-            float sc = scallops(rot(q, 0.26) - vec2(0.0, 0.02), 24.0);
-            base = mix(base, uEdgeC, sc * coverts * (0.35 + 0.55 * budgie));
-            // Flight feathers: long strips shading toward the tail colour.
-            vec3 flight = mix(uWingC * 0.75, uTailC * 0.8, 0.6);
-            float strips = smoothstep(0.6, 0.95, sin(dot(q, vec2(1.0, -0.3)) * 105.0));
-            flight = mix(flight, flight * 0.5, strips * 0.7);
-            base = mix(flight, base, coverts);
-            base = mix(base, base * 0.45, smoothstep(-0.4 * wl, -0.52 * wl, q.y) * 0.6);
-            float bar = smoothstep(0.02, 0.0, abs(q.x + 0.2 * (q.y + 0.1)) - 0.014) * smoothstep(-0.28, -0.1, q.y) * smoothstep(0.0, -0.06, q.y);
-            base = mix(base, vec3(0.96), bar * tiel);
-            over(acc, shade3(base, n, q, 0.12), fillSoft(feathery(w, q, 0.4)));
-        }
-    }
-
     // ---- Feet gripping the branch (in front of it) ----
     for (int s = 0; s < 2; s++) {
         float fs = float(s);
         float raise = s == 0 ? uLegs.x : uLegs.y;
-        vec2 fp = vec2(s == 0 ? 0.065 : -0.05, -0.5);
+        vec2 fp = vec2(s == 0 ? 0.06 : -0.06, -0.5);
         vec3 skin = mix(vec3(0.5, 0.5, 0.54), vec3(0.75, 0.6, 0.56), tiel) * mix(vec3(1.0), uAmb, 0.5);
         // Feather trousers over the top of the leg.
         float thigh = sdEllipse(p - fp - vec2(-0.012, 0.085 + 0.03 * raise), vec2(0.034, 0.034));
         if (raise < 0.5) {
             float leg = sdCapsule(p, fp + vec2(-0.005, 0.05), fp + vec2(0.0, 0.012), 0.022, 0.02);
-            over(acc, skin * 0.8, fill(leg) * (1.0 - fs * 0.3));
+            over(acc, skin * 0.8, fill(leg));
             for (int k = 0; k < 3; k++) {
                 float fk = float(k) - 1.0;
                 vec2 a = fp + vec2(0.0, 0.008);
@@ -534,7 +524,7 @@ void main() {
                 float toe = min(sdCapsule(p, a, t1, 0.017, 0.015), sdCapsule(p, t1, t2, 0.015, 0.011));
                 vec3 n = sphN(vec2((p.x - t1.x) / 0.02, 0.2));
                 vec3 sc = shade3(skin / mix(vec3(1.0), uAmb, 0.5), n, p, 0.5) * (0.9 + 0.15 * step(0.5, fract(p.y * 95.0)));
-                over(acc, sc * (1.0 - fs * 0.2), fill(toe));
+                over(acc, sc, fill(toe));
                 over(acc, vec3(0.16, 0.13, 0.14), fill(length((p - t2 - vec2(0.0, -0.01)) * vec2(1.3, 1.0)) - 0.008));
             }
         }

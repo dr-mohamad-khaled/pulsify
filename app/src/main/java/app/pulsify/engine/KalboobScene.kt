@@ -140,11 +140,17 @@ class KalboobScene(private val context: Context) : Creature {
 
     override fun onSurfaceChanged(width: Int, height: Int) { w = max(1, width); h = max(1, height); layout() }
 
+    private var ground = Float.NaN
+    override fun setGround(y: Float) {
+        if (y == ground || (y.isNaN() && ground.isNaN())) return
+        ground = y; layout()
+    }
+
     private fun layout() {
         val halfH = 0.5f * h / min(w, h)
         val halfW = 0.5f * w / min(w, h)
         size = min(0.62f, halfW * 2f * 0.62f)
-        homeY = -halfH + 0.3f + 0.55f * size
+        homeY = (if (ground.isNaN()) -halfH + 0.3f else ground) + 0.55f * size
         if (h.toFloat() / w < 1.5f) { size = min(0.42f, halfW * 0.8f); homeY = halfH - 0.26f - 0.6f * size }
         if (bottomInset > 0f) {
             val floor = -halfH + bottomInset * 2f * halfH + 0.06f

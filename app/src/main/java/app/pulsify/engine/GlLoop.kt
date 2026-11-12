@@ -29,8 +29,12 @@ import kotlin.math.min
  *  - 15 fps asleep (night) or battery saver idle
  *  - 0 fps when paused (the frame callback is removed entirely)
  *
- * Dynamic resolution: when the frame work gets close to the budget the loop asks its owner
- * to shrink the surface buffer ([onScaleWanted]); the compositor upscales for free.
+ * Frames are paced in whole vsyncs (every 1st, 2nd, 3rd... vsync), so motion has an even
+ * rhythm on 60, 90, 120 and 144 Hz screens instead of irregular skips.
+ *
+ * Dynamic resolution: everything is drawn into an offscreen buffer at [scale] of the screen
+ * and upscaled in one cheap pass. The scale adapts to how long frames take, so heavy scenes
+ * never starve the launcher of GPU time.
  */
 class GlLoop(
     context: Context,
@@ -71,10 +75,21 @@ class GlLoop(
     private var choreographer: Choreographer? = null
     private var lastFrameNs = 0L
 
-    // Adaptive resolution.
-    var scale = 0.8f; private set
+    // Adaptive resolution: an offscreen buffer at `scale` of the surface, upscaled each frame.
+    var scale = 1f; private set
+    private var maxScale = 1f
+    private var minScale = 0.5f
+    private var surfW = 1; private var surfH = 1
+    private var fbo = 0; private var fboTex = 0; private var fbW = 0; private var fbH = 0
+    private var blitProg = 0; private var blitVbo = 0; private var blitTexLoc = -1
     private var workAvgNs = 0f
     private var lastScaleChangeNs = 0L
+    private var slowFrames = 0
+
+    // Vsync pacing.
+    private var lastVsyncNs = 0L
+    private var vsyncNs = 16_666_667f
+    private var vsyncsSinceRender = 0
 
     // Stats for the UI.
     @Volatile var fps = 0f; private set
@@ -132,13 +147,69 @@ class GlLoop(
                 creatures.forEach { c -> if (safeInit(c.javaClass.simpleName) { c.onSurfaceCreated() }) okCreatures += c }
                 sceneReady = true
             }
-            sizeAll(width, height)
+            surfW = maxOf(1, width); surfH = maxOf(1, height)
+            // Aim for about 720 px on the short side: sharp after upscaling, far cheaper than native.
+            val short = minOf(surfW, surfH).toFloat()
+            maxScale = (1000f / short).coerceIn(0.5f, 1f)
+            minScale = (420f / short).coerceIn(0.35f, 1f)
+            if (scale > maxScale || scale == 1f) scale = (720f / short).coerceIn(minScale, maxScale)
+            setupTarget()
             lastFrameNs = 0L
         }
     }
 
+    /** (Re)creates the offscreen buffer for the current scale and sizes every scene to it. */
+    private fun setupTarget() {
+        val w = maxOf(1, (surfW * scale).toInt()); val h = maxOf(1, (surfH * scale).toInt())
+        val direct = scale >= 0.99f
+        if (!direct && (w != fbW || h != fbH || fbo == 0)) {
+            releaseTarget()
+            val ids = IntArray(1)
+            GLES20.glGenTextures(1, ids, 0); fboTex = ids[0]
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, fboTex)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGB, w, h, 0, GLES20.GL_RGB, GLES20.GL_UNSIGNED_BYTE, null)
+            GLES20.glGenFramebuffers(1, ids, 0); fbo = ids[0]
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
+            GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, fboTex, 0)
+            val ok = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) == GLES20.GL_FRAMEBUFFER_COMPLETE
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+            if (!ok) {
+                // This GPU can't render to that buffer: draw at native size instead.
+                releaseTarget(); scale = 1f; maxScale = 1f; minScale = 1f
+                app.pulsify.core.CrashLog.note("GL: offscreen buffer unsupported, drawing at native size")
+            } else { fbW = w; fbH = h }
+            if (ok && blitProg == 0) initBlit()
+        }
+        if (scale >= 0.99f) releaseTarget()
+        val rw = if (fbo != 0) fbW else surfW; val rh = if (fbo != 0) fbH else surfH
+        sizeAll(rw, rh)
+    }
+
+    private fun initBlit() {
+        val vs = "attribute vec2 aPos;\nvarying vec2 vUv;\nvoid main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }\n"
+        val fs = "precision mediump float;\nvarying vec2 vUv;\nuniform sampler2D uTex;\nvoid main(){ gl_FragColor = vec4(texture2D(uTex, vUv).rgb, 1.0); }\n"
+        blitProg = Gl.program(vs, fs)
+        blitTexLoc = GLES20.glGetUniformLocation(blitProg, "uTex")
+        val ids = IntArray(1); GLES20.glGenBuffers(1, ids, 0); blitVbo = ids[0]
+        val q = floatArrayOf(-1f, -1f, 3f, -1f, -1f, 3f)
+        val fb = java.nio.ByteBuffer.allocateDirect(q.size * 4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer().put(q)
+        fb.position(0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, blitVbo)
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, q.size * 4, fb, GLES20.GL_STATIC_DRAW)
+    }
+
+    private fun releaseTarget() {
+        if (fbo != 0) GLES20.glDeleteFramebuffers(1, intArrayOf(fbo), 0)
+        if (fboTex != 0) GLES20.glDeleteTextures(1, intArrayOf(fboTex), 0)
+        fbo = 0; fboTex = 0; fbW = 0; fbH = 0
+    }
+
     fun resize(width: Int, height: Int) {
-        postSafe { sizeAll(width, height) }
+        postSafe { surfW = maxOf(1, width); surfH = maxOf(1, height); setupTarget() }
     }
 
     private fun sizeAll(width: Int, height: Int) {
@@ -172,7 +243,7 @@ class GlLoop(
             running = run
             val c = choreographer ?: return@post
             if (run) {
-                lastFrameNs = 0L
+                lastFrameNs = 0L; lastVsyncNs = 0L; vsyncsSinceRender = 0
                 c.postFrameCallback(frameCallback)
             } else {
                 c.removeFrameCallback(frameCallback)
@@ -220,6 +291,10 @@ class GlLoop(
                 choreographer?.removeFrameCallback(frameCallback)
                 if (sceneReady && eglSurface != EGL14.EGL_NO_SURFACE) {
                     scene.release(); world.release(); creatures.forEach { it.release() }
+                    releaseTarget()
+                    if (blitProg != 0) GLES20.glDeleteProgram(blitProg)
+                    if (blitVbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(blitVbo), 0)
+                    blitProg = 0; blitVbo = 0
                 }
                 destroySurface()
                 if (eglContext != EGL14.EGL_NO_CONTEXT) {
@@ -253,22 +328,37 @@ class GlLoop(
     private fun renderFrame(now: Long) {
         if (eglSurface == EGL14.EGL_NO_SURFACE || !sceneReady) return
 
+        // Learn the display's vsync period from the callbacks themselves (60/90/120/144 Hz).
+        if (lastVsyncNs != 0L) {
+            val d = (now - lastVsyncNs).toFloat()
+            if (d in 4_000_000f..40_000_000f) vsyncNs = vsyncNs * 0.95f + d * 0.05f
+        }
+        lastVsyncNs = now
+        vsyncsSinceRender++
+
         val audioActive = input.audio.source != AudioFrame.Source.NONE
         val busy = (if (worldOn) world.busy else scene.busy) || active?.busy == true
-        // Frame budget: smooth only while something is actually happening.
+        // Frame budget: full rate while anything moves fast, a steady lower rate when calm.
         targetFps = when {
-            batterySaver -> if (busy) 30 else 12
+            batterySaver -> if (busy || audioActive) 30 else 20
             busy || audioActive -> 60
-            input.mood == Mood.NIGHT -> 12
-            else -> 24
+            input.mood == Mood.NIGHT -> 30
+            else -> 40
         }
-        val minInterval = 1_000_000_000L / targetFps - 4_000_000L
-        if (lastFrameNs != 0L && now - lastFrameNs < minInterval) return
+        // Render on a fixed whole number of vsyncs so the rhythm is even.
+        val hz = 1e9f / vsyncNs
+        val every = if (targetFps >= 60) maxOf(1, (hz / 60f + 0.15f).toInt()) else maxOf(1, Math.round(hz / targetFps))
+        if (lastFrameNs != 0L && vsyncsSinceRender < every) return
+        vsyncsSinceRender = 0
         val dt = if (lastFrameNs == 0L) 1f / 60f else min(0.05f, (now - lastFrameNs) / 1e9f)
         lastFrameNs = now
 
         val t0 = System.nanoTime()
         provideInput(input, dt)
+        val offscreen = fbo != 0
+        Gl.target = if (offscreen) fbo else 0
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
+        GLES20.glViewport(0, 0, if (offscreen) fbW else surfW, if (offscreen) fbH else surfH)
         if (worldOn) {
             world.update(dt, input); world.draw(input)
         } else if (skyOk) {
@@ -276,7 +366,21 @@ class GlLoop(
         } else {
             GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         }
-        active?.let { it.update(dt, input); it.draw(input) }
+        active?.let { it.setGround(if (worldOn) world.groundY else Float.NaN); it.update(dt, input); it.draw(input) }
+        if (offscreen) {
+            // Upscale the offscreen frame to the screen in one textured triangle.
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+            GLES20.glViewport(0, 0, surfW, surfH)
+            GLES20.glDisable(GLES20.GL_BLEND)
+            GLES20.glUseProgram(blitProg)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, fboTex)
+            GLES20.glUniform1i(blitTexLoc, 0)
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, blitVbo)
+            GLES20.glEnableVertexAttribArray(0)
+            GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+        }
         EGL14.eglSwapBuffers(display, eglSurface)
         val work = (System.nanoTime() - t0).toFloat()
 
@@ -289,19 +393,20 @@ class GlLoop(
             fpsWindowStart = now
         }
 
-        // Dynamic resolution with hysteresis.
-        workAvgNs = if (workAvgNs == 0f) work else workAvgNs * 0.92f + work * 0.08f
-        val budget = 1e9f / targetFps
-        val maxScale = if (batterySaver) 0.75f else 1f
-        val cb = onScaleWanted ?: return
-        if (workAvgNs > budget * 0.7f && scale > 0.6f && now - lastScaleChangeNs > 3_000_000_000L) {
-            scale = max(0.6f, scale - 0.1f)
-            lastScaleChangeNs = now
-            cb(scale)
-        } else if ((workAvgNs < budget * 0.3f && scale < maxScale && now - lastScaleChangeNs > 8_000_000_000L) || scale > maxScale) {
-            scale = min(maxScale, scale + 0.1f)
-            lastScaleChangeNs = now
-            cb(scale)
+        // Dynamic resolution with hysteresis. Work includes the swap, which blocks when the GPU
+        // falls behind, so a GPU-bound frame shows up here too.
+        workAvgNs = if (workAvgNs == 0f) work else workAvgNs * 0.9f + work * 0.1f
+        val budget = vsyncNs * every
+        if (work > budget * 1.1f) slowFrames++ else if (slowFrames > 0) slowFrames--
+        if (maxScale - minScale < 0.01f) return
+        if ((workAvgNs > budget * 0.6f || slowFrames > 6) && scale > minScale + 0.01f && now - lastScaleChangeNs > 1_500_000_000L) {
+            scale = maxOf(minScale, scale - 0.1f); lastScaleChangeNs = now; slowFrames = 0
+            setupTarget()
+            onScaleWanted?.invoke(scale)
+        } else if (workAvgNs < budget * 0.28f && scale < maxScale - 0.01f && now - lastScaleChangeNs > 10_000_000_000L) {
+            scale = minOf(maxScale, scale + 0.05f); lastScaleChangeNs = now
+            setupTarget()
+            onScaleWanted?.invoke(scale)
         }
     }
 

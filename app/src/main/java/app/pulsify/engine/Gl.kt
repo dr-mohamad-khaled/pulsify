@@ -4,6 +4,13 @@ import android.opengl.GLES20
 import android.util.Log
 
 object Gl {
+    // The framebuffer a scene should draw into once it is done with its own offscreen passes.
+    // Each render thread has its own (the loop may draw into a scaled offscreen buffer).
+    private val targetTl = ThreadLocal.withInitial { IntArray(1) }
+    var target: Int
+        get() = targetTl.get()!![0]
+        set(v) { targetTl.get()!![0] = v }
+
     fun shader(type: Int, src: String): Int {
         val s = GLES20.glCreateShader(type)
         GLES20.glShaderSource(s, src)

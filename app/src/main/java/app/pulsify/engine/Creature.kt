@@ -14,6 +14,8 @@ interface Creature {
     fun tapAt(nx: Float, ny: Float): Boolean
     fun longPressAt(nx: Float, ny: Float): Boolean
     fun greet()
+    /** Where the ground is in the current world picture (uv), or NaN for the default floor. */
+    fun setGround(y: Float) {}
     /** Plays a named trick from the Studio's Tricks tab. Returns false for unknown ids. */
     fun perform(trick: String): Boolean = false
     fun update(dt: Float, input: SceneInput)

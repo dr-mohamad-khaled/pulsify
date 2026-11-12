@@ -39,6 +39,17 @@ class WorldScene(private val context: Context) {
     private var nextBurst = 0
     private val burstBuf: FloatBuffer = ByteBuffer.allocateDirect(12 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
 
+    // Image worlds: a day and a night picture per world, plus where its ground is.
+    private var imgProg = 0
+    private val iu = HashMap<String, Int>()
+    private var dayTex = 0; private var nightTex = 0
+    private var imgW = 1; private var imgH = 1
+    private var loadedWorld = -2
+    private var imageMode = false
+    private var groundFrac = 0.75f
+    /** The ground line in uv for the current image world (NaN when the world has no picture). */
+    var groundY = Float.NaN; private set
+
     var sinceTouch = 99f; private set
     val busy: Boolean get() = sinceTouch < 1.5f
 
@@ -50,6 +61,10 @@ class WorldScene(private val context: Context) {
         worldProg = Gl.program(vert, context.assets.open("shaders/world.frag").bufferedReader().use { it.readText() })
         overlayProg = Gl.program(vert, context.assets.open("shaders/overlay.frag").bufferedReader().use { it.readText() })
         for (n in listOf("uRes", "uHalf", "uFloor", "uWorld", "uHour", "uSeed")) wu[n] = GLES20.glGetUniformLocation(worldProg, n)
+        try {
+            imgProg = Gl.program(vert, context.assets.open("shaders/imgworld.frag").bufferedReader().use { it.readText() })
+            for (n in listOf("uDay", "uNight", "uRes", "uMap", "uNightK", "uDusk", "uHasNight")) iu[n] = GLES20.glGetUniformLocation(imgProg, n)
+        } catch (t: Throwable) { imgProg = 0; Log.w("Pulsify", "image worlds off", t) }
         for (n in listOf("uTex", "uRes", "uHalf", "uFloor", "uTime", "uWorld", "uNight", "uBass", "uTreble", "uBeat", "uPar", "uBurst", "uBright", "uDim")) {
             ou[n] = GLES20.glGetUniformLocation(overlayProg, n)
         }
@@ -66,13 +81,14 @@ class WorldScene(private val context: Context) {
         if (width == w && height == h && fbo != 0) return
         w = max(1, width); h = max(1, height)
         createTarget()
+        updateGround()
         dirty = true
     }
 
     private fun createTarget() {
         deleteTarget()
-        // Half resolution is plenty for a soft painted backdrop and saves memory and fill.
-        val scale = if (max(w, h) > 1600) 0.5f else 0.65f
+        // Pictures keep full detail; the procedural paintings are soft, so half resolution is enough.
+        val scale = if (imageMode) 1f else if (max(w, h) > 1600) 0.5f else 0.65f
         tw = max(1, (w * scale).roundToInt()); th = max(1, (h * scale).roundToInt())
         val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0); tex = ids[0]
@@ -87,7 +103,7 @@ class WorldScene(private val context: Context) {
         GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, tex, 0)
         fboOk = GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) == GLES20.GL_FRAMEBUFFER_COMPLETE
         if (!fboOk) Log.w("Pulsify", "World cache unavailable; drawing worlds directly")
-        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
     }
 
     private fun deleteTarget() {
@@ -114,6 +130,73 @@ class WorldScene(private val context: Context) {
         // Re-render the cached painting when the world changes or the clock moves on 5 minutes.
         val bucket = (input.hour * 12f).toInt()
         if (input.world != cachedWorld || bucket != cachedHourBucket) dirty = true
+        if (input.world != loadedWorld) loadImages(input.world)
+    }
+
+    /** Loads the pictures for a world (on the GL thread, only when the world changes). */
+    private fun loadImages(world: Int) {
+        loadedWorld = world
+        freeImages()
+        val spec = WORLD_IMAGES[world]
+        val wasImage = imageMode
+        imageMode = false
+        groundY = Float.NaN
+        if (spec != null && imgProg != 0) {
+            try {
+                val day = decode("worlds/w${world}_day.jpg")
+                if (day != null) {
+                    imgW = day.width; imgH = day.height
+                    dayTex = upload(day); day.recycle()
+                    decode("worlds/w${world}_night.jpg")?.let { nightTex = upload(it); it.recycle() }
+                    groundFrac = spec
+                    imageMode = true
+                }
+            } catch (t: Throwable) {
+                Log.w("Pulsify", "world $world pictures failed", t); freeImages(); imageMode = false
+            }
+        }
+        if (imageMode != wasImage) createTarget()
+        updateGround()
+        dirty = true
+    }
+
+    private fun decode(path: String): android.graphics.Bitmap? = try {
+        context.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }) }
+    } catch (_: java.io.IOException) { null }
+
+    private fun upload(b: android.graphics.Bitmap): Int {
+        val ids = IntArray(1); GLES20.glGenTextures(1, ids, 0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+        android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, b, 0)
+        return ids[0]
+    }
+
+    private fun freeImages() {
+        if (dayTex != 0) GLES20.glDeleteTextures(1, intArrayOf(dayTex), 0)
+        if (nightTex != 0) GLES20.glDeleteTextures(1, intArrayOf(nightTex), 0)
+        dayTex = 0; nightTex = 0
+    }
+
+    // Cover mapping: the picture fills the screen without stretching. Tall screens crop the sides;
+    // wide screens crop mostly from the top so the ground (and the creature on it) stays in view.
+    private val map = FloatArray(4)
+    private fun computeMap() {
+        val ia = imgW.toFloat() / imgH; val sa = w.toFloat() / h
+        if (sa < ia) { val k = sa / ia; map[0] = k; map[1] = 1f; map[2] = (1f - k) * 0.5f; map[3] = 0f }
+        else { val k = ia / sa; map[0] = 1f; map[1] = k; map[2] = 0f; map[3] = (1f - k) * 0.25f }
+    }
+
+    private fun updateGround() {
+        if (!imageMode) { groundY = Float.NaN; return }
+        computeMap()
+        val vImg = 1f - groundFrac
+        val vScreen = (vImg - map[3]) / map[1]
+        val halfH = 0.5f * h / min(w, h)
+        groundY = (vScreen - 0.5f) * 2f * halfH
     }
 
     private fun bindTri(prog: Int) {
@@ -124,6 +207,22 @@ class WorldScene(private val context: Context) {
     }
 
     private fun drawWorld(input: SceneInput, rw: Int, rh: Int) {
+        if (imageMode) {
+            bindTri(imgProg)
+            computeMap()
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, dayTex)
+            GLES20.glUniform1i(iu["uDay"]!!, 0)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (nightTex != 0) nightTex else dayTex)
+            GLES20.glUniform1i(iu["uNight"]!!, 1)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glUniform2f(iu["uRes"]!!, rw.toFloat(), rh.toFloat())
+            GLES20.glUniform4f(iu["uMap"]!!, map[0], map[1], map[2], map[3])
+            GLES20.glUniform1f(iu["uNightK"]!!, nightAmount(input.hour))
+            GLES20.glUniform1f(iu["uDusk"]!!, duskAmount(input.hour))
+            GLES20.glUniform1f(iu["uHasNight"]!!, if (nightTex != 0) 1f else 0f)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+            return
+        }
         bindTri(worldProg)
         val m = min(w, h).toFloat()
         GLES20.glUniform2f(wu["uRes"]!!, rw.toFloat(), rh.toFloat())
@@ -147,7 +246,7 @@ class WorldScene(private val context: Context) {
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
             GLES20.glViewport(0, 0, tw, th)
             drawWorld(input, tw, th)
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
             cachedWorld = input.world
             cachedHourBucket = (input.hour * 12f).toInt()
             dirty = false
@@ -178,6 +277,9 @@ class WorldScene(private val context: Context) {
 
     fun release() {
         deleteTarget()
+        freeImages(); loadedWorld = -2; imageMode = false
+        if (imgProg != 0) GLES20.glDeleteProgram(imgProg)
+        imgProg = 0
         if (worldProg != 0) GLES20.glDeleteProgram(worldProg)
         if (overlayProg != 0) GLES20.glDeleteProgram(overlayProg)
         if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0)
@@ -190,6 +292,19 @@ class WorldScene(private val context: Context) {
             val day = smooth(5.5f, 8f, hour) * (1f - smooth(17.5f, 20f, hour))
             return 1f - day
         }
+        /** Warm light around sunrise and sunset. */
+        fun duskAmount(hour: Float): Float {
+            val dawn = smooth(5f, 6.5f, hour) * (1f - smooth(7.5f, 9f, hour))
+            val dusk = smooth(16.5f, 18f, hour) * (1f - smooth(19f, 20.5f, hour))
+            return maxOf(dawn, dusk)
+        }
+
+        /**
+         * Worlds that have pictures, and where their ground is: the fraction of the picture's
+         * height, from the top, where a creature's feet touch the ground.
+         */
+        val WORLD_IMAGES: Map<Int, Float> = mapOf()
+
         private fun smooth(a: Float, b: Float, x: Float): Float {
             val t = ((x - a) / (b - a)).coerceIn(0f, 1f)
             return t * t * (3 - 2 * t)
