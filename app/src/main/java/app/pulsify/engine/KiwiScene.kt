@@ -46,7 +46,7 @@ class KiwiScene(private val context: Context) : Creature {
 
     override var listener: SceneListener? = null
 
-    private enum class Act { NONE, SQUAWK, SCRATCH, SEED, TALK, WHISTLE, PREEN, BOB, ONELEG, STRETCH, HANG, FLY, COPY, DANCE, NIBBLE }
+    private enum class Act { NONE, SQUAWK, SCRATCH, SEED, TALK, WHISTLE, PREEN, BOB, ONELEG, STRETCH, HANG, FLY, COPY, DANCE, NIBBLE, KISS }
 
     private var program = 0
     private var bubbleProg = 0
@@ -89,6 +89,11 @@ class KiwiScene(private val context: Context) : Creature {
     private var pullL = 0f; private var pullR = 0f; private var pullLT = 0f; private var pullRT = 0f
     private var swipeX0 = 0f; private var swipeY0 = 0f; private var swiping = false
     private var flutterT = 0f; private var lastPar = 0f
+    // Flying at the screen for a kiss: grows as it comes closer, smacks into the glass,
+    // leaves a kiss print, slides down and goes back sad.
+    private var zoom = 1f; private var zoomT = 1f
+    private var smudgeX = 0f; private var smudgeY = 0f; private var smudge = 0f; private var smudgeS = 0.1f
+    private var kissFlags = 0
 
     // Behaviour.
     private var act = Act.NONE
@@ -163,7 +168,7 @@ class KiwiScene(private val context: Context) : Creature {
         val bfrag = context.assets.open("shaders/bubble.frag").bufferedReader().use { it.readText() }
         program = Gl.program(vert, frag)
         for (n in listOf("uQuad", "uRes", "uTime", "uPos", "uSize", "uPx", "uFace", "uLean", "uHead", "uTurn", "uHang", "uFluff",
-            "uCrest", "uWing", "uWingPull", "uBeak", "uEyeS", "uLegs", "uFeet", "uTailSway", "uSquash", "uSpecies", "uBody", "uBelly", "uHeadC", "uFaceC",
+            "uCrest", "uWing", "uWingPull", "uSmudge", "uBeak", "uEyeS", "uLegs", "uFeet", "uTailSway", "uSquash", "uSpecies", "uBody", "uBelly", "uHeadC", "uFaceC",
             "uWingC", "uEdgeC", "uTailC", "uBeakC", "uMark", "uAmb", "uRim", "uGlow", "uBranch", "uSeed", "uMillet", "uFx", "uDim")) {
             uni[n] = GLES20.glGetUniformLocation(program, n)
         }
@@ -324,6 +329,7 @@ class KiwiScene(private val context: Context) : Creature {
             "whistle" -> startAct(Act.WHISTLE)
             "dance" -> { danceUntil = time + 7f; startAct(Act.DANCE) }
             "fly" -> startAct(Act.FLY)
+            "kiss" -> startAct(Act.KISS)
             "hang" -> startAct(Act.HANG)
             "seed" -> offerSeed(birdX + face * 0.5f * size, birdY + 0.1f * size)
             "preen" -> startAct(Act.PREEN)
@@ -347,6 +353,7 @@ class KiwiScene(private val context: Context) : Creature {
                 if (Random.nextFloat() < 0.55f) say(listOf("SQUAWK!", "Hello!", "Pretty bird!", "Hey!", "Boop!", "Tickles!").random(), 1.3f)
             }
             Act.FLY -> { sqV -= 4f; say(listOf("Wheee!", "Fly time!", "Watch this!").random(), 1.2f) }
+            Act.KISS -> { sqV -= 4f; kissFlags = 0; say(listOf("Mwah!", "Kiss kiss!", "I love you!").random(), 1.2f) }
             Act.WHISTLE -> spawnFx(3f, 0.25f * face, 0.25f, 0.6f)
             Act.STRETCH -> {}
             Act.COPY -> { turn = 0.8f }
@@ -480,6 +487,7 @@ class KiwiScene(private val context: Context) : Creature {
                     else -> {
                         val pool = mutableListOf(Act.TALK, Act.WHISTLE, Act.PREEN, Act.BOB, Act.ONELEG, Act.STRETCH, Act.HANG, Act.TALK)
                         if (Random.nextFloat() < 0.18f) pool += Act.FLY
+                        if (Random.nextFloat() < 0.2f) pool += Act.KISS
                         pool.removeAll(lastActs)
                         pool.random()
                     }
@@ -623,6 +631,56 @@ class KiwiScene(private val context: Context) : Creature {
                     spawnFx(7f, 0.1f, 0.0f, 0.35f)
                 }
             }
+            Act.KISS -> {
+                zoomT = 1f
+                val cx = -(homeX + x)                                    // screen centre
+                val cy = (0.05f - (branchTop(homeX + x) + 0.5f * size))
+                when {
+                    actT < 0.4f -> { wingT = 0.7f; spreadT = 1f; legNT = 1f; legFT = 1f; crestT = 1f }
+                    actT < 1.7f -> {
+                        // Eyes shut, lips puckered, flapping straight at you.
+                        flying = true
+                        val k = easeF((actT - 0.4f) / 1.3f)
+                        flyXT = cx * k; flyYT = cy * k
+                        zoomT = 1f + 2.3f * k
+                        wingT = 0.55f + 0.45f * sin(time * 30f); spreadT = 1f; legNT = 1f; legFT = 1f
+                        eT = 1f; beakT = 0f; crestT = 0.9f; leanT = 0.0f; faceT = 1f; turnT = 0f
+                        if ((kissFlags and 1) == 0 && actT > 0.9f) { kissFlags = kissFlags or 1; spawnFx(1f, 0.25f, 0.6f, 0.9f); spawnFx(1f, -0.25f, 0.7f, 0.8f) }
+                    }
+                    actT < 2.9f -> {
+                        // SMACK. Splatted on the glass, wings spread, sliding down slowly.
+                        flying = true
+                        if ((kissFlags and 2) == 0) {
+                            kissFlags = kissFlags or 2
+                            smudgeX = birdX; smudgeY = birdY + 0.02f * size * zoom; smudgeS = 0.09f * size * zoom; smudge = 1f
+                            sq = 0.72f; sqV = 0f
+                            spawnFx(2f, 0.35f, 0.75f, 0.7f); spawnFx(2f, -0.35f, 0.7f, 0.7f); spawnFx(2f, 0.05f, 0.95f, 0.6f)
+                            say("*BONK*", 1.1f)
+                        }
+                        val k = (actT - 1.7f) / 1.2f
+                        flyXT = cx; flyYT = cy - 0.22f * easeF(k)
+                        zoomT = 3.3f
+                        pullLT = 1f; pullRT = 1f; wingT = 0.2f
+                        eT = if (k < 0.3f) 3f else 2f; beakT = 0.2f; crestT = 0f; legNT = 1f; legFT = 1f
+                    }
+                    actT < 3.9f -> {
+                        // Peel off and flutter back home.
+                        flying = true
+                        val k = easeF((actT - 2.9f) / 1.0f)
+                        pullLT = 0f; pullRT = 0f
+                        flyXT = cx * (1f - k); flyYT = (cy - 0.22f) * (1f - k)
+                        zoomT = 3.3f - 2.3f * k
+                        wingT = 0.5f + 0.4f * sin(time * 22f); spreadT = 0.8f; crestT = 0f; eT = 0f; openT = 0.6f
+                    }
+                    else -> {
+                        // Back on the branch, very sad about the glass.
+                        flyXT = 0f; flyYT = 0f; zoomT = 1f
+                        openT = 0.5f; crestT = 0f; nodT = 0.3f; hyT = -0.04f; fluffT = 0.7f; leanT = 0.25f
+                        if ((kissFlags and 4) == 0) { kissFlags = kissFlags or 4; say(listOf("aww...", "the glass...", "so close..."). random(), 1.8f); flyX = 0f }
+                        if (actT > 6.2f) act = Act.NONE
+                    }
+                }
+            }
             Act.COPY -> {
                 // Plays back your rhythm: a head bob, a chirp and a note on every tap.
                 turnT = 0.7f; crestT = 0.6f
@@ -724,6 +782,9 @@ class KiwiScene(private val context: Context) : Creature {
             hxT += 0.03f * (pullR - pullL)
         }
         if (flutterT > 0f) { flutterT -= dt; wingT = max(wingT, 0.35f * abs(sin(time * 34f)) * (flutterT / 0.6f)); spreadT = max(spreadT, 0.4f) }
+        zoom += (zoomT - zoom) * min(1f, dt * 7f)
+        if (act != Act.KISS) zoomT = 1f
+        smudge = max(0f, smudge - dt * 0.12f)
         footN += (footNT - footN) * min(1f, dt * 18f)
         footF += (footFT - footF) * min(1f, dt * 18f)
         if (act == Act.NONE && !following && !dancing && sinceTouch > 4f) targetX *= max(0f, 1f - dt * 0.15f)
@@ -811,15 +872,18 @@ class KiwiScene(private val context: Context) : Creature {
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
 
         val bx = birdX; val by = birdY
+        val zs = size * zoom
         val bTop = branchBase + 0.3f
-        val minY = min(branchBase - 0.32f, by - (if (hang > 0.05f) 1.55f else 1.45f) * size)
-        val maxY = max(bTop + 0.12f, by + 0.85f * size)
+        var minY = min(branchBase - 0.32f, by - (if (hang > 0.05f) 1.55f else 1.45f) * zs)
+        var maxY = max(bTop + 0.12f, by + 0.85f * zs)
+        if (smudge > 0.01f) { minY = min(minY, smudgeY - smudgeS * 2f); maxY = max(maxY, smudgeY + smudgeS * 2f) }
         GLES20.glUniform4f(u("uQuad"), -halfW, minY, halfW, maxY)
         GLES20.glUniform2f(u("uRes"), w.toFloat(), h.toFloat())
         GLES20.glUniform1f(u("uTime"), time % 600f)
         GLES20.glUniform2f(u("uPos"), bx, by)
-        GLES20.glUniform1f(u("uSize"), size)
-        GLES20.glUniform1f(u("uPx"), 1f / (size * min(w, h)))
+        GLES20.glUniform1f(u("uSize"), zs)
+        GLES20.glUniform1f(u("uPx"), 1f / (zs * min(w, h)))
+        GLES20.glUniform4f(u("uSmudge"), smudgeX, smudgeY, smudge, smudgeS)
         GLES20.glUniform1f(u("uFace"), face)
         GLES20.glUniform1f(u("uLean"), lean)
         GLES20.glUniform4f(u("uHead"), headX, headY, nod, if (headFlip >= 0f) max(headFlip, 0.15f) else min(headFlip, -0.15f))

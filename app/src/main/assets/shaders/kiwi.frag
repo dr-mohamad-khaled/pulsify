@@ -22,6 +22,7 @@ uniform float uFluff;      // 0 .. 1 puffed feathers
 uniform float uCrest;      // 0 down .. 1 raised
 uniform vec2  uWing;       // open 0..1, fan spread 0..1
 uniform vec2  uWingPull;   // left / right wing pulled open by a finger (0..1)
+uniform vec4  uSmudge;     // kiss print on the glass: x, y (screen uv), alpha, size
 uniform float uBeak;       // 0 closed .. 1 wide open
 uniform vec3  uEyeS;       // open 0..1, mode (0 normal, 1 happy, 2 asleep, 3 pinning), look up/down
 uniform vec2  uLegs;       // raise near foot, raise far foot (0..1)
@@ -608,5 +609,22 @@ void main() {
     }
 
     acc.rgb *= mix(1.0, 0.55, uDim);
+    // Kiss print left on the glass: a little fog and two pink lips that fade slowly.
+    if (uSmudge.z > 0.01) {
+        vec2 q = (vUv - uSmudge.xy) / uSmudge.w;
+        float fog = exp(-dot(q, q) * 0.35);
+        vec4 glass = vec4(vec3(0.85, 0.9, 1.0) * fog * 0.18 * uSmudge.z, fog * 0.18 * uSmudge.z);
+        acc = acc + glass * (1.0 - acc.a);
+        float upper = min(sdEllipse(rot(q - vec2(-0.42, 0.22), 0.25), vec2(0.5, 0.26)), sdEllipse(rot(q - vec2(0.42, 0.22), -0.25), vec2(0.5, 0.26)));
+        float lower = sdEllipse(q - vec2(0.0, -0.22), vec2(0.82, 0.3));
+        float lips = min(upper, lower);
+        float seam = abs(q.y - 0.02 * sin(q.x * 3.0)) - 0.035;
+        float a = clamp(0.5 - lips / 0.08, 0.0, 1.0) * (1.0 - clamp(0.5 - seam / 0.04, 0.0, 1.0) * 0.8);
+        float grain = 0.75 + 0.25 * sin(q.x * 40.0 + q.y * 31.0) * sin(q.y * 37.0 - q.x * 23.0);
+        vec3 lc = vec3(1.0, 0.35, 0.55);
+        float la = a * grain * 0.75 * uSmudge.z;
+        acc.rgb = acc.rgb * (1.0 - la) + lc * la;
+        acc.a = acc.a * (1.0 - la) + la;
+    }
     gl_FragColor = acc;
 }
