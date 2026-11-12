@@ -92,7 +92,7 @@ class KalboobScene(private val context: Context) : Creature {
     private var lick = 0f; private var tears = 0f
     private var charging = false
     private val boneHomeX get() = bodyX
-    private val boneHomeY get() = bodyY + (mix(-0.34f, -0.36f, lie) + 0.07f) * size
+    private val boneHomeY get() = bodyY - 0.5f * size
     private val crying get() = charging && (boneHeld || boneAway)
     private var ballX = 0f; private var ballY = 0f; private var ballVy = 0f; private var ballVis = 0f
     private var ballState = 0                           // 0 none, 1 falling/rolling, 2 in mouth, 3 dropped
@@ -414,14 +414,15 @@ class KalboobScene(private val context: Context) : Creature {
             if (dir < 0f) setPaws(0.9f + 0.15f * sin(time * 5f), 1f, 0f, 1f) else setPaws(0f, 1f, 0.9f + 0.15f * sin(time * 5f), 1f)
             if ((time % 2.6f) < 0.03f) spawnFx(6f, 0f, 0.62f, 0.6f)
         } else if (charging) {
-            // Happily licking the glowing bone.
-            lieT = 0.35f; boneT = 1f; setPaws(0.5f, 0.9f, 0.5f, 0.9f)
+            // Lying down with the bone on the ground between his paws, bending his head down
+            // to lick it, then lifting it a little, again and again.
+            lieT = 1f; boneT = 1f; setPaws(0f, 1f, 0f, 1f)
             val l = sin(time * 4.2f)
             lickT = max(0f, l)
-            mT = if (l > -0.3f) 1f else 0f
-            headYT = -0.035f - lickT * 0.02f
+            mT = if (l > -0.4f) 1f else 0f
+            headYT = -0.075f - lickT * 0.05f
             eT = if (sin(time * 0.6f) > 0.2f) 4f else 0f
-            lookTY = -0.6f; lookTX = 0f
+            lookTY = -1f; lookTX = 0f
             wagAmp = 0.35f; wagRate = 6f
         } else if (low) {
             lieT = 1f; eT = 2f; earT = 0.5f; tailBase = -0.6f; wagAmp = 0f; mT = 0f; headYT = -0.03f
@@ -685,7 +686,7 @@ class KalboobScene(private val context: Context) : Creature {
         GLES20.glUniform3f(u("uRim"), rim[0], rim[1], rim[2])
         GLES20.glUniform3f(u("uGlow"), glow[0], glow[1], glow[2])
         if (boneAway) GLES20.glUniform4f(u("uBone"), (boneX - bx) / size, (boneY - by) / size, boneVis, input.battery)
-        else GLES20.glUniform4f(u("uBone"), 0f, mix(-0.34f, -0.36f, lie) + (if (charging) 0.07f + lick * 0.03f else 0f), boneVis, input.battery)
+        else GLES20.glUniform4f(u("uBone"), 0f, if (charging) -0.5f else mix(-0.34f, -0.36f, lie), boneVis, input.battery)
         GLES20.glUniform1f(u("uLick"), lick)
         GLES20.glUniform1f(u("uTears"), tears)
         GLES20.glUniform4f(u("uBall"), (ballX - bx) / size, (ballY - by) / size, ballVis, ballSpin)
