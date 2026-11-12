@@ -38,6 +38,8 @@ uniform vec4  uFx[6];      // x, y, life, kind: 1 heart, 2 sparkle, 3 dirt, 4 no
 uniform vec4  uFly;        // butterfly x, y, flap phase, visible
 uniform float uBattIcon;
 uniform float uDim;
+uniform float uLick;       // 0..1 tongue stretched out to lick the bone
+uniform float uTears;      // 0..1 crying
 
 // ---------- helpers ----------
 float sdEllipse(vec2 p, vec2 r) { float k0 = length(p / r); float k1 = length(p / (r * r)); return k0 * (k0 - 1.0) / max(k1, 1e-4); }
@@ -234,6 +236,26 @@ void main() {
     float blaze = sdEllipse(f - vec2(0.0, 0.0), vec2(0.06, 0.14));
     over(acc, light * 0.98, fill(furD(blaze, f, 1.5) + 0.01) * 0.55 * face);
 
+    // Tears: big glossy drops rolling down both cheeks, a wet streak under each eye.
+    if (uTears > 0.01) {
+        for (int s = 0; s < 2; s++) {
+            float side = s == 0 ? -1.0 : 1.0;
+            vec2 e0 = vec2(0.105 * side + 0.012 * side, 0.02);
+            float streak = sdSeg(f, e0, e0 + vec2(0.03 * side, -0.16)) - 0.008;
+            over(acc, vec3(0.55, 0.8, 1.0), fill(streak) * 0.45 * uTears * face);
+            // A pool of tears welling up along the lower lid.
+            over(acc, vec3(0.6, 0.85, 1.0), fill(sdEllipse(f - vec2(0.105 * side, 0.025), vec2(0.05, 0.014))) * 0.7 * uTears * face);
+            for (int k = 0; k < 3; k++) {
+                float ph = fract(uTime * 1.1 + float(k) / 3.0 + side * 0.23);
+                vec2 dp = e0 + vec2(0.04 * side * ph + 0.03 * side * ph * ph, -0.03 - ph * 0.42);
+                float drop = sdEllipse(f - dp, vec2(0.02, 0.027));
+                float a = uTears * smoothstep(1.0, 0.75, ph);
+                over(acc, vec3(0.45, 0.75, 1.0), fill(drop) * a);
+                over(acc, vec3(1.0), fill(length(f - dp - vec2(-0.004, 0.006)) - 0.004) * a);
+            }
+        }
+    }
+
     // Eyebrow tufts (lighter, angle with mood).
     for (int s = 0; s < 2; s++) {
         float side = s == 0 ? -1.0 : 1.0;
@@ -294,7 +316,7 @@ void main() {
         float dm = sdEllipse(mc + vec2(0.0, open * 0.5), mr);
         over(acc, vec3(0.3, 0.08, 0.1), fill(dm) * face);
         if (uMouth < 1.5 || (uMouth > 3.5 && uMouth < 4.5)) {
-            float tongue = sdEllipse(mc + vec2(0.0, open * 0.9 + 0.02 * step(uMouth, 1.5)), vec2(0.035, 0.045));
+            float tongue = sdEllipse(mc + vec2(0.0, open * 0.9 + 0.02 * step(uMouth, 1.5) + uLick * 0.055), vec2(0.035 + uLick * 0.008, 0.045 + uLick * 0.055));
             float tonguePant = tongue + 0.004 * sin(uTime * 14.0);
             over(acc, mix(vec3(0.95, 0.38, 0.45), vec3(1.0, 0.6, 0.65), smoothstep(-0.02, 0.02, -mc.y - open)), fill(uMouth < 1.5 ? tonguePant : max(tongue, dm)) * face);
             float groove = sdSeg(mc, vec2(0.0, -open * 0.6), vec2(0.0, -open * 1.6)) - 0.002;

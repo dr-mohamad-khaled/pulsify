@@ -86,6 +86,14 @@ class KalboobScene(private val context: Context) : Creature {
 
     // Props.
     private var boneVis = 0f
+    // The charging bone can be taken away: then Kalboob cries until it comes back.
+    private var boneHeld = false; private var boneAway = false
+    private var boneX = 0f; private var boneY = 0f; private var boneVy = 0f
+    private var lick = 0f; private var tears = 0f
+    private var charging = false
+    private val boneHomeX get() = bodyX
+    private val boneHomeY get() = bodyY + (mix(-0.34f, -0.36f, lie) + 0.07f) * size
+    private val crying get() = charging && (boneHeld || boneAway)
     private var ballX = 0f; private var ballY = 0f; private var ballVy = 0f; private var ballVis = 0f
     private var ballState = 0                           // 0 none, 1 falling/rolling, 2 in mouth, 3 dropped
     private var ballSpin = 0f
@@ -125,7 +133,7 @@ class KalboobScene(private val context: Context) : Creature {
         program = Gl.program(vert, frag)
         for (n in listOf("uQuad", "uRes", "uTime", "uPos", "uSize", "uPx", "uSquash", "uShear", "uLook", "uTilt", "uHeadY",
             "uLie", "uEyeOpen", "uEyeMode", "uMouth", "uEars", "uTail", "uPawL", "uPawR", "uKick", "uCoat", "uCoat2",
-            "uCollar", "uRim", "uGlow", "uBone", "uBall", "uFx", "uFly", "uBattIcon", "uDim")) {
+            "uCollar", "uRim", "uGlow", "uBone", "uBall", "uFx", "uFly", "uBattIcon", "uDim", "uLick", "uTears")) {
             uni[n] = GLES20.glGetUniformLocation(program, n)
         }
         val ids = IntArray(1)
@@ -179,9 +187,21 @@ class KalboobScene(private val context: Context) : Creature {
 
     // ---- Touch ----
 
+    private fun nearBone(ux: Float, uy: Float): Boolean {
+        val bx = if (boneAway) boneX else boneHomeX; val by = if (boneAway) boneY else boneHomeY
+        return charging && boneVis > 0.5f && abs(ux - bx) < 0.24f * size && abs(uy - by) < 0.12f * size
+    }
+
     override fun touchDown(nx: Float, ny: Float): Boolean {
         val (ux, uy) = toUv(nx, ny)
         sinceTouch = 0f
+        if (nearBone(ux, uy)) {
+            // Grab the bone.
+            if (!boneAway) { boneX = boneHomeX; boneY = boneHomeY }
+            boneHeld = true; boneAway = true; boneVy = 0f
+            touchDown = true; downOnBody = true; moved = true; downAt = time
+            return true
+        }
         tX = ux; tY = uy; lastTX = ux; lastTT = time
         moved = false; longFired = false; downAt = time; touchDown = true
         downOnBody = onBody(ux, uy)
@@ -193,6 +213,7 @@ class KalboobScene(private val context: Context) : Creature {
     override fun touchMove(nx: Float, ny: Float): Boolean {
         if (!touchDown) return false
         val (ux, uy) = toUv(nx, ny)
+        if (boneHeld) { boneX = ux; boneY = uy; lookAt(ux, uy); sinceTouch = 0f; return true }
         val dt = max(1e-3f, time - lastTT)
         val v = (ux - lastTX) / dt
         if (hypot(ux - tX, uy - tY) > 0.03f) moved = true
@@ -206,15 +227,29 @@ class KalboobScene(private val context: Context) : Creature {
     override fun touchUp(): Boolean {
         if (!touchDown) return false
         touchDown = false; sinceTouch = 0f
+        if (boneHeld) {
+            boneHeld = false
+            // Dropped back on him: he grabs it. Anywhere else: it falls and he cries.
+            if (abs(boneX - boneHomeX) < 0.4f * size && abs(boneY - boneHomeY) < 0.4f * size) giveBoneBack()
+            return true
+        }
         if (act == Act.RUB) actT = max(actT, 100f) // ends the rub
         val tap = !moved && time - downAt < 0.35f
         if (tap && downOnBody) { tapBody(); return true }
         return downOnBody
     }
 
+    private fun giveBoneBack() {
+        boneAway = false; boneHeld = false
+        happy = 1f; syV -= 3f
+        spawnFx(1f, -0.15f, 0.55f, 0.9f); spawnFx(1f, 0.15f, 0.6f, 0.9f)
+        listener?.onBondXp(2)
+    }
+
     override fun tapAt(nx: Float, ny: Float): Boolean {
         val (ux, uy) = toUv(nx, ny)
         sinceTouch = 0f; awakeFor = 10f
+        if (boneAway && !boneHeld && nearBone(ux, uy)) { giveBoneBack(); return true }
         lookAt(ux, uy)
         if (onBody(ux, uy)) { tapBody(); return true }
         return false
@@ -302,8 +337,16 @@ class KalboobScene(private val context: Context) : Creature {
         mood = input.mood
         val a = input.audio
         val musicOn = a.source != AudioFrame.Source.NONE
-        val charging = input.charging
+        charging = input.charging
+        if (!charging) { boneAway = false; boneHeld = false }
         val low = input.lowBattery && !charging
+        // A dropped bone falls to the ground.
+        if (boneAway && !boneHeld) {
+            val ground = floorUv + 0.05f * size
+            boneVy -= 3f * dt; boneY += boneVy * dt
+            if (boneY < ground) { boneY = ground; boneVy = if (boneVy < -0.6f) -boneVy * 0.3f else 0f }
+            boneX = boneX.coerceIn(-halfW + 0.15f * size, halfW - 0.15f * size)
+        }
         val asleep = isAsleep()
 
         if (mood == Mood.MORNING && !greetedMorning && act == Act.NONE) { greetedMorning = true; startAct(Act.STRETCH) }
@@ -331,7 +374,7 @@ class KalboobScene(private val context: Context) : Creature {
         } else sustain = 0f
 
         // Idle actions.
-        if (act == Act.NONE && !asleep && !touchDown && sinceTouch > 3f && ballState == 0) {
+        if (act == Act.NONE && !asleep && !charging && !touchDown && sinceTouch > 3f && ballState == 0) {
             nextIdle -= dt
             if (nextIdle <= 0f) {
                 val pool = mutableListOf(Act.SNIFF, Act.DIG, Act.BUTTERFLY, Act.YAWN, Act.PAW)
@@ -358,14 +401,28 @@ class KalboobScene(private val context: Context) : Creature {
         var targetX = 0f
         setPaws(0f, 1f, 0f, 1f)
 
-        if (charging) {
+        var lickT = 0f; var tearsT = 0f
+        if (charging && crying) {
+            // Someone took the bone: sit up, ears down, sob and reach for it.
+            lieT = 0.1f; boneT = 1f; eT = 2f; earT = 0.55f; tailBase = -0.6f; wagAmp = 0f
+            val sob = sin(time * 13f)
+            mT = if (sin(time * 2.4f) > -0.2f) 3f else 0f
+            headYT = -0.015f + sob * 0.008f
+            tearsT = 1f
+            val dir = ((boneX - bodyX) / size).coerceIn(-1f, 1f)
+            lookTX = dir; lookTY = ((boneY - bodyY) / size).coerceIn(-1f, 0.5f)
+            if (dir < 0f) setPaws(0.9f + 0.15f * sin(time * 5f), 1f, 0f, 1f) else setPaws(0f, 1f, 0.9f + 0.15f * sin(time * 5f), 1f)
+            if ((time % 2.6f) < 0.03f) spawnFx(6f, 0f, 0.62f, 0.6f)
+        } else if (charging) {
+            // Happily licking the glowing bone.
             lieT = 0.35f; boneT = 1f; setPaws(0.5f, 0.9f, 0.5f, 0.9f)
-            val chew = sin(time * 9f)
-            mT = if (chew > 0f) 5f else 0f
-            headYT = -0.03f + chew * 0.012f
-            eT = if (sin(time * 0.7f) > 0.3f) 4f else 0f
+            val l = sin(time * 4.2f)
+            lickT = max(0f, l)
+            mT = if (l > -0.3f) 1f else 0f
+            headYT = -0.035f - lickT * 0.02f
+            eT = if (sin(time * 0.6f) > 0.2f) 4f else 0f
             lookTY = -0.6f; lookTX = 0f
-            wagAmp = 0.3f; wagRate = 5f
+            wagAmp = 0.35f; wagRate = 6f
         } else if (low) {
             lieT = 1f; eT = 2f; earT = 0.5f; tailBase = -0.6f; wagAmp = 0f; mT = 0f; headYT = -0.03f
         } else if (asleep) {
@@ -528,6 +585,8 @@ class KalboobScene(private val context: Context) : Creature {
         lie += (lieT - lie) * min(1f, dt * 5f)
         kick += (kickT - kick) * min(1f, dt * 20f)
         boneVis += (boneT - boneVis) * min(1f, dt * 5f)
+        lick += (lickT - lick) * min(1f, dt * 12f)
+        tears += (tearsT - tears) * min(1f, dt * 3f)
 
         // Ear springs: flop with motion, tilt and the target droop.
         val earTL = earT - tilt * 0.6f
@@ -591,6 +650,11 @@ class KalboobScene(private val context: Context) : Creature {
         var minX = bx - 0.62f * size; var maxX = bx + 0.62f * size
         var minY = by - 0.65f * size; var maxY = by + 1.0f * size
         if (act == Act.BUTTERFLY) { minX = bx - 1.6f * size; maxX = bx + 1.6f * size; maxY = by + 1.5f * size }
+        if (boneAway) {
+            minX = min(minX, boneX - 0.3f * size); maxX = max(maxX, boneX + 0.3f * size)
+            minY = min(minY, boneY - 0.15f * size); maxY = max(maxY, boneY + 0.15f * size)
+        }
+        if (tears > 0.01f) minY = min(minY, by - 0.8f * size)
         if (ballVis > 0f) {
             minX = min(minX, ballX - 0.1f * size); maxX = max(maxX, ballX + 0.1f * size)
             minY = min(minY, ballY - 0.1f * size); maxY = max(maxY, ballY + 0.1f * size)
@@ -620,7 +684,10 @@ class KalboobScene(private val context: Context) : Creature {
         GLES20.glUniform3f(u("uCollar"), collar[0], collar[1], collar[2])
         GLES20.glUniform3f(u("uRim"), rim[0], rim[1], rim[2])
         GLES20.glUniform3f(u("uGlow"), glow[0], glow[1], glow[2])
-        GLES20.glUniform4f(u("uBone"), 0f, mix(-0.34f, -0.36f, lie), boneVis, input.battery)
+        if (boneAway) GLES20.glUniform4f(u("uBone"), (boneX - bx) / size, (boneY - by) / size, boneVis, input.battery)
+        else GLES20.glUniform4f(u("uBone"), 0f, mix(-0.34f, -0.36f, lie) + (if (charging) 0.07f + lick * 0.03f else 0f), boneVis, input.battery)
+        GLES20.glUniform1f(u("uLick"), lick)
+        GLES20.glUniform1f(u("uTears"), tears)
         GLES20.glUniform4f(u("uBall"), (ballX - bx) / size, (ballY - by) / size, ballVis, ballSpin)
         fxBuf.position(0); fxBuf.put(fx); fxBuf.position(0)
         GLES20.glUniform4fv(u("uFx"), 6, fxBuf)

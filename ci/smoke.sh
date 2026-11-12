@@ -104,10 +104,13 @@ echo done
 
 echo "== portraits (clean full-screen shots of every wallpaper)"
 mkdir -p $OUT/portraits
+# Not charging, healthy battery: the creatures' everyday look.
+adb shell dumpsys battery unplug; adb shell dumpsys battery set level 80
 portrait() {  # name, extras...
   local name=$1; shift
   adb shell am force-stop $PKG; sleep 1
   adb shell am start -W -n $PKG/app.pulsify.MainActivity --ei portrait 1 "$@" > /dev/null 2>&1
+  sleep 3
   for t in 1 2 3; do sleep 4; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_$t.png" 2>/dev/null || true; done
 }
 portrait mochi    --ei char 1 --ei env 1 --ei coat 0
@@ -116,8 +119,12 @@ portrait kitty    --ei char 3 --ei env 0 --ei coat 0
 portrait kiwi     --ei char 4 --ei env 0 --ei coat 0
 portrait glowy    --ei char 5 --ei env 1 --ei coat 0
 portrait gromble  --ei char 6 --ei env 1 --ei coat 0
-for c in 7 8 9; do portrait c$c --ei char $c --ei env 0 --ei coat 0; done
-for v in 0 1 2; do portrait sky$v --ei char 0 --ei variant $v --es mood night; done
+portrait c7 --ei char 7 --ei env 0 --ei coat 0
+portrait c8 --ei char 8 --ei env 0 --ei coat 0
+portrait c9 --ei char 9 --ei env 0 --ei coat 2
+for v in 0 1 2; do portrait sky$v --ei char 0 --ei variant $v; done
+for g in 1 2 3; do portrait fish$g --ei char 5 --ei env 1 --ei coat $((g+3)); done
 portrait loop0 --ei video 0
 portrait kalboob_night --ei char 2 --ei env 0 --es mood night
 logs _p
+adb shell dumpsys battery reset
