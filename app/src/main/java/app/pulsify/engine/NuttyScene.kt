@@ -356,24 +356,51 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
         ink.blush(c, -u * 0.17f, u * 0.1f, u * 0.09f, u * 0.05f); ink.blush(c, u * 0.3f, u * 0.1f, u * 0.09f, u * 0.05f)
         c.restore()
 
-        // Front paws and what they hold.
-        val paw = Ink.darken(col.fur, 0.08f)
-        val pawY = hy + u * 0.32f - nib * u * 0.05f
-        if (charging && act == Act.NONE) {
-            paintAcorn(c, x + u * 0.62f, cy + u * 0.25f, u * 0.9f, -0.15f, 0.8f + 0.2f * sin(time * 4f), battery)
-            ink.ell(c, x + u * 0.3f, cy + u * 0.15f, u * 0.08f, u * 0.06f, paw); ink.ell(c, x + u * 0.42f, cy + u * 0.42f, u * 0.08f, u * 0.06f, paw)
-        } else if (dig > 0f) {
-            ink.ell(c, x + u * 0.42f, floor - u * 0.08f + dig * u * 0.06f, u * 0.08f, u * 0.06f, paw)
-            ink.ell(c, x + u * 0.6f, floor - u * 0.06f - dig * u * 0.06f, u * 0.08f, u * 0.06f, paw)
-        } else if (act == Act.DRUM || (musicOn && act == Act.NONE)) {
-            val d = exp(-beatPhase.coerceIn(0f, 1f) * 8f)
-            paintAcorn(c, x + u * 0.38f, cy + u * 0.2f, u * 0.22f, 0f)
-            ink.ell(c, x + u * 0.3f, cy - u * 0.02f + d * u * 0.12f, u * 0.08f, u * 0.06f, paw)
-            ink.ell(c, x + u * 0.5f, cy + d * u * 0.12f, u * 0.08f, u * 0.06f, paw)
-        } else {
-            if (hold || (lowBattery && act == Act.NONE)) paintAcorn(c, x + u * 0.3f, pawY - u * 0.05f, u * (if (lowBattery) 0.12f else 0.18f), 0.2f)
-            ink.ell(c, x + u * 0.22f, pawY, u * 0.08f, u * 0.065f, paw)
-            ink.ell(c, x + u * 0.38f, pawY + u * 0.02f, u * 0.08f, u * 0.065f, paw)
+        // Front paws: soft mittens on short forearms. They hold the acorn up to the mouth, tuck
+        // under the chin when empty, dig, drum, or hug the big charging acorn.
+        val pawY = hy + u * 0.38f - nib * u * 0.05f
+        when {
+            charging && act == Act.NONE -> {
+                val ax = x + u * 0.62f; val ay = cy + u * 0.25f
+                paintAcorn(c, ax, ay, u * 0.9f, -0.15f, 0.8f + 0.2f * sin(time * 4f), battery)
+                forearm(c, x + u * 0.05f, cy - u * 0.05f, ax - u * 0.32f, ay - u * 0.12f, col)
+                forearm(c, x + u * 0.2f, cy + u * 0.3f, ax - u * 0.26f, ay + u * 0.2f, col)
+                mitten(c, ax - u * 0.32f, ay - u * 0.12f, 0.3f + 0.05f * sin(time * 10f), col)
+                mitten(c, ax - u * 0.26f, ay + u * 0.2f, -0.1f, col)
+            }
+            dig > 0f -> {
+                val g = floor - u * 0.08f
+                forearm(c, x + u * 0.05f, cy + u * 0.1f, x + u * 0.45f, g + dig * u * 0.06f, col)
+                forearm(c, x + u * 0.3f, cy + u * 0.15f, x + u * 0.62f, g - dig * u * 0.06f, col)
+                mitten(c, x + u * 0.45f, g + dig * u * 0.06f, 1.3f, col)
+                mitten(c, x + u * 0.62f, g - dig * u * 0.06f, 1.1f, col)
+            }
+            act == Act.DRUM || (musicOn && act == Act.NONE) -> {
+                val d = exp(-beatPhase.coerceIn(0f, 1f) * 8f)
+                val ax = x + u * 0.38f; val ay = cy + u * 0.24f
+                paintAcorn(c, ax, ay, u * 0.26f, 0f)
+                forearm(c, x - u * 0.02f, cy + u * 0.1f, ax - u * 0.08f, ay - u * 0.2f + d * u * 0.1f, col)
+                forearm(c, x + u * 0.42f, cy + u * 0.05f, ax + u * 0.1f, ay - u * 0.18f + (1f - d) * u * 0.06f, col)
+                mitten(c, ax - u * 0.08f, ay - u * 0.2f + d * u * 0.1f, 1.4f, col)
+                mitten(c, ax + u * 0.1f, ay - u * 0.18f + (1f - d) * u * 0.06f, 1.75f, col)
+            }
+            hold || (lowBattery && act == Act.NONE) -> {
+                val ax = x + u * 0.3f; val ay = pawY
+                val s = u * (if (lowBattery && !hold) 0.15f else 0.24f)
+                forearm(c, x - u * 0.04f, cy + u * 0.12f, ax - u * 0.13f, ay + u * 0.06f, col)
+                forearm(c, x + u * 0.46f, cy + u * 0.14f, ax + u * 0.13f, ay + u * 0.07f, col)
+                paintAcorn(c, ax, ay, s, 0.15f * sin(time * 2f) * (if (nib > 0f) 1f else 0.3f))
+                mitten(c, ax - u * 0.12f, ay + u * 0.05f, -0.45f, col)
+                mitten(c, ax + u * 0.12f, ay + u * 0.06f, PI.toFloat() + 0.45f, col)
+            }
+            else -> {
+                // Empty paws tucked under the chin, the classic squirrel pose.
+                val bob = sin(time * 3f) * u * 0.008f
+                forearm(c, x - u * 0.04f, cy + u * 0.14f, x + u * 0.14f, cy - u * 0.02f + bob, col)
+                forearm(c, x + u * 0.46f, cy + u * 0.16f, x + u * 0.38f, cy + bob, col)
+                mitten(c, x + u * 0.16f, cy - u * 0.02f + bob, 1.6f, col)
+                mitten(c, x + u * 0.38f, cy + bob, 1.35f, col)
+            }
         }
         c.restore() // squash
         c.restore() // facing
@@ -457,6 +484,25 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
         }
         tailAt(0.72f, 0.15f)
         ink.glow(c, tmp[0], tmp[1], u * 0.7f, u * 0.7f, Ink.lighten(col.light, 0.45f), 0.35f)
+    }
+
+    /** A smooth forearm: one tapered, softly lit ellipse from the elbow to the wrist. */
+    private fun forearm(c: Canvas, ex: Float, ey: Float, wx: Float, wy: Float, col: NuttyCoat) {
+        val dx = wx - ex; val dy = wy - ey
+        val len = kotlin.math.hypot(dx, dy)
+        ink.glossy(c, (ex + wx) / 2f, (ey + wy) / 2f, len * 0.62f, u * 0.075f, col.fur, col.light, col.dark, rot = kotlin.math.atan2(dy, dx))
+    }
+
+    /** A soft mitten paw: rounded palm, three fingertip bumps with faint creases. ang = where the fingers point. */
+    private fun mitten(c: Canvas, hx: Float, hy: Float, ang: Float, col: NuttyCoat) {
+        ink.ell(c, hx + u * 0.01f, hy + u * 0.04f, u * 0.1f, u * 0.07f, 0xFF5A2A0A.toInt(), 0.22f)
+        c.save(); c.translate(hx, hy); c.rotate(ang * 57.29578f)
+        ink.glossy(c, 0f, 0f, u * 0.105f, u * 0.08f, col.fur, col.light, col.dark)
+        val tip = Ink.lighten(col.fur, 0.25f)
+        for (i in 0 until 3) ink.glossy(c, u * 0.088f, (i - 1) * u * 0.05f, u * 0.038f, u * 0.032f, col.fur, tip, col.dark)
+        for (i in 0 until 2) { val fy = (i - 0.5f) * u * 0.05f; ink.line(c, u * 0.065f, fy, u * 0.11f, fy, 0xFF5A280A.toInt(), u * 0.008f, 0.55f) }
+        ink.ell(c, -u * 0.02f, -u * 0.025f, u * 0.04f, u * 0.018f, Color.WHITE, 0.35f)
+        c.restore()
     }
 
     private fun paintSleeping(c: Canvas, floor: Float) {
