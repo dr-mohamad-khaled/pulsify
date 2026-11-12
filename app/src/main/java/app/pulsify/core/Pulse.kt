@@ -31,6 +31,8 @@ object Pulse {
     @Volatile var previewMood: Mood? = null
     @Volatile var previewCharging = false
     @Volatile var previewLowBattery = false
+    /** Debug portrait shots: everyday look, never charging or low. */
+    @Volatile var forceCalm = false
 
     private val listeners = mutableListOf<() -> Unit>()
 
@@ -119,9 +121,9 @@ object Pulse {
             in 17..22 -> Mood.EVENING
             else -> Mood.NIGHT
         }
-        i.charging = (preview && previewCharging) || device.charging
+        i.charging = !forceCalm && ((preview && previewCharging) || device.charging)
         i.battery = device.batteryLevel
-        i.lowBattery = (preview && previewLowBattery) || (device.batteryLevel < 0.15f && !device.charging)
+        i.lowBattery = !forceCalm && ((preview && previewLowBattery) || (device.batteryLevel < 0.15f && !device.charging))
         audio.sample(i.audio, dt)
     }
 }

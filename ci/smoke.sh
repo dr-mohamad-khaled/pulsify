@@ -126,5 +126,6 @@ for v in 0 1 2; do portrait sky$v --ei char 0 --ei variant $v; done
 for g in 1 2 3; do portrait fish$g --ei char 5 --ei env 1 --ei coat $((g+3)); done
 portrait loop0 --ei video 0
 portrait kalboob_night --ei char 2 --ei env 0 --es mood night
+portrait kalboob_charge --ei char 2 --ei env 0 --ez charging true
 logs _p
 adb shell dumpsys battery reset

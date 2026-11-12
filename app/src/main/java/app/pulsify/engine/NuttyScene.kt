@@ -58,7 +58,7 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
     override val busy: Boolean get() = act != Act.NONE || hopping || sinceTouch < 2f || dragging
 
     override fun layout() {
-        u = unit * 0.15f
+        u = unit * 0.16f
         if (homeX == 0f) { homeX = W * 0.55f; x = homeX }
         homeX = homeX.coerceIn(u * 1.6f, W - u * 1.6f); x = x.coerceIn(u, W - u)
     }
@@ -302,15 +302,27 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
         val tbx = x - u * 0.45f; val tby = cy + u * 0.55f
         val ang = tailFlick + puff * 0.2f
         val ca = cos(ang); val sa = sin(ang)
-        for (i in 0..16) {
-            val k = i / 16f
+        // Outer fur: soft dark tufts poking out along the whole outline, then the body of the
+        // tail on top with jittered clumps so it reads as fluff, not rings.
+        for (pass in 0..1) for (i in 0..26) {
+            val k = i / 26f
             val px = tbx - u * 0.55f * sin(k * 2.2f) - k * u * 0.25f
             val py = tby - k * u * 2.1f
             val tx = tbx + (px - tbx) * ca - (py - tby) * sa
             val ty = tby + (px - tbx) * sa + (py - tby) * ca
             val r = u * (0.32f + 0.22f * sin(k * PI.toFloat())) * (1f + puff * 0.45f) * (if (k > 0.9f) 1f - (k - 0.9f) * 4f else 1f)
-            ink.glossy(c, tx, ty, r, r, col.tail, col.light, col.dark)
+            val j = sin(i * 2.7f) * r * 0.22f; val jy = cos(i * 1.9f) * r * 0.12f
+            if (pass == 0) {
+                for (t in 0 until 3) {
+                    val a2 = i * 1.3f + t * 2.1f + sin(time * 3f + i) * 0.1f
+                    val rr = r * (1.05f + 0.12f * sin(i * 5.1f + t))
+                    ink.ell(c, tx + cos(a2) * rr * 0.72f, ty + sin(a2) * rr * 0.72f, r * 0.42f, r * 0.24f, col.dark, 0.55f, a2)
+                }
+            } else {
+                ink.glossy(c, tx + j, ty + jy, r * 0.95f, r * 0.9f, col.tail, col.light, Ink.darken(col.tail, 0.25f), a = 0.9f)
+            }
         }
+        ink.glow(c, tbx - u * 0.55f, tby - u * 1.1f, u * 0.5f, u * 0.9f, Ink.lighten(col.light, 0.4f), 0.25f)
         // Fur streaks on the tail.
         for (i in 2 until 15) {
             val k = i / 16f; val k2 = (i + 1) / 16f

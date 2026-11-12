@@ -58,7 +58,7 @@ class BoltScene(context: Context) : CanvasCreature(context) {
     override val busy: Boolean get() = act != Act.NONE || sinceTouch < 2f || abs(vx) > u * 0.3f
 
     override fun layout() {
-        u = unit * 0.115f
+        u = unit * 0.15f
         if (homeX == 0f) { homeX = W * 0.5f; x = homeX; tx = homeX }
     }
 

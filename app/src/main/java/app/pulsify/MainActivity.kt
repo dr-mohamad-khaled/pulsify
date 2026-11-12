@@ -83,6 +83,7 @@ class MainActivity : ComponentActivity() {
                 if (i.hasExtra("coat")) p.coat = i.getIntExtra("coat", 0)
                 if (i.hasExtra("variant")) p.variant = i.getIntExtra("variant", 0)
             }
+            Pulse.forceCalm = !i.hasExtra("charging")
             Pulse.previewMood = when (i.getStringExtra("mood")) {
                 "night" -> app.pulsify.core.Mood.NIGHT; "evening" -> app.pulsify.core.Mood.EVENING
                 "morning" -> app.pulsify.core.Mood.MORNING; else -> app.pulsify.core.Mood.DAY
@@ -90,6 +91,7 @@ class MainActivity : ComponentActivity() {
             setContent { app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true) }
             return
         }
+        Pulse.forceCalm = false
         setContent { App() }
     }
 }
