@@ -181,7 +181,7 @@ private fun Greeting(modifier: Modifier) {
         Mood.NIGHT -> "Still up?"
     }
     val today = LocalDate.now()
-    val date = today.dayOfWeek.getDisplayName(JTextStyle.FULL, Locale.ENGLISH) + ", " + today.month.getDisplayName(JTextStyle.LONG, Locale.ENGLISH) + " " + today.dayOfMonth
+    val date = today.dayOfWeek.getDisplayName(JTextStyle.FULL, Locale.ENGLISH) + ", " + today.month.getDisplayName(JTextStyle.FULL, Locale.ENGLISH) + " " + today.dayOfMonth
     Column(modifier) {
         Text(hello, style = T.hero, color = c.text)
         Gap(8.dp)
