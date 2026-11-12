@@ -302,36 +302,9 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
         val tbx = x - u * 0.45f; val tby = cy + u * 0.55f
         val ang = tailFlick + puff * 0.2f
         val ca = cos(ang); val sa = sin(ang)
-        // Outer fur: soft dark tufts poking out along the whole outline, then the body of the
-        // tail on top with jittered clumps so it reads as fluff, not rings.
-        for (pass in 0..1) for (i in 0..26) {
-            val k = i / 26f
-            val px = tbx - u * 0.55f * sin(k * 2.2f) - k * u * 0.25f
-            val py = tby - k * u * 2.1f
-            val tx = tbx + (px - tbx) * ca - (py - tby) * sa
-            val ty = tby + (px - tbx) * sa + (py - tby) * ca
-            val r = u * (0.32f + 0.22f * sin(k * PI.toFloat())) * (1f + puff * 0.45f) * (if (k > 0.9f) 1f - (k - 0.9f) * 4f else 1f)
-            val j = sin(i * 2.7f) * r * 0.22f; val jy = cos(i * 1.9f) * r * 0.12f
-            if (pass == 0) {
-                for (t in 0 until 3) {
-                    val a2 = i * 1.3f + t * 2.1f + sin(time * 3f + i) * 0.1f
-                    val rr = r * (1.05f + 0.12f * sin(i * 5.1f + t))
-                    ink.ell(c, tx + cos(a2) * rr * 0.72f, ty + sin(a2) * rr * 0.72f, r * 0.42f, r * 0.24f, col.dark, 0.55f, a2)
-                }
-            } else {
-                ink.glossy(c, tx + j, ty + jy, r * 0.95f, r * 0.9f, col.tail, col.light, Ink.darken(col.tail, 0.25f), a = 0.9f)
-            }
-        }
-        ink.glow(c, tbx - u * 0.55f, tby - u * 1.1f, u * 0.5f, u * 0.9f, Ink.lighten(col.light, 0.4f), 0.25f)
-        // Fur streaks on the tail.
-        for (i in 2 until 15) {
-            val k = i / 16f; val k2 = (i + 1) / 16f
-            val px = tbx - u * 0.55f * sin(k * 2.2f) - k * u * 0.25f; val py = tby - k * u * 2.1f
-            val px2 = tbx - u * 0.55f * sin(k2 * 2.2f) - k2 * u * 0.25f; val py2 = tby - k2 * u * 2.1f
-            val x0 = tbx + (px - tbx) * ca - (py - tby) * sa; val y0 = tby + (px - tbx) * sa + (py - tby) * ca
-            val x1 = tbx + (px2 - tbx) * ca - (py2 - tby) * sa; val y1 = tby + (px2 - tbx) * sa + (py2 - tby) * ca
-            ink.line(c, x0 - u * 0.1f, y0, x1 - u * 0.18f, y1 - u * 0.05f, Ink.lighten(col.light, 0.4f), u * 0.025f, 0.35f)
-        }
+        // Tail: one smooth bushy S silhouette, a soft lighter core, and fur strands
+        // flicking out along its edges.
+        paintTail(c, tbx, tby, ca, sa, puff, col)
         // Hind leg, body, belly.
         val legKick = scratch * u * 0.12f
         ink.glossy(c, x - u * 0.1f, cy + u * 0.55f - legKick, u * 0.42f, u * 0.36f, Ink.darken(col.fur, 0.05f), col.light, col.dark)
@@ -422,6 +395,68 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
         if (msgT > 0f) ink.bubble(c, x + face * u * 0.2f, cy - u * 1.25f, msg, u * 0.2f, min(1f, msgT * 4f))
         else if (charging && act == Act.NONE && (time % 9f) > 7f) ink.bubble(c, x, cy - u * 1.3f, "crunchy volts", u * 0.16f)
         else if (lowBattery && act == Act.NONE && (time % 8f) > 6.5f) ink.bubble(c, x, cy - u * 1.3f, "my last acorn...", u * 0.16f)
+    }
+
+    // Tail: a fluffy plume made of fur strands. It rises behind the back, leans out and
+    // curls forward over the top. Strand layout is fixed; only the sway moves.
+    private val tn = 24
+    private val tP = FloatArray(2 * (24 + 1)); private val tN = FloatArray(2 * (24 + 1)); private val tR = FloatArray(24 + 1)
+    private val strandO = FloatArray(260); private val strandK0 = FloatArray(260); private val strandLen = FloatArray(260)
+    init {
+        val r = Random(7)
+        for (j in 0 until 260) { strandO[j] = r.nextFloat() * 2f - 1f; strandK0[j] = r.nextFloat() * 0.75f; strandLen[j] = 0.18f + r.nextFloat() * 0.25f }
+    }
+    private val tmp = FloatArray(2)
+    private fun tailAt(k: Float, o: Float) {
+        val f = k.coerceIn(0f, 1f) * tn; val i = min(tn - 1, f.toInt()); val t = f - i
+        val px = tP[i * 2] + (tP[i * 2 + 2] - tP[i * 2]) * t; val py = tP[i * 2 + 1] + (tP[i * 2 + 3] - tP[i * 2 + 1]) * t
+        val nx = tN[i * 2] + (tN[i * 2 + 2] - tN[i * 2]) * t; val ny = tN[i * 2 + 1] + (tN[i * 2 + 3] - tN[i * 2 + 1]) * t
+        val r = tR[i] + (tR[i + 1] - tR[i]) * t
+        tmp[0] = px + nx * r * o; tmp[1] = py + ny * r * o
+    }
+
+    private fun paintTail(c: Canvas, tbx: Float, tby: Float, ca: Float, sa: Float, puff: Float, col: NuttyCoat) {
+        val pi = PI.toFloat()
+        for (i in 0..tn) {
+            val k = i / tn.toFloat()
+            val lx = -u * 0.75f * sin(min(k, 0.75f) / 0.75f * pi * 0.5f) + u * 0.95f * Math.pow((max(0f, k - 0.62f) / 0.38f).toDouble(), 1.6).toFloat()
+            val ly = -u * 2.2f * sin(min(1f, k * 1.05f) * pi * 0.5f) + u * 0.25f * Math.pow((max(0f, k - 0.8f) / 0.2f).toDouble(), 2.0).toFloat()
+            tP[i * 2] = tbx + lx * ca - ly * sa; tP[i * 2 + 1] = tby + lx * sa + ly * ca
+            tR[i] = u * (0.16f + 0.42f * sin(Math.pow(k.toDouble(), 0.75).toFloat() * pi) * (if (k < 0.95f) 1f else 1f - (k - 0.95f) * 8f)) * (1f + puff * 0.45f)
+        }
+        for (i in 0..tn) {
+            val a = max(0, i - 1); val b = min(tn, i + 1)
+            val tx = tP[b * 2] - tP[a * 2]; val ty = tP[b * 2 + 1] - tP[a * 2 + 1]; val l = max(1e-3f, kotlin.math.hypot(tx, ty))
+            tN[i * 2] = -ty / l; tN[i * 2 + 1] = tx / l
+        }
+        // Soft base so there are no gaps between strands.
+        val p = ink.path; p.reset()
+        for (i in 0..tn) { tailAt(i / tn.toFloat(), 0.8f); if (i == 0) p.moveTo(tmp[0], tmp[1]) else p.lineTo(tmp[0], tmp[1]) }
+        for (i in tn downTo 0) { tailAt(i / tn.toFloat(), -0.8f); p.lineTo(tmp[0], tmp[1]) }
+        p.close(); c.drawPath(p, ink.color(col.dark))
+        // Three layers of strands: dark outer fluff, main colour, light highlights.
+        var j = 0
+        for (pass in 0..2) {
+            val m = if (pass == 0) 90 else if (pass == 1) 110 else 60
+            val colr = if (pass == 0) col.dark else if (pass == 1) col.tail else col.light
+            val alpha = if (pass == 2) 0.5f else if (pass == 1) 0.8f else 0.9f
+            val st = ink.stroke(colr, u * (if (pass == 2) 0.028f else if (pass == 1) 0.04f else 0.055f), alpha)
+            for (q in 0 until m) {
+                val o = strandO[j] * (if (pass == 2) 0.55f else 1f); val k0 = strandK0[j]; val k1 = min(1f, k0 + strandLen[j])
+                p.reset()
+                for (sIdx in 0..8) {
+                    val k = k0 + (k1 - k0) * sIdx / 8f
+                    val sway = 0.06f * sin(time * 2.5f + k * 6f + j)
+                    val oo = o * (if (pass == 0) 1.12f else 1f) + sway + o * 0.3f * (sIdx / 8f) * (sIdx / 8f)
+                    tailAt(k, oo)
+                    if (sIdx == 0) p.moveTo(tmp[0], tmp[1]) else p.lineTo(tmp[0], tmp[1])
+                }
+                c.drawPath(p, st)
+                j++
+            }
+        }
+        tailAt(0.72f, 0.15f)
+        ink.glow(c, tmp[0], tmp[1], u * 0.7f, u * 0.7f, Ink.lighten(col.light, 0.45f), 0.35f)
     }
 
     private fun paintSleeping(c: Canvas, floor: Float) {
