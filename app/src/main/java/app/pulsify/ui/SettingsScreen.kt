@@ -111,7 +111,7 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
                                     .border(if (sel) 2.5.dp else 0.dp, if (sel) Color.White else Color.Transparent, CircleShape)
                                     .pressable { state.applyAccent(argb) },
                                 contentAlignment = Alignment.Center,
-                            ) { if (argb == 0) Text("AUTO", style = T.micro, color = Color.Black) }
+                            ) { if (argb == 0) Text("A", style = T.micro, color = Color.Black) }
                         }
                     }
                     Gap(12.dp)

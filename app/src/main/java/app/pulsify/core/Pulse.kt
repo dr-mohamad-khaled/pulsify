@@ -29,6 +29,8 @@ object Pulse {
 
     /** Studio-only overrides. They affect the in-app preview, never the wallpaper. */
     @Volatile var previewMood: Mood? = null
+    /** Studio sun dial: an exact preview hour (0..24), or null for the real clock. */
+    @Volatile var previewHour: Float = -1f
     @Volatile var previewCharging = false
     @Volatile var previewLowBattery = false
     /** Debug portrait shots: everyday look, never charging or low. */
@@ -104,7 +106,8 @@ object Pulse {
             i.variant = s.variant
         }
         val pm = if (preview) previewMood else null
-        i.hour = when (pm) {
+        val ph = if (preview) previewHour else -1f
+        i.hour = if (ph >= 0f) ph else when (pm) {
             Mood.MORNING -> 7.2f
             Mood.DAY -> 13f
             Mood.EVENING -> 18.6f
@@ -115,7 +118,7 @@ object Pulse {
         i.brightness = s.brightness
         i.parallax = parallax
         i.kiwiWords = s.kiwiWords
-        i.mood = (if (preview) previewMood else null) ?: when (i.hour.toInt()) {
+        i.mood = (if (preview && ph < 0f) previewMood else null) ?: when (i.hour.toInt()) {
             in 5..9 -> Mood.MORNING
             in 10..16 -> Mood.DAY
             in 17..22 -> Mood.EVENING

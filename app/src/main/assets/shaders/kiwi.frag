@@ -515,15 +515,17 @@ void main() {
         float fs = float(s);
         float raise = s == 0 ? uLegs.x : uLegs.y;
         // A lifted foot leaves the branch a little and moves sideways with the step.
-        vec2 fp = vec2((s == 0 ? 0.06 : -0.06) + (s == 0 ? uFeet.x : uFeet.y), -0.5 + 0.065 * raise);
+        // raise 0..0.8 is a step; above that the legs fold up under the belly (flight).
+        float tuck = smoothstep(0.8, 1.0, raise);
+        vec2 fp = vec2((s == 0 ? 0.06 : -0.06) * (1.0 - 0.3 * tuck) + (s == 0 ? uFeet.x : uFeet.y), -0.5 + 0.065 * raise + 0.07 * tuck);
         vec3 skin = mix(vec3(0.5, 0.5, 0.54), vec3(0.75, 0.6, 0.56), tiel) * mix(vec3(1.0), uAmb, 0.5);
         // Feather trousers over the top of the leg.
-        float thigh = sdEllipse(p - fp - vec2(-0.012, 0.085 + 0.03 * raise), vec2(0.034, 0.034));
-        if (raise < 0.98) {
+        float thigh = sdEllipse(p - fp - vec2(-0.012, 0.085 + 0.03 * raise - 0.05 * tuck), vec2(0.034, 0.034));
+        {
             // The leg runs from under the feathers to the foot; toes curl up while lifted.
-            float leg = sdCapsule(p, fp + vec2(-0.005, 0.05 - 0.02 * raise), fp + vec2(0.0, 0.012), 0.022, 0.02);
+            float leg = sdCapsule(p, fp + vec2(-0.005, 0.05 - 0.02 * raise - 0.03 * tuck), fp + vec2(0.0, 0.012), 0.022, 0.02);
             over(acc, skin * 0.8, fill(leg));
-            float curl = raise;
+            float curl = min(1.0, raise + 0.3 * tuck);
             for (int k = 0; k < 3; k++) {
                 float fk = float(k) - 1.0;
                 vec2 a = fp + vec2(0.0, 0.008);

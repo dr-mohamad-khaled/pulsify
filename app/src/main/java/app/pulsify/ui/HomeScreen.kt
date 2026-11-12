@@ -53,6 +53,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.produceState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyRow
 import app.pulsify.core.COMING
 import app.pulsify.core.ComingSoon
 import app.pulsify.core.DISCOVERIES
@@ -67,104 +73,97 @@ import java.time.LocalDate
 import java.time.format.TextStyle as JTextStyle
 import java.util.Locale
 
+
 @Composable
 fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit) {
     val c = LocalPulse.current
-    var filter by remember { mutableStateOf<Kind?>(null) }
     var loop by remember { mutableStateOf<GlLoop?>(null) }
+    fun openCreature(id: Int) { state.applyCharacter(id); onOpenStudio() }
 
-    LazyColumn(
-        Modifier.fillMaxSize().background(c.bg),
-        contentPadding = PaddingValues(bottom = 40.dp),
-    ) {
+    LazyColumn(Modifier.fillMaxSize().background(c.bg), contentPadding = PaddingValues(bottom = 48.dp)) {
         item {
-            Column(Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 20.dp)) {
+            Column(Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(horizontal = 22.dp)) {
                 Gap(10.dp)
-                Header(state, onSettings, Modifier.enter(0))
-                Gap(22.dp)
-                Greeting(state, Modifier.enter(1))
+                Header(onSettings, Modifier.enter(0))
+                Gap(26.dp)
+                Greeting(Modifier.enter(1))
                 Gap(18.dp)
                 CrashCard()
             }
         }
         item {
-            Column {
-                Hero(state, onOpenStudio, onLoop = { loop = it }, loop = loop, modifier = Modifier.padding(horizontal = 16.dp).enter(2))
-                Gap(28.dp)
+            Hero(state, onOpenStudio, onLoop = { loop = it }, loop = loop, modifier = Modifier.padding(horizontal = 14.dp).enter(2))
+            Gap(36.dp)
+        }
+        item {
+            Shelf("Creatures", "${app.pulsify.engine.CREATURES.size} friends who live on your home screen", Modifier.enter(3)) {
+                items(app.pulsify.engine.CREATURES) { cr ->
+                    PosterCard(
+                        "thumbs/creature_${cr.id}.jpg", cr.name, cr.line, Color(cr.accent),
+                        live = state.video < 0 && state.character == cr.id,
+                    ) { openCreature(cr.id) }
+                }
             }
         }
         item {
-            Column {
-                Column(Modifier.padding(horizontal = 20.dp).enter(4)) {
-                    MicroLabel("Explore")
-                    Gap(4.dp)
-                    Text("Pick your vibe", style = T.title, color = c.text)
-                    Gap(14.dp)
-                }
-                Row(
-                    Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).enter(4),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Pill("All", filter == null) { filter = null }
-                    Kind.values().forEach { k -> Pill(k.label, filter == k) { filter = k } }
-                }
-                Gap(16.dp)
-            }
-        }
-
-        val tiles = buildTiles(filter)
-        tiles.chunked(2).forEachIndexed { row, pair ->
-            item {
-                Column {
-                Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    pair.forEachIndexed { i, tile ->
-                        TileCard(
-                            tile, state,
-                            modifier = Modifier.weight(1f).enter(5 + row * 2 + i, 40L),
-                            onOpen = {
-                                if (tile.video >= 0) { state.applyVideo(tile.video); onOpenStudio() }
-                                else if (tile.creature > 0) { state.applyCharacter(tile.creature); onOpenStudio() }
-                                else if (tile.variant != null) { state.applyCharacter(0); state.applyVariant(tile.variant); onOpenStudio() }
-                                else tile.coming?.let { cs ->
-                                    state.toast = AppState.Toast("${cs.name} is in the lab", "Arrives in milestone ${cs.milestone}. Each one is hand-built, one at a time.")
-                                }
-                            },
-                        )
+            Shelf("Video loops", "Endless cinematic loops, no sound", Modifier.enter(4)) {
+                items(app.pulsify.engine.VIDEO_LOOPS) { v ->
+                    PosterCard("thumbs/loop_${v.id}.jpg", v.name, v.line, Color(v.c1), live = state.video == v.id, tall = true) {
+                        state.applyVideo(v.id); onOpenStudio()
                     }
-                    if (pair.size == 1) Spacer(Modifier.weight(1f))
-                }
-                Gap(12.dp)
                 }
             }
         }
         item {
-            Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars))
+            Shelf("Skies", "Just the sky, reacting to touch and music", Modifier.enter(5)) {
+                items(SKY_VARIANTS) { v ->
+                    PosterCard(
+                        if (v.id == 2) "thumbs/sky_2.jpg" else null, v.name, v.tagline, Color(v.accent1),
+                        live = state.video < 0 && state.character == 0 && state.variant == v.id, sky = v.id, sky2 = Color(v.accent2),
+                    ) { state.applyCharacter(0); state.applyVariant(v.id); onOpenStudio() }
+                }
+            }
         }
+        item {
+            Column(Modifier.padding(horizontal = 22.dp).enter(6)) {
+                Text("Being made", style = T.title, color = c.text)
+                Gap(4.dp)
+                Text("Hand-built one at a time.", style = T.small, color = c.sub)
+                Gap(14.dp)
+                COMING.forEach { cs ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(42.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(cs.c1), Color(cs.c2)))))
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(cs.name, style = T.bodyStrong, color = c.text)
+                            Text(cs.line, style = T.small, color = c.sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(cs.kind.label.dropLast(1), style = T.micro, color = c.faint)
+                    }
+                }
+            }
+        }
+        item { Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars)) }
     }
 }
 
 @Composable
-private fun Header(state: AppState, onSettings: () -> Unit, modifier: Modifier) {
+private fun Header(onSettings: () -> Unit, modifier: Modifier) {
     val c = LocalPulse.current
-    val musicOn = state.musicReact && Pulse.audio.hasPermission()
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        OrbLogo(30.dp)
+        OrbLogo(28.dp)
         Spacer(Modifier.width(10.dp))
-        Text("Pulsify", style = T.title, color = c.text)
+        Text("Pulsify", style = T.name.copy(fontSize = 24.sp), color = c.text)
         Spacer(Modifier.weight(1f))
-        StatusChip("Amoled", live = true, color = c.teal)
-        Spacer(Modifier.width(6.dp))
-        StatusChip(if (musicOn) "Music sync" else "Music off", live = musicOn)
-        Spacer(Modifier.width(6.dp))
         Box(
-            Modifier.size(38.dp).clip(CircleShape).background(c.surface2).border(1.dp, c.border, CircleShape).pressable(onClick = onSettings),
+            Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.06f)).border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape).pressable(onClick = onSettings),
             contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Default.Settings, contentDescription = "Settings", tint = c.sub, modifier = Modifier.size(18.dp)) }
+        ) { Icon(Icons.Default.Settings, contentDescription = "Settings", tint = c.sub, modifier = Modifier.size(19.dp)) }
     }
 }
 
 @Composable
-private fun Greeting(state: AppState, modifier: Modifier) {
+private fun Greeting(modifier: Modifier) {
     val c = LocalPulse.current
     var battery by remember { mutableFloatStateOf(Pulse.device.batteryLevel) }
     var charging by remember { mutableStateOf(Pulse.device.charging) }
@@ -175,22 +174,18 @@ private fun Greeting(state: AppState, modifier: Modifier) {
             delay(15_000)
         }
     }
-    val mood = DeviceState.moodNow()
-    val hello = when (mood) {
+    val hello = when (DeviceState.moodNow()) {
         Mood.MORNING -> "Good morning"
         Mood.DAY -> "Good afternoon"
         Mood.EVENING -> "Good evening"
         Mood.NIGHT -> "Still up?"
     }
     val today = LocalDate.now()
-    val date = today.dayOfWeek.getDisplayName(JTextStyle.SHORT, Locale.ENGLISH) + ", " +
-        today.month.getDisplayName(JTextStyle.SHORT, Locale.ENGLISH) + " " + today.dayOfMonth
+    val date = today.dayOfWeek.getDisplayName(JTextStyle.FULL, Locale.ENGLISH) + ", " + today.month.getDisplayName(JTextStyle.LONG, Locale.ENGLISH) + " " + today.dayOfMonth
     Column(modifier) {
-        Text(hello, style = T.display, color = c.text)
-        Gap(6.dp)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("$date  ·  ${(battery * 100).toInt()}%" + (if (charging) " charging" else ""), style = T.body, color = c.sub)
-        }
+        Text(hello, style = T.hero, color = c.text)
+        Gap(8.dp)
+        Text(date + (if (charging) ", charging at " else ", battery at ") + "${(battery * 100).toInt()}%", style = T.body, color = c.sub)
     }
 }
 
@@ -198,21 +193,13 @@ private fun Greeting(state: AppState, modifier: Modifier) {
 private fun Hero(state: AppState, onOpenStudio: () -> Unit, onLoop: (GlLoop) -> Unit, loop: GlLoop?, modifier: Modifier) {
     val c = LocalPulse.current
     val ctx = LocalContext.current
-    var fps by remember { mutableFloatStateOf(0f) }
     var live by remember { mutableStateOf(AppState.isOurWallpaperActive(ctx)) }
-    LaunchedEffect(loop) {
-        while (true) {
-            fps = loop?.fps ?: 0f
-            live = AppState.isOurWallpaperActive(ctx)
-            delay(700)
-        }
-    }
+    LaunchedEffect(loop) { while (true) { live = AppState.isOurWallpaperActive(ctx); delay(900) } }
     Box(
-        modifier.fillMaxWidth().height(460.dp).clip(RoundedCornerShape(32.dp))
-            .border(1.dp, Brush.linearGradient(listOf(c.accent.copy(alpha = 0.5f), Color.Transparent, c.accent2.copy(alpha = 0.4f))), RoundedCornerShape(32.dp)),
+        modifier.fillMaxWidth().height(520.dp).clip(RoundedCornerShape(36.dp))
+            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.04f))), RoundedCornerShape(36.dp)),
     ) {
         LiveSky(Modifier.fillMaxSize(), renderScale = 0.5f, onLoop = onLoop)
-        // Taps on the hero go straight into the sky; scrolling still works.
         Box(
             Modifier.fillMaxSize().pointerInput(loop) {
                 detectTapGestures(
@@ -221,45 +208,86 @@ private fun Hero(state: AppState, onOpenStudio: () -> Unit, onLoop: (GlLoop) -> 
                 )
             },
         )
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            StatusChip(if (live) "On your home screen" else "Preview", live = live)
-            Spacer(Modifier.width(6.dp))
-            if (fps > 0f) StatusChip("${fps.toInt()} fps", live = true, color = c.teal)
-        }
+        StatusChip(if (live) "On your home screen" else "Preview", live = live, modifier = Modifier.padding(16.dp))
         Column(
             Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.75f), Color.Black)))
-                .padding(start = 20.dp, end = 16.dp, top = 56.dp, bottom = 18.dp),
+                .background(Brush.verticalGradient(0f to Color.Transparent, 0.45f to Color.Black.copy(alpha = 0.6f), 1f to Color.Black.copy(alpha = 0.9f)))
+                .padding(start = 22.dp, end = 18.dp, top = 70.dp, bottom = 20.dp),
         ) {
-            MicroLabel("Your wallpaper", color = c.accent)
-            Gap(4.dp)
-            AnimatedContent(state.displayName, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "name") { name ->
-                Text(name, style = T.display, color = c.text)
+            AnimatedContent(state.displayName, transitionSpec = { (fadeIn() + androidx.compose.animation.slideInVertically { it / 3 }) togetherWith fadeOut() }, label = "name") { name ->
+                Text(name, style = T.display.copy(fontSize = 46.sp, lineHeight = 46.sp), color = c.text)
             }
-            Gap(2.dp)
-            Text(app.pulsify.engine.videoLoop(state.video)?.line ?: moodLine(state.character), style = T.body, color = c.sub, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Gap(16.dp)
+            Gap(6.dp)
+            Text(app.pulsify.engine.videoLoop(state.video)?.line ?: moodLine(state.character), style = T.body, color = Color.White.copy(alpha = 0.78f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Gap(18.dp)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                GlowButton("Open Studio", Modifier.weight(1f), onClick = onOpenStudio)
+                GlowButton("Customize", Modifier.weight(1f), onClick = onOpenStudio)
                 Spacer(Modifier.width(10.dp))
                 Box(
-                    Modifier.size(56.dp).clip(CircleShape).background(c.surface2).border(1.dp, c.accent.copy(alpha = 0.5f), CircleShape)
-                        .pressable {
-                            if (!AppState.applyWallpaper(ctx)) state.toast = AppState.Toast("Already live", "Your home screen updates the moment you change anything.")
-                        },
+                    Modifier.height(58.dp).clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.1f))
+                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(50))
+                        .pressable { if (!AppState.applyWallpaper(ctx)) state.toast = AppState.Toast("Already your wallpaper", "Changes show on your home screen right away.") }
+                        .padding(horizontal = 20.dp),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.AutoMirrored.Filled.ArrowForward, "Set as wallpaper", tint = c.accent) }
+                ) { Text(if (live) "Live" else "Set wallpaper", style = T.button, color = c.text) }
             }
-            Gap(8.dp)
-            Text(app.pulsify.engine.creatureInfo(state.character)?.hint ?: "Tap the sky. Hold it. Swipe fast. See what happens.", style = T.small, color = c.faint)
         }
+    }
+}
+
+/** A titled horizontal shelf. */
+@Composable
+private fun Shelf(title: String, line: String, modifier: Modifier, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+    val c = LocalPulse.current
+    Column(modifier) {
+        Column(Modifier.padding(horizontal = 22.dp)) {
+            Text(title, style = T.title, color = c.text)
+            Gap(3.dp)
+            Text(line, style = T.small, color = c.sub)
+        }
+        Gap(14.dp)
+        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Gap(34.dp)
+    }
+}
+
+/** A poster: the real picture, the name set large over it, one line under. */
+@Composable
+private fun PosterCard(asset: String?, name: String, line: String, tint: Color, live: Boolean, tall: Boolean = false, sky: Int = -1, sky2: Color = tint, onOpen: () -> Unit) {
+    val c = LocalPulse.current
+    val ctx = LocalContext.current
+    val pic by produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, asset) {
+        value = if (asset == null) null else withContext(Dispatchers.IO) { decodeSmall(ctx, asset, 300) }
+    }
+    Column(Modifier.width(if (tall) 150.dp else 168.dp).pressable(scaleDown = 0.96f, onClick = onOpen)) {
+        Box(
+            Modifier.fillMaxWidth().height(if (tall) 250.dp else 224.dp).clip(RoundedCornerShape(26.dp))
+                .border(if (live) 2.dp else 1.dp, if (live) tint else Color.White.copy(alpha = 0.08f), RoundedCornerShape(26.dp)),
+        ) {
+            val p = pic
+            if (p != null) androidx.compose.foundation.Image(p, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            else MiniSky(tint, sky2, seed = name.hashCode(), modifier = Modifier.fillMaxSize(), style = if (sky >= 0) sky else 2)
+            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.5f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.82f))))
+            Text(name, style = T.name.copy(fontSize = 24.sp, lineHeight = 24.sp), color = Color.White,
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 14.dp, end = 10.dp, bottom = 12.dp), maxLines = 2)
+            if (live) Row(
+                Modifier.padding(10.dp).clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.55f)).padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(6.dp).clip(CircleShape).background(c.mint))
+                Spacer(Modifier.width(6.dp))
+                Text("Yours", style = T.micro, color = Color.White)
+            }
+        }
+        Gap(8.dp)
+        Text(line, style = T.small, color = c.sub, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 
 private fun moodLine(character: Int): String {
     val d = Pulse.device
     if (character == 2) return when {
-        d.charging -> "Charging. Kalboob is chewing a glowing bone."
+        d.charging -> "Charging. Kalboob is licking his glowing bone. Try taking it."
         d.batteryLevel < 0.15f -> "Low battery. Kalboob is lying down with sad eyes."
         else -> when (DeviceState.moodNow()) {
             Mood.MORNING -> "Kalboob is stretching. Walk time?"
@@ -350,75 +378,7 @@ private fun moodLine(character: Int): String {
     }
 }
 
-private class Tile(val title: String, val line: String, val label: String, val c1: Int, val c2: Int, val style: Int, val variant: Int? = null, val coming: ComingSoon? = null, val creature: Int = 0, val video: Int = -1)
 
-private fun buildTiles(filter: Kind?): List<Tile> {
-    val out = mutableListOf<Tile>()
-    if (filter == null || filter == Kind.CREATURE) {
-        app.pulsify.engine.CREATURES.forEach { cr ->
-            out += Tile(cr.name, cr.line, "Live creature", cr.coats[0].base, cr.accent, 3, creature = cr.id)
-        }
-    }
-    if (filter == null || filter == Kind.WORLD) {
-        SKY_VARIANTS.forEach { v -> out += Tile(v.name, v.tagline, "Live world", v.accent1, v.accent2, v.id, variant = v.id) }
-    }
-    if (filter == null || filter == Kind.LOOP) {
-        app.pulsify.engine.VIDEO_LOOPS.forEach { v -> out += Tile(v.name, v.line, "Video loop", v.c1, v.c2, 2, video = v.id) }
-    }
-    COMING.filter { filter == null || it.kind == filter }.forEach { cs ->
-        out += Tile(cs.name, cs.line, "${cs.kind.label.dropLast(1)} · M${cs.milestone}", cs.c1, cs.c2, if (cs.kind == Kind.CREATURE) 3 else 2, coming = cs)
-    }
-    return out
-}
-
-@Composable
-private fun TileCard(tile: Tile, state: AppState, modifier: Modifier, onOpen: () -> Unit) {
-    val c = LocalPulse.current
-    val selected = if (tile.video >= 0) state.video == tile.video
-        else if (state.video >= 0) false
-        else if (tile.creature > 0) state.character == tile.creature else tile.variant != null && state.character == 0 && tile.variant == state.variant
-    Column(
-        modifier.clip(RoundedCornerShape(24.dp)).background(c.surface)
-            .border(
-                if (selected) 1.5.dp else 1.dp,
-                if (selected) Brush.linearGradient(listOf(c.accent, c.accent2)) else Brush.linearGradient(listOf(c.border.copy(alpha = 0.7f), c.border.copy(alpha = 0.3f))),
-                RoundedCornerShape(24.dp),
-            )
-            .pressable(onClick = onOpen),
-    ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(0.92f)) {
-            val ctx = LocalContext.current
-            val pic = remember(tile.creature, tile.video, tile.variant) {
-                when {
-                    tile.video >= 0 -> loadThumb(ctx, "thumbs/loop_${tile.video}.jpg")
-                    tile.creature > 0 -> loadThumb(ctx, "thumbs/creature_${tile.creature}.jpg")
-                    tile.variant != null -> loadThumb(ctx, "thumbs/sky_${tile.variant}.jpg")
-                    else -> null
-                }
-            }
-            if (pic != null) {
-                androidx.compose.foundation.Image(pic, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
-            } else {
-                MiniSky(Color(tile.c1), Color(tile.c2), seed = tile.title.hashCode(), modifier = Modifier.fillMaxSize(), style = tile.style)
-            }
-            Row(Modifier.padding(10.dp)) {
-                Box(
-                    Modifier.clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 4.dp),
-                ) { Text(tile.label.uppercase(), style = T.micro, color = if (tile.coming == null) c.mint else c.sub) }
-            }
-            if (tile.coming != null) {
-                Icon(Icons.Default.Lock, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).size(14.dp))
-            }
-        }
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-            Text(tile.title, style = T.heading, color = c.text, maxLines = 1)
-            Gap(2.dp)
-            Text(tile.line, style = T.small, color = c.sub, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-/** Shown once after a crash: what happened, and a button to copy the details for a bug report. */
 @Composable
 private fun CrashCard() {
     val c = LocalPulse.current

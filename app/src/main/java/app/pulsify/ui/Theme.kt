@@ -12,8 +12,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.ExperimentalTextApi
+import app.pulsify.R
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
@@ -26,38 +30,62 @@ data class PulseColors(
     val accent: Color,
     val accent2: Color,
     val bg: Color = Color.Black,
-    val surface: Color,
-    val surface2: Color,
-    val border: Color,
-    val text: Color = Color.White,
-    val sub: Color = Color(0xFF9E96B0),
-    val faint: Color = Color(0xFF5E576E),
-    val onAccent: Color = Color(0xFF0D0A14),
-    val mint: Color = Color(0xFF4ADE80),
-    val teal: Color = Color(0xFF2DD4BF),
-    val mintBg: Color = Color(0xFF1A2E2B),
+    val surface: Color = Color(0xFF0C0C0E),
+    val surface2: Color = Color(0xFF161618),
+    val border: Color = Color(0x1FFFFFFF),
+    val text: Color = Color(0xFFF6F3EF),
+    val sub: Color = Color(0xFFA9A4AD),
+    val faint: Color = Color(0xFF6C6770),
+    val onAccent: Color = Color(0xFF0B0A0C),
+    val mint: Color = Color(0xFF6EE7A8),
+    val teal: Color = Color(0xFF5EE0D0),
+    val mintBg: Color = Color(0x2622C55E),
     val amber: Color = Color(0xFFFFB36B),
+    /** Accent pushed toward white: for text and fine lines on black. */
+    val accentInk: Color = lerp(accent, Color.White, 0.35f),
 )
 
-fun pulseColors(accent: Color, accent2: Color) = PulseColors(
-    accent = accent,
-    accent2 = accent2,
-    surface = lerp(Color(0xFF0F0C15), accent, 0.045f),
-    surface2 = lerp(Color(0xFF17131F), accent, 0.07f),
-    border = lerp(Color(0xFF2A2436), accent, 0.18f),
-)
+/**
+ * The palette is true black and warm white; the only colour comes from the character on
+ * screen, so the whole app takes on Kalboob's gold, Kiwi's green, Glowy's teal...
+ */
+fun pulseColors(accent: Color, accent2: Color): PulseColors {
+    val lum = 0.299f * accent.red + 0.587f * accent.green + 0.114f * accent.blue
+    return PulseColors(
+        accent = accent,
+        accent2 = accent2,
+        surface2 = lerp(Color(0xFF151517), accent, 0.06f),
+        onAccent = if (lum > 0.55f) Color(0xFF0B0A0C) else Color.White,
+    )
+}
 
 val LocalPulse = staticCompositionLocalOf { pulseColors(Color(0xFFCDB4FF), Color(0xFFFFB36B)) }
 
+@OptIn(ExperimentalTextApi::class)
+private fun bricolage(weight: Int, width: Float = 100f, opsz: Float = 48f) = Font(
+    R.font.bricolage, FontWeight(weight),
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight), FontVariation.width(width), FontVariation.Setting("opsz", opsz)),
+)
+@OptIn(ExperimentalTextApi::class)
+private fun figtree(weight: Int) = Font(R.font.figtree, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
+
+/** Bricolage Grotesque for names and headings (condensed, big optical size), Figtree for UI text. */
+val DisplayFace = FontFamily(bricolage(760, 86f, 96f), bricolage(600, 92f, 60f))
+val DisplayWideFace = FontFamily(bricolage(700, 100f, 40f))
+val TextFace = FontFamily(figtree(400), figtree(500), figtree(600), figtree(700), figtree(800))
+
 object T {
-    val display = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.ExtraBold, fontSize = 34.sp, letterSpacing = (-0.03).em, lineHeight = 38.sp)
-    val title = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 22.sp, letterSpacing = (-0.02).em)
-    val heading = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = (-0.01).em)
-    val body = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp)
-    val bodyStrong = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-    val small = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp)
-    val micro = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.Bold, fontSize = 10.5.sp, letterSpacing = 0.12.em)
-    val button = TextStyle(fontFamily = FontFamily.SansSerif, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, letterSpacing = 0.01.em)
+    val hero = TextStyle(fontFamily = DisplayFace, fontWeight = FontWeight(760), fontSize = 52.sp, letterSpacing = (-0.035).em, lineHeight = 50.sp)
+    val display = TextStyle(fontFamily = DisplayFace, fontWeight = FontWeight(760), fontSize = 40.sp, letterSpacing = (-0.03).em, lineHeight = 40.sp)
+    val title = TextStyle(fontFamily = DisplayFace, fontWeight = FontWeight(760), fontSize = 27.sp, letterSpacing = (-0.02).em, lineHeight = 30.sp)
+    val name = TextStyle(fontFamily = DisplayFace, fontWeight = FontWeight(760), fontSize = 21.sp, letterSpacing = (-0.015).em, lineHeight = 22.sp)
+    val heading = TextStyle(fontFamily = TextFace, fontWeight = FontWeight.Bold, fontSize = 17.sp, letterSpacing = (-0.005).em)
+    val body = TextStyle(fontFamily = TextFace, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 21.sp)
+    val bodyStrong = TextStyle(fontFamily = TextFace, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+    val small = TextStyle(fontFamily = TextFace, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 17.sp)
+    val micro = TextStyle(fontFamily = TextFace, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, letterSpacing = 0.01.em)
+    val button = TextStyle(fontFamily = TextFace, fontWeight = FontWeight.Bold, fontSize = 16.sp, letterSpacing = 0.005.em)
+    val dial = TextStyle(fontFamily = DisplayWideFace, fontWeight = FontWeight(700), fontSize = 17.sp, letterSpacing = (-0.01).em)
 }
 
 @Composable

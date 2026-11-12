@@ -95,39 +95,40 @@ fun GlassCard(
 
 @Composable
 fun MicroLabel(text: String, color: Color = LocalPulse.current.sub, modifier: Modifier = Modifier) {
-    Text(text.uppercase(), style = T.micro, color = color, modifier = modifier)
+    Text(text, style = T.micro, color = color, modifier = modifier)
 }
 
-/** The lavender CTA. [pulse] (0..1) lets the glow breathe with the music. */
+/** The main action: a solid pill in the character's colour with a soft halo that breathes with the music. */
 @Composable
 fun GlowButton(
     text: String,
     modifier: Modifier = Modifier,
     pulse: Float = 0f,
-    height: Dp = 56.dp,
+    height: Dp = 58.dp,
     onClick: () -> Unit,
 ) {
     val c = LocalPulse.current
-    val breathe = rememberInfiniteTransition(label = "breathe")
-    val b by breathe.animateFloat(0f, 1f, infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
-    val glow = 0.25f + 0.2f * b + 0.4f * pulse
+    val glow = 0.22f + 0.45f * pulse
     Box(
         modifier
             .height(height)
             .drawBehind {
                 drawRoundRect(
-                    brush = Brush.radialGradient(
-                        listOf(c.accent.copy(alpha = glow), Color.Transparent),
-                        center = Offset(size.width / 2, size.height / 2),
-                        radius = size.width * 0.62f,
-                    ),
-                    topLeft = Offset(-size.width * 0.1f, -size.height * 0.5f),
-                    size = Size(size.width * 1.2f, size.height * 2f),
+                    brush = Brush.radialGradient(listOf(c.accent.copy(alpha = glow), Color.Transparent), center = Offset(size.width / 2, size.height * 0.75f), radius = size.width * 0.55f),
+                    topLeft = Offset(-size.width * 0.05f, -size.height * 0.2f),
+                    size = Size(size.width * 1.1f, size.height * 1.9f),
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height),
                 )
             }
             .clip(RoundedCornerShape(50))
-            .background(Brush.horizontalGradient(listOf(c.accent, androidx.compose.ui.graphics.lerp(c.accent, Color.White, 0.25f), c.accent)))
+            .background(c.accent)
+            .drawBehind {
+                // A glassy top highlight so it reads as a physical button.
+                drawRoundRect(
+                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.32f), Color.Transparent), endY = size.height * 0.6f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height),
+                )
+            }
             .pressable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -154,14 +155,13 @@ fun GhostButton(text: String, modifier: Modifier = Modifier, height: Dp = 48.dp,
 @Composable
 fun Pill(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = LocalPulse.current
-    val bg by androidx.compose.animation.animateColorAsState(if (selected) c.accent else c.surface2, label = "pill")
-    val fg by androidx.compose.animation.animateColorAsState(if (selected) c.onAccent else c.sub, label = "pillfg")
+    val bg by androidx.compose.animation.animateColorAsState(if (selected) c.text else Color.White.copy(alpha = 0.06f), label = "pill")
+    val fg by androidx.compose.animation.animateColorAsState(if (selected) Color(0xFF0B0A0C) else c.sub, label = "pillfg")
     Box(
         modifier
-            .height(36.dp)
+            .height(38.dp)
             .clip(RoundedCornerShape(50))
             .background(bg)
-            .border(1.dp, if (selected) Color.Transparent else c.border.copy(alpha = 0.7f), RoundedCornerShape(50))
             .pressable(onClick = onClick)
             .padding(horizontal = 16.dp),
         contentAlignment = Alignment.Center,
@@ -177,13 +177,14 @@ fun StatusChip(text: String, live: Boolean, modifier: Modifier = Modifier, color
     Row(
         modifier
             .clip(RoundedCornerShape(50))
-            .background(if (live) c.mintBg else c.surface2)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .background(Color.Black.copy(alpha = 0.45f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(50))
+            .padding(horizontal = 11.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.size(6.dp).clip(CircleShape).background(if (live) color.copy(alpha = a) else c.faint))
         Spacer(Modifier.width(6.dp))
-        Text(text.uppercase(), style = T.micro, color = if (live) color else c.sub)
+        Text(text, style = T.micro, color = if (live) c.text else c.sub)
     }
 }
 
@@ -272,4 +273,42 @@ fun Gap(h: Dp) = Spacer(Modifier.height(h))
 @Composable
 fun HRow(modifier: Modifier = Modifier, gap: Dp = 8.dp, content: @Composable () -> Unit) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically) { content() }
+}
+
+
+/** A soft on/off switch: a pill track that fills with the accent, with a glossy knob. */
+@Composable
+fun PillSwitch(checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    val c = LocalPulse.current
+    val k by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = 500f), label = "sw")
+    Box(
+        modifier.size(54.dp, 32.dp).clip(RoundedCornerShape(50))
+            .background(androidx.compose.ui.graphics.lerp(Color.White.copy(alpha = 0.1f), c.accent, k))
+            .pressable(scaleDown = 0.92f) { onChange(!checked) },
+    ) {
+        Box(
+            Modifier.padding(3.dp).graphicsLayer { translationX = k * 22.dp.toPx() }.size(26.dp).clip(CircleShape)
+                .background(Brush.radialGradient(listOf(Color.White, Color(0xFFDCD8DF)), center = Offset(18f, 14f))),
+        )
+    }
+}
+
+/** A glossy little planet of colour: used for coats, accents and paint jobs. */
+@Composable
+fun ColorOrb(base: Color, rim: Color, selected: Boolean, size: Dp = 56.dp, modifier: Modifier = Modifier) {
+    val c = LocalPulse.current
+    val s by animateFloatAsState(if (selected) 1f else 0.78f, spring(dampingRatio = 0.55f, stiffness = 380f), label = "orb")
+    Canvas(modifier.size(size).graphicsLayer { scaleX = s; scaleY = s }) {
+        val r = this.size.minDimension / 2f
+        if (selected) drawCircle(Brush.radialGradient(listOf(base.copy(alpha = 0.55f), Color.Transparent), radius = r * 1.6f), radius = r * 1.6f)
+        drawCircle(
+            Brush.radialGradient(
+                listOf(androidx.compose.ui.graphics.lerp(base, Color.White, 0.55f), base, androidx.compose.ui.graphics.lerp(rim, Color.Black, 0.35f)),
+                center = Offset(center.x - r * 0.35f, center.y - r * 0.4f), radius = r * 1.5f,
+            ),
+            radius = r * 0.86f,
+        )
+        drawCircle(Color.White.copy(alpha = 0.55f), radius = r * 0.16f, center = Offset(center.x - r * 0.32f, center.y - r * 0.36f))
+        if (selected) drawCircle(c.text, radius = r * 0.97f, style = Stroke(r * 0.05f))
+    }
 }

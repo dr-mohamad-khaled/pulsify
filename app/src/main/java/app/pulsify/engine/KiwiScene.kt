@@ -653,7 +653,7 @@ class KiwiScene(private val context: Context) : Creature {
                         if ((kissFlags and 2) == 0) {
                             kissFlags = kissFlags or 2
                             smudgeX = birdX; smudgeY = birdY + 0.02f * size * zoom; smudgeS = 0.09f * size * zoom; smudge = 1f
-                            sq = 0.72f; sqV = 0f
+                            sq = 0.86f; sqV = 0f
                             spawnFx(2f, 0.35f, 0.75f, 0.7f); spawnFx(2f, -0.35f, 0.7f, 0.7f); spawnFx(2f, 0.05f, 0.95f, 0.6f)
                             say("*BONK*", 1.1f)
                         }
