@@ -40,9 +40,9 @@ adb shell input keyevent KEYCODE_SLEEP; sleep 5; adb shell input keyevent KEYCOD
 adb shell wm dismiss-keyguard; sleep 5; shot 35_after_unlock
 echo "== change things in the app while the wallpaper is live"
 adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 8; shot 36_app_with_live
-ui tap "Open Studio"; sleep 5
+ui tap "Customize"; sleep 5
 for n in Kalboob Kitty Mochi Kalboob; do ui tap "$n"; sleep 3; done
-ui tap "Mood"; sleep 1; ui switch "Pretend it's charging"; sleep 2
+ui tap "Time"; sleep 1; ui tap "Pretend charging"; sleep 2
 adb shell input keyevent KEYCODE_HOME; sleep 10; shot 37_home_after_changes
 adb shell input tap 540 1600; sleep 3
 adb shell am force-stop $PKG; sleep 10; shot 38_after_force_stop
@@ -54,19 +54,19 @@ sleep 12; shot 01_home
 adb shell dumpsys gfxinfo $PKG reset > /dev/null
 
 echo "== studio"
-ui tap "Open Studio"; sleep 6; shot 02_studio
-ui tap "Hide"; sleep 3
+ui tap "Customize"; sleep 6; shot 02_studio
+ui tap "Hide controls"; sleep 3
 # Tap the creature, hold it, swipe across it.
 adb shell input tap 540 1700; sleep 2; shot 03_tap
 adb shell input swipe 540 1650 545 1655 1500; sleep 2; shot 04_hold
 adb shell input swipe 150 1600 950 1600 120; sleep 3
 adb shell input swipe 900 600 902 602 1200; sleep 5; shot 05_sky_hold
 ui tap "Show controls"; sleep 2
-for t in Look Tricks Mood Music; do ui tap "$t"; sleep 2; shot "06_tab_$t"; done
-ui tap "Mood"; sleep 1; ui switch "Pretend it's charging"; sleep 1; ui tap "Hide"; sleep 6; shot 07_charging
-ui tap "Show controls"; sleep 1; ui switch "Pretend it's charging"; ui switch "Pretend battery is low"; ui tap "Hide"; sleep 5; shot 08_low
-ui tap "Show controls"; sleep 1; ui switch "Pretend battery is low"; ui tap "Night"; ui tap "Hide"; sleep 6; shot 09_night
-ui tap "Show controls"; sleep 1; ui tap "Auto"; ui tap "Music"; ui switch "Demo groove"; ui tap "Hide"; sleep 8; shot 10_music
+for t in Look World Tricks Time Sound; do ui tap "$t"; sleep 2; shot "06_tab_$t"; done
+ui tap "Time"; sleep 1; ui tap "Pretend charging"; sleep 1; ui tap "Hide controls"; sleep 6; shot 07_charging
+ui tap "Show controls"; sleep 1; ui tap "Pretend charging"; ui tap "Pretend low battery"; ui tap "Hide controls"; sleep 5; shot 08_low
+ui tap "Show controls"; sleep 1; ui tap "Pretend low battery"; ui tap "Hide controls"; sleep 6; shot 09_night
+ui tap "Show controls"; sleep 1; ui tap "Sound"; ui tap "Demo beat"; ui tap "Hide controls"; sleep 8; shot 10_music
 timeout 60 adb shell dumpsys gfxinfo $PKG > $OUT/gfxinfo_studio.txt
 
 echo "== every creature and environment"
@@ -82,7 +82,7 @@ sleep 3; shot 21_after_monkey
 
 echo "== kitty laser dot"
 adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 6
-ui tap "Kitty"; sleep 4; ui tap "Hide"; sleep 3
+ui tap "Kitty"; sleep 4; ui tap "Hide controls"; sleep 3
 adb shell input swipe 200 1400 900 1500 1500; sleep 1
 adb shell input swipe 900 1500 860 1520 1800; sleep 3; shot 40_kitty_laser
 adb shell input swipe 540 1700 545 1705 1800; sleep 2; shot 41_kitty_purr
@@ -93,7 +93,7 @@ ui tap "Tricks"; sleep 2; shot 50_kiwi_tricks
 for t in "Trick: Squawk!" "Trick: Say something" "Trick: Fly a lap" "Trick: Upside-down" "Trick: Headbang" "Trick: Give a seed"; do ui tap "$t"; sleep 3; done
 shot 51_kiwi_after_tricks
 ui tap "Kiwi word"; sleep 1; adb shell input text "Hello%sDr"; sleep 1; ui tap "Teach"; sleep 1; shot 52_kiwi_talks
-ui tap "Hide"; sleep 2
+ui tap "Hide controls"; sleep 2
 adb shell input tap 540 1500; sleep 1; adb shell input swipe 200 900 205 905 1200; sleep 4; shot 53_kiwi_seed
 for i in 1 2 3 4; do adb shell input tap 900 600; sleep 0.3; done; sleep 3; shot 54_kiwi_copy
 adb shell input keyevent KEYCODE_HOME; sleep 6; shot 55_home_kiwi_live

@@ -182,7 +182,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
                     .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 28.dp),
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    GlassCircle(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.text, modifier = Modifier.size(20.dp)) }
+                    GlassCircle(onClick = onBack, desc = "Back") { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.text, modifier = Modifier.size(20.dp)) }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         AnimatedContent(state.displayName, transitionSpec = { (fadeIn() + slideInVertically { it / 3 }) togetherWith fadeOut() }, label = "nm") { n ->
@@ -190,7 +190,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
                         }
                         Text(subtitle(state), style = T.small, color = c.sub, maxLines = 1)
                     }
-                    GlassCircle(onClick = { hidden = true }) { EyeGlyph(c.text) }
+                    GlassCircle(onClick = { hidden = true }, desc = "Hide controls") { EyeGlyph(c.text) }
                 }
             }
         }
@@ -262,10 +262,11 @@ private fun subtitle(state: AppState): String {
 }
 
 @Composable
-private fun GlassCircle(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun GlassCircle(onClick: () -> Unit, desc: String, content: @Composable () -> Unit) {
     Box(
         Modifier.size(44.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.35f))
-            .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape).pressable(onClick = onClick),
+            .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape).pressable(onClick = onClick)
+            .semantics { contentDescription = desc },
         contentAlignment = Alignment.Center,
     ) { content() }
 }
@@ -741,7 +742,7 @@ private fun SoundPanel(state: AppState, source: AudioFrame.Source, spectrum: Flo
 @Composable
 private fun SwitchLine(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
     val c = LocalPulse.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.pressable(scaleDown = 0.98f, haptic = false) { onChange(!on) }, verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = T.bodyStrong, color = c.text, modifier = Modifier.weight(1f))
         PillSwitch(on, onChange)
     }
