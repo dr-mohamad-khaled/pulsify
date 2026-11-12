@@ -338,7 +338,8 @@ private fun ModeDial(modes: List<Mode>, selected: Mode, onSelect: (Mode) -> Unit
                 Column(
                     Modifier.onGloballyPositioned {
                         val px = it.parentLayoutCoordinates?.localPositionOf(it, Offset.Zero)?.x ?: 0f
-                        centers[i] = px + it.size.width / 2f; measured++
+                        val v = px + it.size.width / 2f
+                        if (kotlin.math.abs(centers[i] - v) > 0.5f) { centers[i] = v; measured++ }
                     }.pressable(scaleDown = 0.9f) { onSelect(m) }.padding(horizontal = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
