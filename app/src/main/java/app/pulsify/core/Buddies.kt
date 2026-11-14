@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.WindowManager
+import app.pulsify.widget.BuddyWidgetProvider
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -105,7 +106,7 @@ object Buddies {
         if (!moved && old.placed) return
         slots = slots.map { if (it.widgetId == widgetId) it.copy(page = page, l = l, t = t, r = r, b = b) else it }
         save()
-        main.post { app.pulsify.widget.BuddyWidgetProvider.refresh(app, intArrayOf(widgetId)) }
+        main.post { BuddyWidgetProvider.refresh(app, intArrayOf(widgetId)) }
     }
 
     /** Turns a launcher tap rectangle (screen pixels) into screen fractions and queues it. */

@@ -69,10 +69,10 @@ fun makeCreature(id: Int, context: Context): Creature? = when (id) {
 }
 
 /** A short animation added on top of a buddy's pose. */
-private class Move(val kind: Int, val start: Float, val dur: Float, val a: Float = 1f)
+internal class Move(val kind: Int, val start: Float, val dur: Float, val a: Float = 1f)
 
 /** Everything a buddy's sprite does this frame (reset, then every motion adds to it). */
-private class Pose {
+internal class Pose {
     var sx = 1f; var sy = 1f; var rot = 0f; var offX = 0f; var offY = 0f; var skew = 0f
     var swirl = 0f; var wave = 0f; var sick = 0f; var blush = 0f; var flash = 0f; var alpha = 1f; var clip = false
     fun reset() { sx = 1f; sy = 1f; rot = 0f; offX = 0f; offY = 0f; skew = 0f; swirl = 0f; wave = 0f; sick = 0f; blush = 0f; flash = 0f; alpha = 1f; clip = false }
