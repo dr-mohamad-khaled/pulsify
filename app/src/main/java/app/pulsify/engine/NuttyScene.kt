@@ -1,16 +1,18 @@
 package app.pulsify.engine
 
 import android.content.Context
-import android.graphics.Canvas
 import android.graphics.Color
+import android.opengl.GLES20
+import app.pulsify.core.AudioFrame
+import app.pulsify.core.Mood
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.FloatBuffer
 import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sign
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -18,527 +20,533 @@ import kotlin.random.Random
 data class NuttyCoat(val name: String, val fur: Int, val light: Int, val dark: Int, val belly: Int, val tail: Int)
 
 val NUTTY_COATS = listOf(
-    NuttyCoat("Red", 0xFFD4762F.toInt(), 0xFFF2AC6A.toInt(), 0xFF8E4618.toInt(), 0xFFF8E2C4.toInt(), 0xFFD9782F.toInt()),
-    NuttyCoat("Grey", 0xFF8E8A92.toInt(), 0xFFC9C5CC.toInt(), 0xFF4E4A54.toInt(), 0xFFF1EDF2.toInt(), 0xFF9C97A0.toInt()),
-    NuttyCoat("Black", 0xFF3A3238.toInt(), 0xFF6E6470.toInt(), 0xFF141016.toInt(), 0xFFC9B8A8.toInt(), 0xFF453B43.toInt()),
-    NuttyCoat("Golden", 0xFFE8A83A.toInt(), 0xFFFFDC8A.toInt(), 0xFFA0661A.toInt(), 0xFFFFF1D6.toInt(), 0xFFF0B347.toInt()),
-    NuttyCoat("Flying", 0xFFB59273.toInt(), 0xFFE6CBB0.toInt(), 0xFF6B4E36.toInt(), 0xFFFFF6EA.toInt(), 0xFFC4A283.toInt()),
+    NuttyCoat("Red", 0xFFD1692A.toInt(), 0xFFF2AC6A.toInt(), 0xFF5E2A10.toInt(), 0xFFFFE6C8.toInt(), 0xFFD9782F.toInt()),
+    NuttyCoat("Grey", 0xFF8E8A96.toInt(), 0xFFC9C5CC.toInt(), 0xFF3A3640.toInt(), 0xFFF4F1F6.toInt(), 0xFF9C97A0.toInt()),
+    NuttyCoat("Black", 0xFF3A3238.toInt(), 0xFF6E6470.toInt(), 0xFF120E12.toInt(), 0xFFD9C8B8.toInt(), 0xFF453B43.toInt()),
+    NuttyCoat("Golden", 0xFFE6A13A.toInt(), 0xFFFFDC8A.toInt(), 0xFF8A5212.toInt(), 0xFFFFF1D6.toInt(), 0xFFF0B347.toInt()),
+    NuttyCoat("Flying", 0xFFB08866.toInt(), 0xFFE6CBB0.toInt(), 0xFF4E3624.toInt(), 0xFFFFF6EA.toInt(), 0xFFC4A283.toInt()),
 )
 
 /**
- * Nutty, the red squirrel. Twitchy, nosy, always one second from panicking.
+ * Nutty, the red squirrel. Twitchy, nosy, always one second from panicking. A plush SDF
+ * character: huge frosted plume of a tail, mitten paws, cheeks that swell with stashed nuts.
  * Tap: freezes, eyes huge, tail puffs. Drag: hops after your finger. Hold: an acorn appears;
- * it snatches it, stuffs its cheek and runs off to bury it (then forgets where).
+ * it hops over, grabs it and nibbles. Character units: feet on the floor at y = -0.55.
  */
-class NuttyScene(context: Context) : CanvasCreature(context) {
+class NuttyScene(private val context: Context) : Creature {
 
-    private enum class Act { NONE, NIBBLE, STASH, LOOKOUT, FLICK, ZOOM, CATCH, SPIN, SCRATCH, FEED, DRUM }
+    override var listener: SceneListener? = null
 
-    private var coat = NUTTY_COATS[0]
-    private var u = 100f
-    private var x = 0f; private var homeX = 0f
-    private var face = 1f; private var faceDraw = 1f
-    private var hopT = 0f; private var hopFrom = 0f; private var hopTo = 0f; private var hopping = false; private var hopH = 0f
-    private var jumpY = 0f
+    private enum class Act { NONE, NIBBLE, STASH, LOOKOUT, FLICK, ZOOM, CATCH, SPIN, SCRATCH, FEED, DRUM, GREET, STARTLE }
+
+    private var program = 0
+    private var quadVbo = 0
+    private val uni = HashMap<String, Int>()
+    private val fxBuf: FloatBuffer = ByteBuffer.allocateDirect(24 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+    private val fx = FloatArray(24)
+    private val fxSpeed = FloatArray(6)
+    private val fxVel = FloatArray(12)
+
+    private var w = 1; private var h = 1
+    private var time = 0f
+    private var size = 0.6f
+    private var homeX = 0f; private var homeY = -0.4f
+    override var bottomInset = 0f
+        set(v) { field = v.coerceIn(0f, 0.8f); layout() }
+
+    // Body.
+    private var x = 0f
+    private var hopping = false; private var hopFrom = 0f; private var hopTo = 0f; private var hopT = 0f; private var hopTime = 0.26f
+    private var jumpY = 0f; private var vy = 0f
+    private var sy = 1f; private var syV = 0f
+    private var shear = 0f; private var shearT = 0f
+    private var stand = 0f; private var standT = 0f
+
+    // Head and face.
+    private var lookX = 0f; private var lookY = 0f; private var lookTX = 0f; private var lookTY = 0f
+    private var tilt = 0f; private var tiltT = 0f
+    private var headY = 0f; private var headYT = 0f
+    private var nextWander = 2f
+    private var blink = 1f; private var nextBlink = 2.5f
+    private var eyeMode = 0f; private var mouth = 0f
+    private var chew = 0f; private var chewing = false
+    private var cheeks = 0f; private var cheeksT = 0f
+    private var earL = 0f; private var earR = 0f; private var earLV = 0f; private var earRV = 0f; private var twitchIn = 2f
+
+    // Tail: swing (spring), sway, curl, fluff.
+    private var tail = 0f; private var tailV = 0f; private var tailT = 0f
+    private var swayPhase = 0f; private var sway = 0.06f; private var swayT = 0.06f
+    private var curl = 0.7f; private var curlT = 0.7f
+    private var fluff = 0f
+
+    // Hands (character space), eased toward targets.
+    private val hand = floatArrayOf(-0.045f, -0.15f, 0.045f, -0.15f)
+    private val handT = FloatArray(4)
+    private val handV = FloatArray(4)
+
+    // Acorn: 0 none, 1 in hands, 2 at mouth, 3 loose in the world, 4 stashed in a cheek.
+    private var acorn = 0
+    private var acornX = 0f; private var acornY = 0f; private var acornVy = 0f; private var acornRot = 0f; private var acornVis = 0f
+
+    // Behaviour.
     private var act = Act.NONE; private var actT = 0f; private var actLen = 0f
     private var nextIdle = 3f
     private val lastActs = ArrayDeque<Act>()
-    private var poke = -9f
-    private var tapTimes = 0; private var lastTap = -9f
-    private var dragging = false; private var fingerX = 0f; private var fingerY = 0f
-    private var acornX = 0f; private var acornY = 0f; private var acornVy = 0f; private var acornOn = false; private var acornFree = false
-    private var cheek = 0f
-    private var mound = -1f; private var moundT = 0f
-    private var msg = ""; private var msgT = 0f
-    private var blinkT = 2.5f
-    private var beatPhase = 0f; private var lastBeat = -9f
-    private var spin = 0f
-    private var dust = 0f
+    private var awakeFor = 0f
+    private var charging = false; private var lowBattery = false; private var night = false; private var musicOn = false
+    private var lastBeat = -9f
+    private var taps = 0; private var lastTap = -9f
 
-    override val busy: Boolean get() = act != Act.NONE || hopping || sinceTouch < 2f || dragging
+    // Touch.
+    private var touchDown = false; private var downOnBody = false
+    private var tX = 0f; private var tY = 0f
 
-    override fun layout() {
-        u = unit * 0.16f
-        if (homeX == 0f) { homeX = W * 0.55f; x = homeX }
-        homeX = homeX.coerceIn(u * 1.6f, W - u * 1.6f); x = x.coerceIn(u, W - u)
+    private val coat = FloatArray(3); private val cream = FloatArray(3); private val dark = FloatArray(3); private val rim = FloatArray(3)
+    private val glow = floatArrayOf(0.35f, 1f, 0.5f)
+    private var colorsInit = false
+    var sinceTouch = 99f; private set
+
+    override val busy: Boolean
+        get() = touchDown || sinceTouch < 2f || act != Act.NONE || hopping || abs(vy) > 0.01f || acorn == 3
+
+    override fun onSurfaceCreated() {
+        val vert = context.assets.open("shaders/mochi.vert").bufferedReader().use { it.readText() }
+        val frag = context.assets.open("shaders/nutty.frag").bufferedReader().use { it.readText() }
+        program = Gl.program(vert, frag)
+        for (n in listOf("uQuad", "uRes", "uTime", "uPos", "uSize", "uPx", "uSquash", "uShear", "uLook", "uTilt", "uHeadY",
+            "uStand", "uEyeOpen", "uEyeMode", "uMouth", "uChew", "uCheeks", "uEars", "uTail", "uFluff", "uHandL", "uHandR",
+            "uAcorn", "uCoat", "uCoat2", "uCoat3", "uRim", "uGlow", "uFx", "uBattIcon", "uBatt", "uDim")) {
+            uni[n] = GLES20.glGetUniformLocation(program, n)
+        }
+        val ids = IntArray(1)
+        GLES20.glGenBuffers(1, ids, 0); quadVbo = ids[0]
+        val q = floatArrayOf(0f, 0f, 1f, 0f, 0f, 1f, 1f, 1f)
+        val fb = ByteBuffer.allocateDirect(q.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().put(q); fb.position(0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, quadVbo)
+        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, q.size * 4, fb, GLES20.GL_STATIC_DRAW)
     }
 
-    fun setCoat(i: Int) { coat = NUTTY_COATS[i.coerceIn(0, NUTTY_COATS.size - 1)] }
+    override fun onSurfaceChanged(width: Int, height: Int) { w = max(1, width); h = max(1, height); layout() }
 
-    override fun update(dt: Float, input: SceneInput) {
-        setCoat(input.coat)
-        super.update(dt, input)
+    private var ground = Float.NaN
+    override fun setGround(y: Float) {
+        if (y == ground || (y.isNaN() && ground.isNaN())) return
+        ground = y; layout()
+    }
+
+    private val halfW get() = 0.5f * w / min(w, h)
+
+    private fun layout() {
+        val halfH = 0.5f * h / min(w, h)
+        size = min(0.6f, halfW * 2f * 0.58f)
+        homeX = -0.1f * size
+        homeY = (if (ground.isNaN()) -halfH + 0.3f else ground) + 0.55f * size
+        if (h.toFloat() / w < 1.5f) { size = min(0.4f, halfW * 0.75f); homeY = halfH - 0.3f - 0.75f * size }
+        if (bottomInset > 0f) {
+            val floor = -halfH + bottomInset * 2f * halfH + 0.06f
+            size = min(size, (halfH - 0.08f - floor) / 1.4f)
+            homeY = max(homeY, floor + 0.55f * size)
+        }
+    }
+
+    private val bodyX get() = homeX + x
+    private val bodyY get() = homeY + jumpY
+    private val floorUv get() = homeY - 0.55f * size
+    private val reach get() = (halfW - 0.5f * size).coerceAtLeast(0f)
+
+    private fun toUv(nx: Float, ny: Float): Pair<Float, Float> {
+        val m = min(w, h).toFloat()
+        return Pair((nx - 0.5f) * w / m, (0.5f - ny) * h / m)
+    }
+
+    private fun onBody(ux: Float, uy: Float): Boolean {
+        val cx = (ux - bodyX) / size; val cy = (uy - bodyY) / size
+        return (cx / 0.42f) * (cx / 0.42f) + ((cy + 0.05f) / 0.62f) * ((cy + 0.05f) / 0.62f) < 1f
     }
 
     // ---- Touch ----
-    private fun near(px: Float, py: Float) = hypot(px - x, py - (floorY - u * 1.0f)) < u * 1.6f
 
     override fun touchDown(nx: Float, ny: Float): Boolean {
-        val px = xp(nx); val py = yp(ny)
-        sinceTouch = 0f
-        if (night && act == Act.NONE) wake()
-        fingerX = px; fingerY = py
-        if (near(px, py)) return true
-        dragging = true
-        return false
+        val (ux, uy) = toUv(nx, ny)
+        sinceTouch = 0f; awakeFor = 12f
+        tX = ux; tY = uy; touchDown = true
+        downOnBody = onBody(ux, uy)
+        lookAt(ux, uy)
+        return downOnBody
     }
+
     override fun touchMove(nx: Float, ny: Float): Boolean {
-        fingerX = xp(nx); fingerY = yp(ny); sinceTouch = 0f
-        return false
+        if (!touchDown) return false
+        val (ux, uy) = toUv(nx, ny)
+        tX = ux; tY = uy; sinceTouch = 0f
+        lookAt(ux, uy)
+        // Hops after the finger when it wanders off to the side.
+        if (!downOnBody && act == Act.NONE && abs(ux - bodyX) > 0.45f * size) hopToward(ux - homeX)
+        return downOnBody
     }
-    override fun touchUp(): Boolean { dragging = false; return false }
+
+    override fun touchUp(): Boolean { val r = touchDown && downOnBody; touchDown = false; sinceTouch = 0f; return r }
 
     override fun tapAt(nx: Float, ny: Float): Boolean {
-        val px = xp(nx); val py = yp(ny)
-        sinceTouch = 0f
-        if (near(px, py)) {
-            // Startled: freeze, huge eyes, tail puffs to double size.
-            poke = time
-            if (time - lastTap < 0.6f) tapTimes++ else tapTimes = 1
+        val (ux, uy) = toUv(nx, ny)
+        sinceTouch = 0f; awakeFor = 12f
+        lookAt(ux, uy)
+        if (onBody(ux, uy)) {
+            taps = if (time - lastTap < 0.7f) taps + 1 else 1
             lastTap = time
-            if (tapTimes >= 3) { say("chk-chk-chk!!", 1.6f); tapTimes = 0; start(Act.ZOOM) } else say("!!", 1.1f)
             listener?.onBondXp(1)
+            if (taps >= 3) { taps = 0; start(Act.ZOOM) } else start(Act.STARTLE)
             return true
         }
-        // Tap the ground near it: it hops over to check what you dropped.
-        hopToX(px)
+        // Tap the ground: it hops over to check what you dropped.
+        hopToward(ux - homeX)
         return false
     }
 
     override fun longPressAt(nx: Float, ny: Float): Boolean {
-        // Offer an acorn where the finger is.
-        acornX = xp(nx).coerceIn(u, W - u); acornY = min(yp(ny), floorY - u * 0.2f); acornVy = 0f; acornOn = true; acornFree = true
-        start(Act.FEED)
+        val (ux, uy) = toUv(nx, ny)
+        sinceTouch = 0f; awakeFor = 12f
+        dropAcorn(ux, uy)
         listener?.onBondXp(2)
         return true
     }
 
-    override fun swiped(dir: Float, fast: Boolean) { if (!perform(if (fast) "catch" else "lookout")) greet() }
+    private fun dropAcorn(ux: Float, uy: Float) {
+        acorn = 3; acornX = ux.coerceIn(homeX - reach, homeX + reach); acornY = max(uy, floorUv + 0.1f * size); acornVy = 0f; acornVis = 1f
+        start(Act.FEED)
+    }
 
-    override fun greet() { say(listOf("hi!!", "got nuts?", "oh! you!").random(), 1.6f); start(Act.FLICK) }
+    private fun lookAt(ux: Float, uy: Float) {
+        lookTX = ((ux - bodyX) / size / 0.8f).coerceIn(-1f, 1f)
+        lookTY = ((uy - bodyY - 0.15f * size) / size / 0.8f).coerceIn(-1f, 1f)
+        val d = hypot(ux - bodyX, uy - (bodyY + 0.15f * size)) / size
+        tiltT = if (d in 0.3f..1.0f) 0.25f * (if (ux > bodyX) 1f else -1f) else 0f
+        nextWander = 2.5f + Random.nextFloat() * 2f
+    }
+
+    private fun hopToward(targetX: Float) {
+        if (hopping || jumpY > 0f) return
+        val t = targetX.coerceIn(-reach - homeX, reach - homeX)
+        if (abs(t - x) < 0.04f * size) return
+        hopFrom = x; hopTo = x + (t - x).coerceIn(-0.35f * size, 0.35f * size); hopT = 0f; hopping = true
+        vy = 4.6f * size * hopTime * 0.5f
+    }
+
+    override fun swiped(dir: Float, fast: Boolean) { if (fast) start(Act.STARTLE) else start(listOf(Act.LOOKOUT, Act.FLICK, Act.GREET).random()) }
+
+    override fun greet() { awakeFor = 12f; start(Act.GREET) }
 
     override fun perform(trick: String): Boolean {
-        wake()
+        awakeFor = 15f; sinceTouch = 0f
         val a = when (trick) {
             "nibble" -> Act.NIBBLE; "stash" -> Act.STASH; "lookout" -> Act.LOOKOUT; "flick" -> Act.FLICK
             "zoom" -> Act.ZOOM; "catch" -> Act.CATCH; "spin" -> Act.SPIN; "scratch" -> Act.SCRATCH
-            "feed" -> { acornX = (x + face * u * 3f).coerceIn(u, W - u); acornY = floorY - u * 3f; acornVy = 0f; acornOn = true; acornFree = true; Act.FEED }
+            "feed" -> { dropAcorn(bodyX + 0.6f * size * (if (Random.nextBoolean()) 1f else -1f), bodyY + 1.0f * size); return true }
             "drum" -> Act.DRUM
             else -> return false
         }
         start(a); return true
     }
 
-    private var awakeFor = 0f
-    private fun wake() { awakeFor = 20f }
-
-    private fun say(s: String, d: Float) { msg = s; msgT = d }
-
     private fun start(a: Act) {
         act = a; actT = 0f
         actLen = when (a) {
-            Act.NIBBLE -> 3.2f; Act.STASH -> 7f; Act.LOOKOUT -> 3.6f; Act.FLICK -> 1.6f; Act.ZOOM -> 3.4f
-            Act.CATCH -> 3f; Act.SPIN -> 2f; Act.SCRATCH -> 2.4f; Act.FEED -> 9f; Act.DRUM -> 4f; Act.NONE -> 0f
+            Act.NIBBLE -> 3.4f; Act.STASH -> 5.4f; Act.LOOKOUT -> 3.6f; Act.FLICK -> 1.5f; Act.ZOOM -> 3.0f
+            Act.CATCH -> 3.0f; Act.SPIN -> 1.3f; Act.SCRATCH -> 2.2f; Act.FEED -> 6f; Act.DRUM -> 3.2f; Act.GREET -> 1.8f
+            Act.STARTLE -> 1.4f; Act.NONE -> 0f
         }
-        if (a == Act.CATCH) { acornX = (x + face * u * 1.2f).coerceIn(u, W - u); acornY = -u; acornVy = 0f; acornOn = true; acornFree = true }
-        if (a == Act.STASH) { hopToX((x + face * u * 2.2f).coerceIn(u * 1.5f, W - u * 1.5f)) }
-        if (a == Act.ZOOM) dust = 1f
-    }
-
-    private fun hopToX(tx: Float) {
-        val target = tx.coerceIn(u * 1.2f, W - u * 1.2f)
-        if (abs(target - x) < u * 0.2f) return
-        hopping = true; hopT = 0f; hopFrom = x; hopTo = target
-        face = sign(target - x).let { if (it == 0f) face else it }
-        hopH = min(u * 0.6f, abs(target - x) * 0.25f + u * 0.15f)
+        if (a == Act.NIBBLE || a == Act.STASH) { if (acorn == 0) { acorn = 1; acornVis = 0f } }
+        if (a == Act.CATCH) { acorn = 3; acornX = bodyX + 0.02f * size; acornY = bodyY + 1.6f * size; acornVy = 0f; acornVis = 1f }
+        if (a == Act.STARTLE) { syV += 4f; spawn(6f, 0.25f, 0.62f, 0.8f) }
+        if (a == Act.GREET) spawn(1f, -0.2f, 0.55f, 0.9f)
     }
 
     // ---- Simulation ----
-    override fun step(dt: Float) {
-        actT += dt; msgT -= dt; moundT -= dt
-        if (awakeFor > 0f) awakeFor -= dt
-        val asleep = night && awakeFor <= 0f && act == Act.NONE && sinceTouch > 8f && !musicOn
-        blinkT -= dt; if (blinkT < 0f) blinkT = 2.4f + Random.nextFloat() * 2.5f
 
-        // Beat for the music dance.
-        val a = audio
-        if (musicOn && a.beat > 0.95f && time - lastBeat > 0.25f) { lastBeat = time; beatPhase = 0f }
-        beatPhase += dt * 2f
+    override fun update(dt: Float, input: SceneInput) {
+        time += dt; sinceTouch += dt; awakeFor = max(0f, awakeFor - dt)
+        charging = input.charging; lowBattery = input.lowBattery; night = input.mood == Mood.NIGHT
+        musicOn = input.audio.source != AudioFrame.Source.NONE
+        updateColors(input, dt)
+        val asleep = night && awakeFor <= 0f && act == Act.NONE && !touchDown
 
-        // Hops (quick little arcs).
-        if (hopping) {
-            val dur = (abs(hopTo - hopFrom) / (u * 7f)).coerceIn(0.22f, 0.9f)
-            hopT += dt / dur
-            val k = min(1f, hopT)
-            // Squirrels move in bursts: several small bounces along the way.
-            val n = max(1, (abs(hopTo - hopFrom) / (u * 1.1f)).toInt())
-            x = lerpF(hopFrom, hopTo, easeF(k))
-            jumpY = abs(sin(k * PI.toFloat() * n)) * hopH
-            if (k >= 1f) { hopping = false; jumpY = 0f }
-        } else if (dragging && act == Act.NONE && sinceTouch < 1.5f) {
-            // Chase the finger in bursts: hop, stop, sit up, look, hop again.
-            if (abs(fingerX - x) > u * 0.9f && Random.nextFloat() < dt * 3f) hopToX(fingerX)
+        // Pose targets: a calm sitting squirrel, acorn hugged at the chest.
+        var lx = -0.05f; var ly = -0.15f; var rx = 0.05f; var ry = -0.15f
+        standT = 0f; headYT = 0f; eyeMode = 0f; mouth = 0f; cheeksT = 0f; chewing = false
+        tailT = 0f; swayT = 0.06f; curlT = 0.7f
+        var fluffT = 0f
+        shearT = 0f
+
+        if (asleep) {
+            eyeMode = 3f; headYT = -0.05f; tiltT = 0.25f; curlT = 1.3f; tailT = -0.15f; swayT = 0.02f
+            if (Random.nextFloat() < dt * 0.6f) spawn(5f, 0.2f, 0.45f, 0.4f)
         }
-        faceDraw += (face - faceDraw) * min(1f, dt * 14f)
-
-        // Falling / offered acorn.
-        if (acornOn && acornFree) {
-            acornVy += unit * 2.4f * dt
-            acornY += acornVy * dt
-            val ground = floorY - u * 0.16f
-            if (acornY > ground) { acornY = ground; acornVy = -acornVy * 0.35f; if (abs(acornVy) < u * 0.4f) acornVy = 0f }
+        if (lowBattery && !asleep) { eyeMode = 2f; headYT = -0.04f; tailT = 0.35f; curlT = 0.2f; swayT = 0.01f }
+        if (charging && !asleep) {
+            // Cosy: hugs a glowing acorn and nibbles it now and then.
+            if (acorn == 0) { acorn = 1; acornVis = 0f }
+            if (sin(time * 0.7f) > 0.6f) { chewing = true; mouth = 1f; lx = -0.035f; ly = 0.0f; rx = 0.035f; ry = 0.0f }
+            eyeMode = if (sin(time * 0.31f) > 0.2f) 1f else 0f
+        }
+        if (musicOn && !asleep) {
+            val a = input.audio
+            if (a.beat > 0.9f && time - lastBeat > 0.25f) { lastBeat = time; syV -= 2.2f + a.bass * 2f; tailV += 3f * (if (Random.nextBoolean()) 1f else -1f) }
+            headYT += 0.02f * a.bass; swayT = 0.12f + 0.12f * a.mid
+            if (Random.nextFloat() < dt * 0.8f) spawn(4f, 0.3f, 0.6f, 0.5f)
         }
 
+        actT += dt
+        val k = if (actLen > 0f) actT / actLen else 0f
         when (act) {
-            Act.FEED, Act.CATCH -> {
-                if (acornOn && acornFree) {
-                    if (abs(acornX - x) > u * 0.6f && !hopping) hopToX(acornX - sign(acornX - x) * u * 0.45f)
-                    if (abs(acornX - x) < u * 0.75f && acornY > floorY - u * 1.4f && !hopping) {
-                        acornFree = false; cheek = 1f; say(if (act == Act.FEED) "mine!" else "got it!", 1.2f)
-                        if (act == Act.FEED) { actT = 0f; act = Act.STASH; actLen = 7f; hopToX(if (x > W / 2) u * 1.5f else W - u * 1.5f) }
-                        else actLen = actT + 1.6f
-                    }
-                }
-                if (act == Act.CATCH && actT > 6f) act = Act.NONE
+            Act.NIBBLE -> {
+                acorn = if (acorn == 0) 1 else acorn
+                lx = -0.035f; ly = 0.0f; rx = 0.035f; ry = 0.0f; chewing = true; mouth = 1f; eyeMode = if (sin(actT * 3f) > 0.4f) 1f else 0f
+                if (Random.nextFloat() < dt * 5f) spawn(3f, (Random.nextFloat() - 0.5f) * 0.1f, 0.03f, 0.9f)
             }
             Act.STASH -> {
-                // 0..1 hop away, 1..2.6 dig, 2.6..3.4 pat, 3.4.. forget.
-                if (actT in 1f..2.6f) { if (moundT < 0f) mound = x + face * u * 0.62f; moundT = 30f }
-                if (actT > 2.6f) { acornOn = false; cheek = 0f }
-                if (actT > 4.2f && actT - dt <= 4.2f) say("...where did I put it?", 2.2f)
+                // Stuff the nut in a cheek, hop aside, dig, bury, hop back.
+                if (actT < 0.8f) { lx = -0.03f; ly = 0.02f; rx = 0.03f; ry = 0.02f; mouth = 2f }
+                else { if (acorn != 0) { acorn = 4; acornVis = 0f }; cheeksT = 1f }
+                if (actT in 0.8f..0.9f) hopToward(0.5f * size * (if (x > 0f) -1f else 1f))
+                if (actT in 1.4f..3.6f) {
+                    standT = -0.2f; headYT = -0.06f
+                    val dig = sin(actT * 22f)
+                    lx = -0.09f; ly = -0.45f + 0.04f * dig; rx = 0.09f; ry = -0.45f - 0.04f * dig
+                    if (Random.nextFloat() < dt * 10f) spawn(3f, (Random.nextFloat() - 0.5f) * 0.3f, -0.5f, 1.4f)
+                    if (actT > 2.4f) cheeksT = 0f
+                }
+                if (actT in 3.6f..3.7f) { hopToward(0f); acorn = 0 }
+                if (actT > 4.2f) { eyeMode = 1f; mouth = 3f }
+            }
+            Act.LOOKOUT -> {
+                standT = 1f; lx = -0.04f; ly = 0.0f; rx = 0.04f; ry = 0.0f
+                lookTX = sin(actT * 1.8f) * 0.9f; lookTY = 0.3f
+                if (Random.nextFloat() < dt * 2f) { earLV += 8f; earRV -= 8f }
+                tailT = 0.15f; curlT = 1.0f
+            }
+            Act.FLICK -> {
+                tailV += sin(actT * 18f) * 40f * dt * (1f - k)
+                mouth = 2f * (if (sin(actT * 20f) > 0f) 1f else 0f); fluffT = 0.4f
             }
             Act.ZOOM -> {
-                // Dash to one edge and back, leaving dust.
-                if (!hopping) {
-                    if (actT < 1.6f) hopToX(if (x < W / 2) W - u * 1.3f else u * 1.3f)
-                    else if (actT < 3f) hopToX(homeX)
-                }
+                if (!hopping && jumpY == 0f) hopToward(if (sin(actT * 2.4f) > 0f) reach - homeX else -reach - homeX)
+                hopTime = 0.18f; eyeMode = 4f; mouth = 2f; fluffT = 0.6f
+                if (k > 0.85f) hopToward(0f)
             }
-            else -> {}
+            Act.CATCH -> {
+                lookTY = 1f; lookTX = 0f
+                lx = -0.06f; ly = 0.05f; rx = 0.06f; ry = 0.05f
+                if (acorn == 1) { eyeMode = 1f; mouth = 3f; lx = -0.045f; ly = -0.12f; rx = 0.045f; ry = -0.12f }
+                else mouth = 2f
+            }
+            Act.SPIN -> {
+                shearT = sin(k * PI.toFloat() * 4f) * 0.3f; tailT = sin(k * PI.toFloat() * 2f) * 0.8f
+                if (actT < 0.05f) vy = 0.9f * size
+                eyeMode = 1f
+            }
+            Act.SCRATCH -> {
+                rx = 0.16f; ry = 0.2f + 0.03f * sin(actT * 30f); tiltT = 0.25f; eyeMode = 1f; lx = -0.05f; ly = -0.15f
+            }
+            Act.FEED -> {
+                when (acorn) {
+                    3 -> {
+                        lookAt(acornX, acornY)
+                        if (acornY <= floorUv + 0.06f * size + 1e-3f && abs(acornX - bodyX) > 0.12f * size) hopToward(acornX - homeX)
+                        if (abs(acornX - bodyX) <= 0.14f * size && acornY <= floorUv + 0.07f * size) { acorn = 1; acornVis = 1f; spawn(1f, 0f, 0.6f, 0.9f) }
+                    }
+                    else -> { lx = -0.035f; ly = 0.0f; rx = 0.035f; ry = 0.0f; chewing = true; mouth = 1f; eyeMode = 1f
+                        if (Random.nextFloat() < dt * 5f) spawn(3f, (Random.nextFloat() - 0.5f) * 0.1f, 0.03f, 0.9f) }
+                }
+                if (actT > 5.5f && acorn == 3) acornVis = max(0f, acornVis - dt)
+            }
+            Act.DRUM -> {
+                val beat = sin(actT * 16f)
+                lx = -0.08f; ly = -0.3f + 0.05f * beat; rx = 0.08f; ry = -0.3f - 0.05f * beat
+                eyeMode = 1f; mouth = 3f; headYT = 0.02f * beat
+                if (Random.nextFloat() < dt * 3f) spawn(4f, (Random.nextFloat() - 0.5f) * 0.5f, 0.3f, 0.6f)
+            }
+            Act.GREET -> {
+                lx = -0.2f + 0.04f * sin(actT * 14f); ly = 0.12f; eyeMode = 1f; mouth = 3f; tiltT = 0.15f
+            }
+            Act.STARTLE -> {
+                eyeMode = 4f; mouth = 2f; fluffT = 1f; standT = 0.6f; tailT = 0.1f; curlT = 1.1f
+                lx = -0.08f; ly = -0.02f; rx = 0.08f; ry = -0.02f
+                if (actT > 0.9f) { fluffT = 0.3f }
+            }
+            Act.NONE -> {}
         }
+        if (act != Act.ZOOM) hopTime = 0.26f
         if (act != Act.NONE && actT > actLen) {
-            if (act == Act.FEED) acornOn = false
-            act = Act.NONE
+            if (act == Act.FEED || act == Act.NIBBLE) { if (acorn == 1 || acorn == 2) acorn = 0 }
+            if (act == Act.CATCH) acorn = 0
+            act = Act.NONE; nextIdle = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
         }
-        if (cheek > 0f && act == Act.NONE) cheek = max(0f, cheek - dt * 0.5f)
-        dust = max(0f, dust - dt * 0.6f)
-
-        // Idle tricks: at least 3 a minute.
-        if (act == Act.NONE && !asleep && !hopping && !dragging && sinceTouch > 3f) {
+        // Idle tricks: at least three a minute.
+        if (act == Act.NONE && !asleep && !touchDown && !charging) {
             nextIdle -= dt
             if (nextIdle <= 0f) {
-                val pool = when {
-                    charging -> mutableListOf(Act.NIBBLE, Act.FLICK, Act.LOOKOUT)
-                    lowBattery -> mutableListOf(Act.LOOKOUT, Act.FLICK, Act.NIBBLE)
-                    musicOn -> mutableListOf(Act.DRUM, Act.FLICK, Act.SPIN)
-                    else -> mutableListOf(Act.NIBBLE, Act.STASH, Act.LOOKOUT, Act.FLICK, Act.ZOOM, Act.CATCH, Act.SPIN, Act.SCRATCH)
-                }
+                val pool = mutableListOf(Act.NIBBLE, Act.STASH, Act.LOOKOUT, Act.FLICK, Act.SCRATCH, Act.CATCH, Act.SPIN, Act.DRUM, Act.GREET)
+                if (musicOn) pool += listOf(Act.DRUM, Act.DRUM)
                 pool.removeAll(lastActs)
-                val pick = pool.random()
-                lastActs.addLast(pick); if (lastActs.size > 3) lastActs.removeFirst()
-                start(pick)
-                nextIdle = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE
+                val a = pool.random()
+                lastActs.addLast(a); if (lastActs.size > 3) lastActs.removeFirst()
+                start(a)
             }
         }
-        // Wander home slowly between tricks.
-        if (act == Act.NONE && !hopping && !dragging && abs(x - homeX) > u * 2.5f && Random.nextFloat() < dt * 0.5f) hopToX(homeX)
-        if (act == Act.SPIN) spin = actT / actLen * 2f * PI.toFloat() else spin *= 0.8f
-        sleeping = asleep
-    }
-    private var sleeping = false
+        if (acorn == 1 && acornVis < 1f) acornVis = min(1f, acornVis + dt * 3f)
 
-    // ---- Paint ----
-    override fun paint(c: Canvas) {
-        val floor = floorY
-        val pk = time - poke
-        val surprised = pk < 1.4f
-        val puff = if (surprised) 1f - pk / 1.4f else 0f
-        val col = coat
-        // Mound where it buried something.
-        if (moundT > 0f && mound > 0f) ink.ell(c, mound, floor + 2f, u * 0.34f, u * 0.09f, Ink.darken(0xFF6B4423.toInt(), 0.1f), 0.9f)
-        // Shadow.
-        ink.ell(c, x, floor + 2f, u * 0.75f * (1f - jumpY / (u * 3f)), u * 0.11f, Color.BLACK, 0.3f)
+        // Acorn physics when it's loose.
+        if (acorn == 3) {
+            acornVy -= 3.6f * dt; acornY += acornVy * dt; acornRot += dt * 4f
+            val fl = floorUv + 0.06f * size
+            if (act == Act.CATCH && acornY < bodyY + 0.05f * size && abs(acornX - bodyX) < 0.3f * size) {
+                acorn = 1; acornVis = 1f; syV -= 3f; spawn(2f, 0f, 0.0f, 0.8f); spawn(1f, 0.1f, 0.6f, 0.9f)
+            } else if (acornY < fl) { acornY = fl; acornVy = -acornVy * 0.4f; if (abs(acornVy) < 0.1f) acornVy = 0f }
+        }
 
-        if (sleeping) { paintSleeping(c, floor); return }
+        // Hops.
+        if (hopping) {
+            hopT = min(1f, hopT + dt / hopTime)
+            val e = hopT * hopT * (3f - 2f * hopT)
+            x = hopFrom + (hopTo - hopFrom) * e
+            shearT += (hopTo - hopFrom).let { if (it > 0f) -0.12f else 0.12f }
+            if (hopT >= 1f) { hopping = false; x = hopTo }
+        }
+        if (jumpY > 0f || vy > 0f) {
+            vy -= 4.6f * size * dt; jumpY += vy * dt
+            if (jumpY <= 0f) { jumpY = 0f; if (vy < -0.3f * size) { syV -= 3.5f; tailV += 3f }; vy = 0f }
+        }
 
-        // Pose.
-        var cy = floor - u * 0.95f - jumpY
-        var tailFlick = sin(time * 2.2f) * 0.08f
-        var headTilt = sin(time * 0.7f) * 0.08f
-        var nib = 0f; var hold = acornOn && !acornFree; var look = 0.3f
-        var happy = false; var dig = 0f; var sitUp = 0f; var scratch = 0f
-        var eyesBig = surprised
-        when (act) {
-            Act.NIBBLE -> { nib = max(0f, sin(time * 16f)) * (if (sin(time * 1.6f) > -0.3f) 1f else 0f); hold = true }
-            Act.FLICK -> { tailFlick += sin(actT * 26f) * 0.32f * exp(-actT * 1.2f); if (actT < 0.9f && actT + 0.02f > 0.2f && msgT < 0f) say("chk!", 0.7f) }
-            Act.LOOKOUT -> { sitUp = easeF(actT / 0.4f) * (1f - easeF((actT - 3.1f) / 0.4f)); look = if ((actT * 1.4f).toInt() % 2 == 0) -1f else 1f; headTilt = look * 0.12f }
-            Act.STASH -> {
-                if (actT in 1f..2.6f) { dig = abs(sin(actT * 18f)); hold = false }
-                if (actT in 2.6f..3.4f) happy = true
-                if (actT > 3.4f) { look = sin(actT * 4f); headTilt = sin(actT * 3f) * 0.2f }
-            }
-            Act.CATCH -> { look = 0f; if (acornFree) { headTilt = -0.25f; eyesBig = true } else happy = actT % 1f < 0.5f }
-            Act.FEED -> { if (acornFree) eyesBig = true }
-            Act.SCRATCH -> { scratch = sin(actT * 30f); headTilt = 0.25f; happy = true }
-            Act.DRUM -> { hold = true; nib = 0f }
-            else -> {}
-        }
-        if (musicOn && act == Act.NONE || act == Act.DRUM) {
-            val ph = beatPhase.coerceIn(0f, 1f)
-            cy -= exp(-ph * 6f) * u * 0.14f
-            tailFlick += sin(time * PI.toFloat() * 2f) * 0.3f
-            headTilt = sin(time * PI.toFloat() * 2f) * 0.12f
-            happy = ph < 0.25f
-        }
-        if (lowBattery && act == Act.NONE) { look = sin(time * 5f); headTilt = sin(time * 4f) * 0.1f }
-        cy -= sitUp * u * 0.25f
+        // Springs and easing.
+        syV += ((1f - sy) * 160f - syV * 9f) * dt; sy += syV * dt; sy = sy.coerceIn(0.75f, 1.25f)
+        shear += (shearT - shear) * min(1f, dt * 10f)
+        stand += (standT - stand) * min(1f, dt * 6f)
+        headY += (headYT - headY) * min(1f, dt * 8f)
+        cheeks += (cheeksT - cheeks) * min(1f, dt * 6f)
+        fluff += (fluffT - fluff) * min(1f, dt * (if (fluffT > fluff) 14f else 2.5f))
+        curl += (curlT - curl) * min(1f, dt * 3f)
+        sway += (swayT - sway) * min(1f, dt * 3f)
+        swayPhase += dt * (2.2f + (if (musicOn) 4f else 0f))
+        tailV += ((tailT - tail) * 40f - tailV * 5f) * dt; tail += tailV * dt
+        // The plume leans against the direction of a hop.
+        if (hopping) tail += (hopTo - hopFrom) / size * 0.6f * dt
+        if (chewing) chew = (chew + dt * 4.5f) % 1f
+        handT[0] = lx; handT[1] = ly; handT[2] = rx; handT[3] = ry
+        for (i in 0 until 4) { handV[i] += ((handT[i] - hand[i]) * 220f - handV[i] * 18f) * dt; hand[i] += handV[i] * dt }
 
-        val f = faceDraw
-        c.save()
-        c.translate(x, 0f); c.scale(if (abs(f) < 0.1f) 0.1f * sign(f + 1e-4f) else f, 1f); c.translate(-x, 0f)
-        // Body squash while landing / breathing.
-        val sq = 1f + sin(time * 3f) * 0.015f + (if (hopping) -0.04f * cos(hopT * PI.toFloat() * 2f) else 0f)
-        c.save(); c.translate(x, floor); c.rotate(spin * 57.29578f * (if (act == Act.SPIN) 1f else 0f)); c.scale(1f / kotlin.math.sqrt(sq), sq); c.translate(-x, -floor)
+        // Ears twitch now and then; blink; gaze wanders.
+        twitchIn -= dt
+        if (twitchIn <= 0f) { if (Random.nextBoolean()) earLV += 9f else earRV -= 9f; twitchIn = 1.5f + Random.nextFloat() * 3f }
+        earLV += (-earL * 120f - earLV * 8f) * dt; earL += earLV * dt
+        earRV += (-earR * 120f - earRV * 8f) * dt; earR += earRV * dt
+        nextBlink -= dt
+        if (nextBlink <= 0f) { blink = 0f; nextBlink = 2f + Random.nextFloat() * 3f }
+        blink = min(1f, blink + dt * 9f)
+        nextWander -= dt
+        if (nextWander <= 0f && !touchDown && act == Act.NONE) {
+            lookTX = (Random.nextFloat() - 0.5f) * 1.4f; lookTY = (Random.nextFloat() - 0.3f) * 0.8f
+            tiltT = if (Random.nextFloat() < 0.35f) (Random.nextFloat() - 0.5f) * 0.4f else 0f
+            nextWander = 1.6f + Random.nextFloat() * 2.5f
+        }
+        lookX += (lookTX - lookX) * min(1f, dt * 9f); lookY += (lookTY - lookY) * min(1f, dt * 9f)
+        tilt += (tiltT - tilt) * min(1f, dt * 7f)
 
-        // Tail: a bushy S built from soft fur clumps.
-        val tbx = x - u * 0.45f; val tby = cy + u * 0.55f
-        val ang = tailFlick + puff * 0.2f
-        val ca = cos(ang); val sa = sin(ang)
-        // Tail: one smooth bushy S silhouette, a soft lighter core, and fur strands
-        // flicking out along its edges.
-        paintTail(c, tbx, tby, ca, sa, puff, col)
-        // Hind leg, body, belly.
-        val legKick = scratch * u * 0.12f
-        ink.glossy(c, x - u * 0.1f, cy + u * 0.55f - legKick, u * 0.42f, u * 0.36f, Ink.darken(col.fur, 0.05f), col.light, col.dark)
-        ink.glossy(c, x, cy + u * 0.18f, u * 0.48f, u * 0.62f, col.fur, col.light, col.dark)
-        ink.glossy(c, x + u * 0.12f, cy + u * 0.3f, u * 0.26f, u * 0.42f, col.belly, Ink.lighten(col.belly, 0.6f), Ink.darken(col.belly, 0.15f))
-        // Feet.
-        val foot = Ink.darken(col.fur, 0.15f)
-        ink.ell(c, x + u * 0.15f, cy + u * 0.88f + jumpY * 0.15f, u * 0.26f, u * 0.09f, foot)
-        ink.ell(c, x - u * 0.2f, cy + u * 0.9f + jumpY * 0.2f, u * 0.24f, u * 0.08f, foot)
-
-        // Head.
-        val hx = x + u * 0.18f
-        val hy = cy - u * 0.55f + nib * u * 0.03f + dig * u * 0.25f
-        c.save(); c.translate(hx, hy); c.rotate((headTilt + dig * 0.5f) * 57.29578f)
-        for (s in intArrayOf(-1, 1)) {
-            c.save(); c.translate(s * u * 0.22f - u * 0.04f, -u * 0.32f)
-            c.rotate((s * 0.25f + (if (eyesBig) s * -0.15f else 0f) + (if (lowBattery) s * 0.5f else 0f)) * 57.29578f)
-            ink.glossy(c, 0f, 0f, u * 0.11f, u * 0.19f, col.fur, col.light, col.dark)
-            ink.ell(c, 0f, u * 0.03f, u * 0.05f, u * 0.1f, 0xFFF3B8A0.toInt())
-            ink.path.reset(); ink.path.moveTo(-u * 0.04f, -u * 0.17f); ink.path.lineTo(u * 0.02f, -u * 0.32f); ink.path.lineTo(u * 0.05f, -u * 0.16f); ink.path.close()
-            c.drawPath(ink.path, ink.color(col.dark))
-            c.restore()
+        // Effects.
+        for (i in 0 until 6) {
+            if (fx[i * 4 + 3] < 0.5f) continue
+            fx[i * 4 + 2] += dt * fxSpeed[i]
+            fx[i * 4] += fxVel[i * 2] * dt; fx[i * 4 + 1] += fxVel[i * 2 + 1] * dt
+            if (fx[i * 4 + 3] == 3f) fxVel[i * 2 + 1] -= 2.2f * dt
+            if (fx[i * 4 + 2] >= 1f) fx[i * 4 + 3] = 0f
         }
-        ink.glossy(c, 0f, 0f, u * 0.36f, u * 0.33f, col.fur, col.light, col.dark)
-        // Muzzle and cheek (stuffed when it carries an acorn).
-        ink.glossy(c, u * 0.08f, u * 0.12f, u * 0.22f, u * 0.16f, col.belly, Ink.lighten(col.belly, 0.7f), Ink.darken(col.belly, 0.12f))
-        if (cheek > 0.05f) ink.glossy(c, u * 0.24f, u * 0.14f, u * 0.13f * cheek, u * 0.11f * cheek, col.belly, Ink.lighten(col.belly, 0.7f), Ink.darken(col.belly, 0.15f))
-        // Eyes.
-        val ex = u * 0.15f; val ey = -u * 0.06f
-        val blink = if (blinkT < 0.1f) 1f else 0f
-        if (happy) { ink.happyEye(c, -ex + u * 0.06f, ey, u * 0.11f); ink.happyEye(c, ex + u * 0.06f, ey, u * 0.11f) }
-        else {
-            ink.ell(c, -ex + u * 0.06f, ey, u * 0.125f, u * 0.135f, 0xFFFFF3E0.toInt()); ink.ell(c, ex + u * 0.06f, ey, u * 0.125f, u * 0.135f, 0xFFFFF3E0.toInt())
-            val r = if (eyesBig) u * 0.12f else u * 0.105f
-            ink.eye(c, -ex + u * 0.06f, ey, r, blink, look, 0f, 0xFF2A1608.toInt())
-            ink.eye(c, ex + u * 0.06f, ey, r, blink, look, 0f, 0xFF2A1608.toInt())
-        }
-        // Nose, teeth, mouth, whiskers.
-        ink.ell(c, u * 0.1f, u * 0.09f, u * 0.05f, u * 0.035f, 0xFF4A2414.toInt())
-        val tooth = u * 0.05f + nib * u * 0.02f
-        c.drawRect(u * 0.07f, u * 0.18f, u * 0.1f, u * 0.18f + tooth, ink.color(Color.WHITE))
-        c.drawRect(u * 0.105f, u * 0.18f, u * 0.135f, u * 0.18f + tooth, ink.color(Color.WHITE))
-        ink.line(c, u * 0.1f, u * 0.12f, u * 0.1f, u * 0.17f, 0xFF4A2414.toInt(), u * 0.02f)
-        ink.path.reset(); ink.path.moveTo(u * 0.04f, u * 0.17f); ink.path.quadTo(u * 0.1f, u * 0.2f, u * 0.16f, u * 0.17f)
-        c.drawPath(ink.path, ink.stroke(0xFF4A2414.toInt(), u * 0.02f))
-        for (s in intArrayOf(-1, 1)) for (i in 0 until 2) {
-            ink.line(c, u * 0.1f + s * u * 0.12f, u * 0.12f + i * u * 0.04f, u * 0.1f + s * u * 0.38f, u * 0.08f + i * u * 0.07f + sin(time * 9f + i) * u * 0.01f * nib, 0xFF3C1E0F.toInt(), max(1f, u * 0.008f), 0.5f)
-        }
-        ink.blush(c, -u * 0.17f, u * 0.1f, u * 0.09f, u * 0.05f); ink.blush(c, u * 0.3f, u * 0.1f, u * 0.09f, u * 0.05f)
-        c.restore()
-
-        // Front paws: soft mittens on short forearms. They hold the acorn up to the mouth, tuck
-        // under the chin when empty, dig, drum, or hug the big charging acorn.
-        val pawY = hy + u * 0.38f - nib * u * 0.05f
-        when {
-            charging && act == Act.NONE -> {
-                val ax = x + u * 0.62f; val ay = cy + u * 0.25f
-                paintAcorn(c, ax, ay, u * 0.9f, -0.15f, 0.8f + 0.2f * sin(time * 4f), battery)
-                forearm(c, x + u * 0.05f, cy - u * 0.05f, ax - u * 0.32f, ay - u * 0.12f, col)
-                forearm(c, x + u * 0.2f, cy + u * 0.3f, ax - u * 0.26f, ay + u * 0.2f, col)
-                mitten(c, ax - u * 0.32f, ay - u * 0.12f, 0.3f + 0.05f * sin(time * 10f), col)
-                mitten(c, ax - u * 0.26f, ay + u * 0.2f, -0.1f, col)
-            }
-            dig > 0f -> {
-                val g = floor - u * 0.08f
-                forearm(c, x + u * 0.05f, cy + u * 0.1f, x + u * 0.45f, g + dig * u * 0.06f, col)
-                forearm(c, x + u * 0.3f, cy + u * 0.15f, x + u * 0.62f, g - dig * u * 0.06f, col)
-                mitten(c, x + u * 0.45f, g + dig * u * 0.06f, 1.3f, col)
-                mitten(c, x + u * 0.62f, g - dig * u * 0.06f, 1.1f, col)
-            }
-            act == Act.DRUM || (musicOn && act == Act.NONE) -> {
-                val d = exp(-beatPhase.coerceIn(0f, 1f) * 8f)
-                val ax = x + u * 0.38f; val ay = cy + u * 0.24f
-                paintAcorn(c, ax, ay, u * 0.26f, 0f)
-                forearm(c, x - u * 0.02f, cy + u * 0.1f, ax - u * 0.08f, ay - u * 0.2f + d * u * 0.1f, col)
-                forearm(c, x + u * 0.42f, cy + u * 0.05f, ax + u * 0.1f, ay - u * 0.18f + (1f - d) * u * 0.06f, col)
-                mitten(c, ax - u * 0.08f, ay - u * 0.2f + d * u * 0.1f, 1.4f, col)
-                mitten(c, ax + u * 0.1f, ay - u * 0.18f + (1f - d) * u * 0.06f, 1.75f, col)
-            }
-            hold || (lowBattery && act == Act.NONE) -> {
-                val ax = x + u * 0.3f; val ay = pawY
-                val s = u * (if (lowBattery && !hold) 0.15f else 0.24f)
-                forearm(c, x - u * 0.04f, cy + u * 0.12f, ax - u * 0.13f, ay + u * 0.06f, col)
-                forearm(c, x + u * 0.46f, cy + u * 0.14f, ax + u * 0.13f, ay + u * 0.07f, col)
-                paintAcorn(c, ax, ay, s, 0.15f * sin(time * 2f) * (if (nib > 0f) 1f else 0.3f))
-                mitten(c, ax - u * 0.12f, ay + u * 0.05f, -0.45f, col)
-                mitten(c, ax + u * 0.12f, ay + u * 0.06f, PI.toFloat() + 0.45f, col)
-            }
-            else -> {
-                // Empty paws tucked under the chin, the classic squirrel pose.
-                val bob = sin(time * 3f) * u * 0.008f
-                forearm(c, x - u * 0.04f, cy + u * 0.14f, x + u * 0.14f, cy - u * 0.02f + bob, col)
-                forearm(c, x + u * 0.46f, cy + u * 0.16f, x + u * 0.38f, cy + bob, col)
-                mitten(c, x + u * 0.16f, cy - u * 0.02f + bob, 1.6f, col)
-                mitten(c, x + u * 0.38f, cy + bob, 1.35f, col)
-            }
-        }
-        c.restore() // squash
-        c.restore() // facing
-
-        // Things in the world (not mirrored).
-        if (acornOn && acornFree) paintAcorn(c, acornX, acornY, u * 0.22f, sin(time * 6f) * 0.3f)
-        if (dig > 0.5f) for (i in 0 until 6) {
-            val k = (time * 3f + i / 6f) % 1f
-            ink.ell(c, x + face * (u * 0.5f - k * u * 1.2f), floor - sin(k * PI.toFloat()) * u * 0.8f, u * 0.035f, u * 0.035f, 0xFF5A3A22.toInt())
-        }
-        if (dust > 0.05f && hopping) for (i in 0 until 4) {
-            val k = (time * 2f + i / 4f) % 1f
-            ink.ell(c, x - face * (u * 0.4f + k * u), floor - k * u * 0.3f, u * (0.1f + k * 0.15f), u * (0.08f + k * 0.1f), 0xFFE8DCC8.toInt(), 0.45f * (1f - k) * dust)
-        }
-        if (musicOn) for (i in 0 until 3) {
-            val k = (time * 0.4f + i / 3f) % 1f
-            ink.note(c, x + u * (1.0f + i * 0.25f) * (if (i % 2 == 1) -1f else 1f), cy - u * 0.9f - k * u * 1.4f, u * 0.18f, intArrayOf(0xFFCDB4FF.toInt(), 0xFFFFB36B.toInt(), 0xFF9BE15D.toInt())[i], sin(k * PI.toFloat()))
-        }
-        if (msgT > 0f) ink.bubble(c, x + face * u * 0.2f, cy - u * 1.25f, msg, u * 0.2f, min(1f, msgT * 4f))
-        else if (charging && act == Act.NONE && (time % 9f) > 7f) ink.bubble(c, x, cy - u * 1.3f, "crunchy volts", u * 0.16f)
-        else if (lowBattery && act == Act.NONE && (time % 8f) > 6.5f) ink.bubble(c, x, cy - u * 1.3f, "my last acorn...", u * 0.16f)
     }
 
-    // Tail: a fluffy plume made of fur strands. It rises behind the back, leans out and
-    // curls forward over the top. Strand layout is fixed; only the sway moves.
-    private val tn = 24
-    private val tP = FloatArray(2 * (24 + 1)); private val tN = FloatArray(2 * (24 + 1)); private val tR = FloatArray(24 + 1)
-    private val strandO = FloatArray(260); private val strandK0 = FloatArray(260); private val strandLen = FloatArray(260)
-    init {
-        val r = Random(7)
-        for (j in 0 until 260) { strandO[j] = r.nextFloat() * 2f - 1f; strandK0[j] = r.nextFloat() * 0.75f; strandLen[j] = 0.18f + r.nextFloat() * 0.25f }
-    }
-    private val tmp = FloatArray(2)
-    private fun tailAt(k: Float, o: Float) {
-        val f = k.coerceIn(0f, 1f) * tn; val i = min(tn - 1, f.toInt()); val t = f - i
-        val px = tP[i * 2] + (tP[i * 2 + 2] - tP[i * 2]) * t; val py = tP[i * 2 + 1] + (tP[i * 2 + 3] - tP[i * 2 + 1]) * t
-        val nx = tN[i * 2] + (tN[i * 2 + 2] - tN[i * 2]) * t; val ny = tN[i * 2 + 1] + (tN[i * 2 + 3] - tN[i * 2 + 1]) * t
-        val r = tR[i] + (tR[i + 1] - tR[i]) * t
-        tmp[0] = px + nx * r * o; tmp[1] = py + ny * r * o
+    private fun spawn(kind: Float, cx: Float, cy: Float, speed: Float) {
+        var slot = (0 until 6).firstOrNull { fx[it * 4 + 3] < 0.5f } ?: (0 until 6).maxByOrNull { fx[it * 4 + 2] } ?: 0
+        fx[slot * 4] = cx; fx[slot * 4 + 1] = cy; fx[slot * 4 + 2] = 0f; fx[slot * 4 + 3] = kind
+        fxSpeed[slot] = speed
+        fxVel[slot * 2] = (Random.nextFloat() - 0.5f) * 0.2f
+        fxVel[slot * 2 + 1] = if (kind == 3f) 0.5f + Random.nextFloat() * 0.3f else 0.25f
     }
 
-    private fun paintTail(c: Canvas, tbx: Float, tby: Float, ca: Float, sa: Float, puff: Float, col: NuttyCoat) {
-        val pi = PI.toFloat()
-        for (i in 0..tn) {
-            val k = i / tn.toFloat()
-            val lx = -u * 0.75f * sin(min(k, 0.75f) / 0.75f * pi * 0.5f) + u * 0.95f * Math.pow((max(0f, k - 0.62f) / 0.38f).toDouble(), 1.6).toFloat()
-            val ly = -u * 2.2f * sin(min(1f, k * 1.05f) * pi * 0.5f) + u * 0.25f * Math.pow((max(0f, k - 0.8f) / 0.2f).toDouble(), 2.0).toFloat()
-            tP[i * 2] = tbx + lx * ca - ly * sa; tP[i * 2 + 1] = tby + lx * sa + ly * ca
-            tR[i] = u * (0.16f + 0.42f * sin(Math.pow(k.toDouble(), 0.75).toFloat() * pi) * (if (k < 0.95f) 1f else 1f - (k - 0.95f) * 8f)) * (1f + puff * 0.45f)
+    private fun updateColors(input: SceneInput, dt: Float) {
+        val c = NUTTY_COATS[input.coat.coerceIn(0, NUTTY_COATS.size - 1)]
+        ease(coat, c.fur, dt); ease(cream, c.belly, dt); ease(dark, c.dark, dt)
+        val r = when (input.mood) { Mood.NIGHT -> 0xFF8C9EFF.toInt(); Mood.EVENING -> 0xFFFF9C6B.toInt(); else -> 0xFFFFC890.toInt() }
+        ease(rim, r, dt)
+        colorsInit = true
+    }
+
+    private fun ease(dst: FloatArray, argb: Int, dt: Float) {
+        val r = Color.red(argb) / 255f; val g = Color.green(argb) / 255f; val b = Color.blue(argb) / 255f
+        if (!colorsInit) { dst[0] = r; dst[1] = g; dst[2] = b; return }
+        val k = min(1f, dt * 4f)
+        dst[0] += (r - dst[0]) * k; dst[1] += (g - dst[1]) * k; dst[2] += (b - dst[2]) * k
+    }
+
+    private fun u(n: String) = uni[n] ?: -1
+
+    override fun draw(input: SceneInput) {
+        if (program == 0) return
+        GLES20.glEnable(GLES20.GL_BLEND)
+        GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        GLES20.glUseProgram(program)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, quadVbo)
+        GLES20.glEnableVertexAttribArray(0)
+        GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
+
+        val bx = bodyX; val by = bodyY
+        var minX = bx - 0.5f * size; var maxX = bx + 0.75f * size
+        var minY = by - 0.62f * size; var maxY = by + 1.1f * size
+        if (acorn == 3) {
+            minX = min(minX, acornX - 0.1f * size); maxX = max(maxX, acornX + 0.1f * size)
+            minY = min(minY, acornY - 0.1f * size); maxY = max(maxY, acornY + 0.1f * size)
         }
-        for (i in 0..tn) {
-            val a = max(0, i - 1); val b = min(tn, i + 1)
-            val tx = tP[b * 2] - tP[a * 2]; val ty = tP[b * 2 + 1] - tP[a * 2 + 1]; val l = max(1e-3f, kotlin.math.hypot(tx, ty))
-            tN[i * 2] = -ty / l; tN[i * 2 + 1] = tx / l
+        GLES20.glUniform4f(u("uQuad"), minX, minY, maxX, maxY)
+        GLES20.glUniform2f(u("uRes"), w.toFloat(), h.toFloat())
+        GLES20.glUniform1f(u("uTime"), time % 600f)
+        GLES20.glUniform2f(u("uPos"), bx, by)
+        GLES20.glUniform1f(u("uSize"), size)
+        GLES20.glUniform1f(u("uPx"), 1f / (size * min(w, h)))
+        GLES20.glUniform2f(u("uSquash"), 1f / sy, sy)
+        GLES20.glUniform1f(u("uShear"), shear)
+        GLES20.glUniform2f(u("uLook"), lookX, lookY)
+        GLES20.glUniform1f(u("uTilt"), tilt)
+        GLES20.glUniform1f(u("uHeadY"), headY)
+        GLES20.glUniform1f(u("uStand"), stand)
+        GLES20.glUniform1f(u("uEyeOpen"), if (eyeMode == 0f || eyeMode == 4f) blink else 1f)
+        GLES20.glUniform1f(u("uEyeMode"), eyeMode)
+        GLES20.glUniform1f(u("uMouth"), mouth)
+        GLES20.glUniform1f(u("uChew"), chew)
+        GLES20.glUniform1f(u("uCheeks"), cheeks)
+        GLES20.glUniform2f(u("uEars"), earL, earR)
+        GLES20.glUniform4f(u("uTail"), tail, curl, swayPhase, sway)
+        GLES20.glUniform1f(u("uFluff"), fluff)
+        GLES20.glUniform2f(u("uHandL"), hand[0], hand[1] + 0.1f * stand)
+        GLES20.glUniform2f(u("uHandR"), hand[2], hand[3] + 0.1f * stand)
+        // The acorn: between the paws, at the mouth, or loose in the world.
+        when (acorn) {
+            1 -> GLES20.glUniform4f(u("uAcorn"), (hand[0] + hand[2]) / 2f, (hand[1] + hand[3]) / 2f + 0.035f + 0.1f * stand, acornVis, 0.15f * sin(time * 2f))
+            3 -> GLES20.glUniform4f(u("uAcorn"), (acornX - bx) / size, (acornY - by) / size, acornVis, acornRot)
+            else -> GLES20.glUniform4f(u("uAcorn"), 0f, 0f, 0f, 0f)
         }
-        // Soft base so there are no gaps between strands.
-        val p = ink.path; p.reset()
-        for (i in 0..tn) { tailAt(i / tn.toFloat(), 0.8f); if (i == 0) p.moveTo(tmp[0], tmp[1]) else p.lineTo(tmp[0], tmp[1]) }
-        for (i in tn downTo 0) { tailAt(i / tn.toFloat(), -0.8f); p.lineTo(tmp[0], tmp[1]) }
-        p.close(); c.drawPath(p, ink.color(Ink.darken(col.tail, 0.18f)))
-        // Three layers of strands: dark outer fluff, main colour, light highlights.
-        var j = 0
-        for (pass in 0..2) {
-            val m = if (pass == 0) 90 else if (pass == 1) 110 else 60
-            val colr = if (pass == 0) col.dark else if (pass == 1) col.tail else col.light
-            val alpha = if (pass == 2) 0.5f else if (pass == 1) 0.85f else 0.6f
-            val st = ink.stroke(colr, u * (if (pass == 2) 0.028f else if (pass == 1) 0.04f else 0.055f), alpha)
-            for (q in 0 until m) {
-                val o = strandO[j] * (if (pass == 2) 0.55f else 1f); val k0 = strandK0[j]; val k1 = min(1f, k0 + strandLen[j])
-                p.reset()
-                for (sIdx in 0..8) {
-                    val k = k0 + (k1 - k0) * sIdx / 8f
-                    val sway = 0.06f * sin(time * 2.5f + k * 6f + j)
-                    val oo = o * (if (pass == 0) 1.12f else 1f) + sway + o * 0.3f * (sIdx / 8f) * (sIdx / 8f)
-                    tailAt(k, oo)
-                    if (sIdx == 0) p.moveTo(tmp[0], tmp[1]) else p.lineTo(tmp[0], tmp[1])
-                }
-                c.drawPath(p, st)
-                j++
-            }
-        }
-        tailAt(0.72f, 0.15f)
-        ink.glow(c, tmp[0], tmp[1], u * 0.7f, u * 0.7f, Ink.lighten(col.light, 0.45f), 0.35f)
+        GLES20.glUniform3f(u("uCoat"), coat[0], coat[1], coat[2])
+        GLES20.glUniform3f(u("uCoat2"), cream[0], cream[1], cream[2])
+        GLES20.glUniform3f(u("uCoat3"), dark[0], dark[1], dark[2])
+        GLES20.glUniform3f(u("uRim"), rim[0], rim[1], rim[2])
+        GLES20.glUniform3f(u("uGlow"), glow[0], glow[1], glow[2])
+        fxBuf.position(0); fxBuf.put(fx); fxBuf.position(0)
+        GLES20.glUniform4fv(u("uFx"), 6, fxBuf)
+        GLES20.glUniform1f(u("uBattIcon"), if (input.charging) 1f else 0f)
+        GLES20.glUniform1f(u("uBatt"), input.battery)
+        GLES20.glUniform1f(u("uDim"), when { input.mood == Mood.NIGHT -> 0.3f; input.lowBattery -> 0.25f; else -> 0f })
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+        GLES20.glDisable(GLES20.GL_BLEND)
     }
 
-    /** A smooth forearm: one tapered, softly lit ellipse from the elbow to the wrist. */
-    private fun forearm(c: Canvas, ex: Float, ey: Float, wx: Float, wy: Float, col: NuttyCoat) {
-        val dx = wx - ex; val dy = wy - ey
-        val len = kotlin.math.hypot(dx, dy)
-        ink.glossy(c, (ex + wx) / 2f, (ey + wy) / 2f, len * 0.62f, u * 0.075f, col.fur, col.light, col.dark, rot = kotlin.math.atan2(dy, dx))
-    }
-
-    /** A soft mitten paw: rounded palm, three fingertip bumps with faint creases. ang = where the fingers point. */
-    private fun mitten(c: Canvas, hx: Float, hy: Float, ang: Float, col: NuttyCoat) {
-        ink.ell(c, hx + u * 0.01f, hy + u * 0.04f, u * 0.1f, u * 0.07f, 0xFF5A2A0A.toInt(), 0.22f)
-        c.save(); c.translate(hx, hy); c.rotate(ang * 57.29578f)
-        ink.glossy(c, 0f, 0f, u * 0.105f, u * 0.08f, col.fur, col.light, col.dark)
-        val tip = Ink.lighten(col.fur, 0.25f)
-        for (i in 0 until 3) ink.glossy(c, u * 0.088f, (i - 1) * u * 0.05f, u * 0.038f, u * 0.032f, col.fur, tip, col.dark)
-        for (i in 0 until 2) { val fy = (i - 0.5f) * u * 0.05f; ink.line(c, u * 0.065f, fy, u * 0.11f, fy, 0xFF5A280A.toInt(), u * 0.008f, 0.55f) }
-        ink.ell(c, -u * 0.02f, -u * 0.025f, u * 0.04f, u * 0.018f, Color.WHITE, 0.35f)
-        c.restore()
-    }
-
-    private fun paintSleeping(c: Canvas, floor: Float) {
-        val col = coat
-        val br = 1f + sin(time * 1.5f) * 0.04f
-        val cx = x; val cy = floor - u * 0.42f
-        ink.glossy(c, cx, cy, u * 0.62f * br, u * 0.45f * br, col.fur, col.light, col.dark)
-        ink.glossy(c, cx + u * 0.18f, cy - u * 0.12f, u * 0.3f, u * 0.26f, col.fur, col.light, col.dark)
-        ink.closedEye(c, cx + u * 0.08f, cy - u * 0.12f, u * 0.08f, 0xFF2A1508.toInt())
-        ink.closedEye(c, cx + u * 0.26f, cy - u * 0.12f, u * 0.08f, 0xFF2A1508.toInt())
-        // Tail wrapped over it like a blanket.
-        ink.path.reset()
-        ink.path.moveTo(cx - u * 0.75f, cy + u * 0.4f)
-        ink.path.cubicTo(cx - u * 0.9f, cy - u * 0.4f, cx + u * 0.1f, cy - u * 0.6f, cx + u * 0.7f, cy - u * 0.05f)
-        ink.path.cubicTo(cx + u * 0.3f, cy + u * 0.3f, cx - u * 0.15f, cy + u * 0.45f, cx - u * 0.75f, cy + u * 0.4f)
-        c.drawPath(ink.path, ink.color(col.tail))
-        ink.glow(c, cx - u * 0.2f, cy - u * 0.15f, u * 0.5f, u * 0.25f, col.light, 0.35f)
-        ink.zzz(c, cx + u * 0.6f, cy - u * 0.5f, time, u * 0.32f)
-    }
-
-    private fun paintAcorn(c: Canvas, x: Float, y: Float, s: Float, rot: Float, glow: Float = 0f, lvl: Float = 1f) {
-        c.save(); c.translate(x, y); c.rotate(rot * 57.29578f)
-        if (glow > 0f) {
-            ink.glow(c, 0f, s * 0.15f, s * 1.1f, s * 1.2f, 0xFF7CFFB0.toInt(), 0.45f * glow)
-            ink.glossy(c, 0f, s * 0.15f, s * 0.45f, s * 0.55f, 0xFF4FDB8A.toInt(), 0xFFD8FFE6.toInt(), 0xFF2FBF6A.toInt())
-            if (lvl < 1f) { c.save(); ink.r.set(-s * 0.45f, -s * 0.4f, s * 0.45f, s * 0.7f); c.clipRect(-s, -s * 0.4f, s, -s * 0.4f + s * 1.1f * (1f - lvl)); ink.ell(c, 0f, s * 0.15f, s * 0.45f, s * 0.55f, 0xFF0A2814.toInt(), 0.6f); c.restore() }
-        } else ink.glossy(c, 0f, s * 0.15f, s * 0.45f, s * 0.55f, 0xFFC4823F.toInt(), 0xFFE2A565.toInt(), 0xFF9A5A24.toInt())
-        ink.r.set(-s * 0.52f, -s * 0.5f, s * 0.52f, s * 0.06f)
-        c.drawArc(ink.r, 180f, 180f, true, ink.color(0xFF6B4122.toInt()))
-        c.drawRect(-s * 0.52f, -s * 0.24f, s * 0.52f, -s * 0.18f, ink.color(0xFF6B4122.toInt()))
-        for (i in -2..2) ink.line(c, i * s * 0.18f, -s * 0.46f, i * s * 0.22f, -s * 0.2f, Color.BLACK, 1f, 0.25f)
-        ink.path.reset(); ink.path.moveTo(0f, -s * 0.48f); ink.path.quadTo(s * 0.05f, -s * 0.66f, s * 0.16f, -s * 0.7f)
-        c.drawPath(ink.path, ink.stroke(0xFF4A2C14.toInt(), s * 0.08f))
-        if (glow > 0f) ink.boltShape(c, 0f, s * 0.18f, s * 0.2f, 0xFF0B3A1E.toInt())
-        c.restore()
+    override fun release() {
+        if (program != 0) GLES20.glDeleteProgram(program)
+        if (quadVbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(quadVbo), 0)
+        program = 0; quadVbo = 0
     }
 }

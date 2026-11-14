@@ -48,7 +48,7 @@ private val FRAMES = mapOf(
     4 to Frame(1.12f, feet = -0.30f, head = 1.2f),  // Kiwi sits on her branch
     5 to Frame(1.3f, aspect = 1.55f, ground = -0.62f, tall = 1.15f), // Glowy swims
     6 to Frame(1.2f),                               // Gromble
-    7 to Frame(1.08f, head = 1.05f),                 // Nutty
+    7 to Frame(1.2f, head = 1.1f),                  // Nutty
     8 to Frame(1.4f, head = 1.15f),                 // Bolt
     9 to Frame(1.05f, head = 0.75f),                // Gloop gang
 )
