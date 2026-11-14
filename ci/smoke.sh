@@ -40,6 +40,23 @@ adb shell input keyevent KEYCODE_SLEEP; sleep 5; adb shell input keyevent KEYCOD
 adb shell wm dismiss-keyguard; sleep 5; shot 35_after_unlock
 echo "== change things in the app while the wallpaper is live"
 adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 8; shot 36_app_with_live
+echo "== home-screen friends: open, pin a widget, wake it, swipe"
+adb shell input swipe 540 1700 540 900 400; sleep 2
+ui tap "Home-screen friends"; sleep 6; shot 60_friends
+adb shell input swipe 540 1900 540 700 400; sleep 2; shot 61_friends_add
+ui tap "Kiwi"; sleep 1; ui tap "Add Kiwi to home screen"; sleep 4; shot 62_pin_dialog
+ui tap "Add to home screen"; ui tap "Add automatically"; ui tap "ADD AUTOMATICALLY"; sleep 3
+ui tap "Mochi"; sleep 1; ui tap "Add Mochi to home screen"; sleep 4
+ui tap "Add to home screen"; ui tap "Add automatically"; ui tap "ADD AUTOMATICALLY"; sleep 3
+adb shell input keyevent KEYCODE_HOME; sleep 6; shot 63_home_widgets
+ui tapid ":id/root" $OUT/widgets.txt; sleep 2; shot 64_widgets_woken
+sleep 3; shot 65_widgets_later
+adb shell input swipe 950 1200 100 1200 250; sleep 1; shot 66_page2
+adb shell input swipe 100 1200 950 1200 250; sleep 0.6; shot 67_back_a; sleep 0.8; shot 68_back_b; sleep 1.2; shot 69_back_c
+sleep 8; shot 70_play_a; sleep 2; shot 71_play_b; sleep 2; shot 72_play_c
+ui tapid ":id/root"; sleep 0.8; shot 73_poke
+adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 3
+adb shell input keyevent KEYCODE_BACK; sleep 3
 ui tap "Customize"; sleep 5
 for n in Kalboob Kitty Mochi Kalboob; do ui tap "$n"; sleep 3; done
 ui tap "Time"; sleep 1; ui tap "Pretend charging"; sleep 2
@@ -113,19 +130,16 @@ portrait() {  # name, extras...
   sleep 3
   for t in 1 2 3; do sleep 4; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_$t.png" 2>/dev/null || true; done
 }
-portrait mochi    --ei char 1 --ei env 1 --ei coat 0
-portrait kalboob  --ei char 2 --ei env 0 --ei coat 0
-portrait kitty    --ei char 3 --ei env 0 --ei coat 0
-portrait kiwi     --ei char 4 --ei env 0 --ei coat 0
-portrait glowy    --ei char 5 --ei env 1 --ei coat 0
-portrait gromble  --ei char 6 --ei env 1 --ei coat 0
 portrait c7 --ei char 7 --ei env 0 --ei coat 0
-portrait c8 --ei char 8 --ei env 0 --ei coat 0
-portrait c9 --ei char 9 --ei env 0 --ei coat 2
-for v in 0 1 2; do portrait sky$v --ei char 0 --ei variant $v; done
-for g in 1 2 3; do portrait fish$g --ei char 5 --ei env 1 --ei coat $((g+3)); done
-portrait loop0 --ei video 0
-portrait kalboob_night --ei char 2 --ei env 0 --es mood night
-portrait kalboob_charge --ei char 2 --ei env 0 --ez charging true
+# Home-screen friends playground: many shots over ~24 s to catch swipe reactions and games.
+friends() {  # name, picks
+  local name=$1; shift
+  adb shell am force-stop $PKG; sleep 1
+  adb shell am start -W -n $PKG/app.pulsify.MainActivity --ei portrait 1 --ei char 1 --ei env 1 --es friends "$1" > /dev/null 2>&1
+  for t in 01 02 03 04 05 06 07 08 09 10 11 12 13 14; do sleep 1.2; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_$t.png" 2>/dev/null || true; done
+}
+friends fa "1,4,7"
+friends fb "8,2,9"
+friends fc "3,6,5"
 logs _p
 adb shell dumpsys battery reset

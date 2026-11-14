@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wallpaper_description">A living AMOLED sky that reacts to your touch and your music.</string>
+    <string name="widget_label">Pulsify friend</string>
+    <string name="widget_description">A creature that lives on your home screen, reacts when you swipe to it and plays with its friends.</string>
 </resources>

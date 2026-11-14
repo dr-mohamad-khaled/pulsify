@@ -88,17 +88,31 @@ class MainActivity : ComponentActivity() {
                 "night" -> app.pulsify.core.Mood.NIGHT; "evening" -> app.pulsify.core.Mood.EVENING
                 "morning" -> app.pulsify.core.Mood.MORNING; else -> app.pulsify.core.Mood.DAY
             }
-            setContent { app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true) }
+            val friends = i.getStringExtra("friends")
+            if (friends != null) {
+                // A full-screen friends playground (debug shots of the widget creatures).
+                val picks = friends.split(',').mapNotNull { it.trim().toIntOrNull() }.let { if (it.size >= 3) it.take(3) else listOf(1, 4, 7) }
+                setContent {
+                    app.pulsify.ui.PulsifyTheme(Color(0xFFCDB4FF), Color(0xFFFFB36B)) {
+                        androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+                            app.pulsify.ui.Playground(picks, Modifier, autoDemo = true)
+                        }
+                    }
+                }
+                return
+            }
+            setContent { app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true, fpsCap = 0) }
             return
         }
         Pulse.forceCalm = false
-        setContent { App() }
+        val start = if (intent?.getStringExtra("open") == "friends") Screen.FRIENDS else Screen.HOME
+        setContent { App(start) }
     }
 }
 
 @Composable
-private fun App() {
-    val state = remember { AppState() }
+private fun App(start: Screen = Screen.HOME) {
+    val state = remember { AppState().also { it.screen = start } }
     DisposableEffect(Unit) { onDispose { state.dispose() } }
     LaunchedEffect(Unit) {
         delay(900)
@@ -116,9 +130,10 @@ private fun App() {
                 label = "screen",
             ) { s ->
                 when (s) {
-                    Screen.HOME -> HomeScreen(state, onOpenStudio = { state.screen = Screen.STUDIO }, onSettings = { state.screen = Screen.SETTINGS })
+                    Screen.HOME -> HomeScreen(state, onOpenStudio = { state.screen = Screen.STUDIO }, onSettings = { state.screen = Screen.SETTINGS }, onFriends = { state.screen = Screen.FRIENDS })
                     Screen.STUDIO -> StudioScreen(state, onBack = { state.screen = Screen.HOME })
                     Screen.SETTINGS -> SettingsScreen(state, onBack = { state.screen = Screen.HOME })
+                    Screen.FRIENDS -> app.pulsify.ui.FriendsScreen(state, onBack = { state.screen = Screen.HOME })
                 }
             }
             ToastBanner(state, Modifier.align(Alignment.TopCenter))

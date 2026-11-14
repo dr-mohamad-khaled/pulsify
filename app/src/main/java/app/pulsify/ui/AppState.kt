@@ -17,7 +17,7 @@ import app.pulsify.core.SKY_VARIANTS
 import app.pulsify.engine.SkyScene
 import app.pulsify.wallpaper.PulsifyWallpaperService
 
-enum class Screen { HOME, STUDIO, SETTINGS }
+enum class Screen { HOME, STUDIO, SETTINGS, FRIENDS }
 
 /** Compose-observable mirror of the shared prefs. */
 class AppState {

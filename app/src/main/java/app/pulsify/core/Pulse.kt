@@ -47,6 +47,7 @@ object Pulse {
     }
 
     fun init(context: Context) {
+        Buddies.init(context)
         if (::prefs.isInitialized) return
         val app = context.applicationContext
         prefs = Prefs(app)

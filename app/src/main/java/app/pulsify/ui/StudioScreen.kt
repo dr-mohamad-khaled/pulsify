@@ -171,7 +171,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { rootH = it.height.coerceAtLeast(1) }) {
-        LiveSky(Modifier.fillMaxSize(), renderScale = 0.65f, interactive = true, onLoop = { loop = it })
+        LiveSky(Modifier.fillMaxSize(), renderScale = 0.65f, interactive = true, fpsCap = 0, onLoop = { loop = it })
 
         // Top: back, the name set big, hide.
         AnimatedVisibility(!hidden, enter = fadeIn() + slideInVertically { -it / 2 }, exit = fadeOut() + slideOutVertically { -it / 2 }) {

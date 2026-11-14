@@ -72,6 +72,13 @@ class GlLoop(
     private val video = VideoScene(context)
     val input = SceneInput()
     @Volatile var batterySaver = false
+    /** Widget creatures (home-screen friends), when this loop has a feed of them. */
+    val buddies = BuddyLayer(context)
+    var buddyFeed: BuddyFeed?
+        get() = buddies.feed
+        set(v) { handler.post { buddies.feed = v } }
+    /** Off in the friends playground, where only the widget creatures are shown. */
+    @Volatile var showMainCreature = true
 
     private val thread = HandlerThread("pulsify-gl", Process.THREAD_PRIORITY_DISPLAY).apply { start() }
     private val handler = Handler(thread.looper)
@@ -105,6 +112,9 @@ class GlLoop(
     // Stats for the UI.
     @Volatile var fps = 0f; private set
     @Volatile var targetFps = 30; private set
+    /** In-app previews: never more than this while nobody is touching (0 = no cap). */
+    @Volatile var fpsCap = 0
+    @Volatile private var touching = false
     private var frameCount = 0
     private var fpsWindowStart = 0L
 
@@ -236,7 +246,7 @@ class GlLoop(
         if (wantWorld && worldState == 0) {
             worldState = if (safeInit("world") { world.onSurfaceCreated(); if (rw > 0) world.onSurfaceChanged(rw, rh) }) 1 else -1
         } else if (!wantWorld && worldState == 1) { world.release(); worldState = 0 }
-        val want = if (input.video >= 0) null else creatures.getOrNull(input.character - 1)
+        val want = if (input.video >= 0 || !showMainCreature) null else creatures.getOrNull(input.character - 1)
         if (want !== loadedCreature) {
             loadedCreature?.let { if (it in okCreatures) { it.release(); okCreatures.remove(it) } }
             loadedCreature = want
@@ -287,6 +297,7 @@ class GlLoop(
     // The creature gets first look at every touch; what it doesn't use goes to the sky.
     private var creatureOwnsGesture = false
     fun touchDown(nx: Float, ny: Float) = postSafe {
+        touching = true
         creatureOwnsGesture = active?.touchDown(nx, ny) == true
         if (!creatureOwnsGesture) { if (worldOn) world.touch(nx, ny) else if (skyOk) scene.touchDown(nx, ny) }
     }
@@ -295,6 +306,7 @@ class GlLoop(
         if (!creatureOwnsGesture && !worldOn && skyOk) scene.touchMove(nx, ny)
     }
     fun touchUp() = postSafe {
+        touching = false
         active?.touchUp()
         if (!creatureOwnsGesture && !worldOn && skyOk) scene.touchUp()
         creatureOwnsGesture = false
@@ -325,6 +337,7 @@ class GlLoop(
                     if (worldState == 1) world.release()
                     okCreatures.forEach { it.release() }; okCreatures.clear(); loadedCreature = null
                     video.release()
+                    buddies.release()
                     releaseTarget()
                     if (blitProg != 0) GLES20.glDeleteProgram(blitProg)
                     if (blitVbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(blitVbo), 0)
@@ -374,14 +387,14 @@ class GlLoop(
         // (At least 4 times a second anyway, so a change of wallpaper is noticed.)
         if (input.video >= 0 && !video.wantsFrame && lastFrameNs != 0L && now - lastFrameNs < 250_000_000L) return
         val audioActive = input.audio.source != AudioFrame.Source.NONE
-        val busy = (if (worldOn) world.busy else scene.busy) || active?.busy == true
+        val busy = (if (worldOn) world.busy else scene.busy) || active?.busy == true || buddies.busy
         // Frame budget: full rate while anything moves fast, a steady lower rate when calm.
         targetFps = when {
             batterySaver -> if (busy || audioActive) 30 else 20
             busy || audioActive -> 60
             input.mood == Mood.NIGHT -> 30
             else -> 40
-        }
+        }.let { if (fpsCap > 0 && !touching) minOf(it, fpsCap) else it }
         // Render on a fixed whole number of vsyncs so the rhythm is even.
         val hz = 1e9f / vsyncNs
         val every = if (targetFps >= 60) maxOf(1, (hz / 60f + 0.15f).toInt()) else maxOf(1, Math.round(hz / targetFps))
@@ -407,7 +420,16 @@ class GlLoop(
         } else {
             GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         }
-        active?.let { it.setGround(if (worldOn) world.groundY else Float.NaN); it.update(dt, input); it.draw(input) }
+        if (showMainCreature) active?.let { it.setGround(if (worldOn) world.groundY else Float.NaN); it.update(dt, input); it.draw(input) }
+        if (buddies.feed != null) {
+            try {
+                buddies.frame(dt, input, Gl.target, if (offscreen) fbW else surfW, if (offscreen) fbH else surfH)
+            } catch (t: Throwable) {
+                Log.e("Pulsify", "buddies failed", t); app.pulsify.core.CrashLog.note("buddies: ${t.message}")
+                buddies.release(); buddies.feed = null
+            }
+            Gl.target = if (offscreen) fbo else 0
+        }
         if (offscreen) {
             // Upscale the offscreen frame to the screen in one textured triangle.
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)

@@ -75,7 +75,7 @@ import java.util.Locale
 
 
 @Composable
-fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit) {
+fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit, onFriends: () -> Unit = {}) {
     val c = LocalPulse.current
     var loop by remember { mutableStateOf<GlLoop?>(null) }
     fun openCreature(id: Int) { state.applyCharacter(id); onOpenStudio() }
@@ -93,6 +93,8 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
         }
         item {
             Hero(state, onOpenStudio, onLoop = { loop = it }, loop = loop, modifier = Modifier.padding(horizontal = 14.dp).enter(2))
+            Gap(22.dp)
+            FriendsTeaser(onFriends, Modifier.padding(horizontal = 14.dp).enter(3))
             Gap(36.dp)
         }
         item {

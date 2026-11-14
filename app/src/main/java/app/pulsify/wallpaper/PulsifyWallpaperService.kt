@@ -10,7 +10,12 @@ import android.os.Looper
 import android.service.wallpaper.WallpaperService
 import android.view.MotionEvent
 import android.view.SurfaceHolder
+import app.pulsify.core.BuddyPoke
+import app.pulsify.core.BuddySlot
+import app.pulsify.core.Buddies
 import app.pulsify.core.Pulse
+import app.pulsify.engine.BuddyFeed
+import app.pulsify.widget.BuddyWidgetProvider
 import app.pulsify.core.SKY_VARIANTS
 import app.pulsify.engine.GlLoop
 import app.pulsify.engine.SceneListener
@@ -39,6 +44,14 @@ class PulsifyWallpaperService : WallpaperService() {
             provideInput = { input, dt -> Pulse.fillInput(input, dt, preview = false, parallax = parallax) },
         )
 
+        /** The real home-screen widgets (only for the engine on the home screen, not previews). */
+        private val feed = object : BuddyFeed() {
+            override fun slots(): List<BuddySlot> = Buddies.slots
+            override fun pollPoke(): BuddyPoke? = Buddies.pokes.poll()
+            override fun placed(widgetId: Int, page: Int, l: Float, t: Float, r: Float, b: Float) = Buddies.place(widgetId, page, l, t, r, b)
+        }
+        private val keyguard by lazy { getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager }
+
         private val settingsListener: () -> Unit = {
             loop.batterySaver = Pulse.settings.batterySaver
         }
@@ -46,6 +59,8 @@ class PulsifyWallpaperService : WallpaperService() {
         private val unlockReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action != Intent.ACTION_USER_PRESENT) return
+                feed.hidden = false
+                feed.greetSeq++
                 if (Pulse.settings.shuffleOnUnlock) {
                     val cur = Pulse.settings.variant
                     var next = Random.nextInt(SKY_VARIANTS.size)
@@ -62,6 +77,12 @@ class PulsifyWallpaperService : WallpaperService() {
             setOffsetNotificationsEnabled(true)
             loop.batterySaver = Pulse.settings.batterySaver
             Pulse.addSettingsListener(settingsListener)
+            if (!isPreview) {
+                Buddies.pokes.clear()
+                loop.buddyFeed = feed
+                Buddies.wallpaperLive = true
+                main.postDelayed({ BuddyWidgetProvider.refresh(applicationContext) }, 600)
+            }
             val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
             if (Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(unlockReceiver, filter, Context.RECEIVER_EXPORTED)
@@ -90,6 +111,7 @@ class PulsifyWallpaperService : WallpaperService() {
             try {
                 if (isVisible) {
                     if (!audioHeld) { Pulse.audio.acquire(); audioHeld = true }
+                    feed.hidden = try { keyguard.isKeyguardLocked } catch (_: Throwable) { false }
                     Pulse.device.poll(force = true)
                 } else if (audioHeld) {
                     Pulse.audio.release(); audioHeld = false
@@ -101,6 +123,10 @@ class PulsifyWallpaperService : WallpaperService() {
         override fun onOffsetsChanged(xOffset: Float, yOffset: Float, xStep: Float, yStep: Float, xPx: Int, yPx: Int) {
             // Swiping home-screen pages only sways the sky a little.
             parallax = (xOffset - 0.5f) * 2f
+            // ...but the widget creatures ride along with the pages.
+            val known = xStep > 0.0001f && xStep <= 1f
+            feed.pagesKnown = known
+            feed.pagePos = if (known) xOffset / xStep else 0f
         }
 
         override fun onTouchEvent(event: MotionEvent) {
@@ -119,6 +145,11 @@ class PulsifyWallpaperService : WallpaperService() {
 
         override fun onDestroy() {
             gone = true
+            if (!isPreview) {
+                Buddies.wallpaperLive = false
+                val ctx = applicationContext
+                Handler(Looper.getMainLooper()).postDelayed({ BuddyWidgetProvider.refresh(ctx) }, 1500)
+            }
             main.removeCallbacksAndMessages(null)
             Pulse.removeSettingsListener(settingsListener)
             try { unregisterReceiver(unlockReceiver) } catch (_: Throwable) {}

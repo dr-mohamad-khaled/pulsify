@@ -85,6 +85,22 @@ def switch(title):
     return tap_node(t)
 
 
+def tapid(suffix, out=None):
+    """Tap every node whose resource-id ends with suffix (e.g. our widget roots)."""
+    root = dump()
+    if root is None:
+        return False
+    hits = [n for n in root.iter("node") if (n.get("resource-id") or "").endswith(suffix)]
+    if out:
+        with open(out, "w") as f:
+            for n in hits:
+                f.write(f"{n.get('resource-id')} {n.get('bounds')}\n")
+    for n in hits:
+        tap_node(n)
+        time.sleep(1.5)
+    return bool(hits)
+
+
 def all_creatures(out):
     names = ["Mochi", "Kalboob", "Kitty", "Kiwi", "Glowy", "Gromble", "Just the sky"]
     i = 0
@@ -112,5 +128,7 @@ if __name__ == "__main__":
         tap(sys.argv[2])
     elif cmd == "switch":
         switch(sys.argv[2])
+    elif cmd == "tapid":
+        tapid(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
     elif cmd == "all_creatures":
         all_creatures(sys.argv[2])

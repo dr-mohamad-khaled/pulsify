@@ -31,6 +31,7 @@ fun LiveSky(
     modifier: Modifier = Modifier,
     renderScale: Float = 0.75f,
     interactive: Boolean = false,
+    fpsCap: Int = 30,
     onLoop: (GlLoop) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -39,13 +40,16 @@ fun LiveSky(
     val loop = remember {
         GlLoop(context, provideInput = { input, dt -> Pulse.fillInput(input, dt, preview = true, parallax = 0f) }).also { l ->
             l.batterySaver = false
+            l.fpsCap = fpsCap
         }
     }
     val holder = remember { arrayOfNulls<Surface>(1) }
-    val visible = remember { booleanArrayOf(false, true) } // [hasSurface, resumed]
+    // [hasSurface, resumed, warmedUp]. The engine starts a moment after the screen first draws,
+    // so the app's own UI always gets the GPU first (keeps first frames instant on slow phones).
+    val visible = remember { booleanArrayOf(false, true, false) }
 
     fun updateRunning() {
-        loop.setRunning(visible[0] && visible[1])
+        loop.setRunning(visible[0] && visible[1] && visible[2])
     }
 
     DisposableEffect(lifecycle) {
@@ -58,8 +62,11 @@ fun LiveSky(
             }
         }
         lifecycle.addObserver(obs)
+        val warm = Runnable { visible[2] = true; updateRunning() }
+        main.postDelayed(warm, 350)
         onLoop(loop)
         onDispose {
+            main.removeCallbacks(warm)
             lifecycle.removeObserver(obs)
             Pulse.audio.release()
             loop.setRunning(false)
