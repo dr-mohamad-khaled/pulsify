@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.hypot
@@ -442,7 +443,16 @@ class GloopScene(context: Context) : CanvasCreature(context) {
             val path = ink.path; path.reset()
             path.moveTo(p1x, p1y); path.quadTo(mx - tx * wid, my - ty * wid, q2x, q2y)
             path.lineTo(q1x, q1y); path.quadTo(mx + tx * wid, my + ty * wid, p2x, p2y); path.close()
-            gp.shader = android.graphics.LinearGradient(p.x, p.y, q.x, q.y, p.tr.base, q.tr.base, android.graphics.Shader.TileMode.CLAMP)
+            // One cached unit gradient per colour pair, stretched onto the strand: a fresh shader per
+            // strand per frame makes the GPU build a new gradient texture every frame.
+            val lg = strandShader(p.tr.base, q.tr.base)
+            val dx = q.x - p.x; val dy = q.y - p.y
+            val len = max(1f, hypot(dx, dy))
+            gm.reset(); gm.setScale(len, len)
+            gm.postRotate(Math.toDegrees(atan2(dy, dx).toDouble()).toFloat())
+            gm.postTranslate(p.x, p.y)
+            lg.setLocalMatrix(gm)
+            gp.shader = lg
             gp.alpha = 245
             c.drawPath(path, gp)
             gp.shader = null
@@ -455,6 +465,15 @@ class GloopScene(context: Context) : CanvasCreature(context) {
         }
     }
     private val gp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+    private val gm = android.graphics.Matrix()
+    private val strandShaders = HashMap<Long, android.graphics.LinearGradient>()
+    private val bodyShaders = HashMap<GloopTrait, android.graphics.RadialGradient>()
+    private fun strandShader(a: Int, b: Int) = strandShaders.getOrPut((a.toLong() shl 32) or (b.toLong() and 0xFFFFFFFFL)) {
+        android.graphics.LinearGradient(0f, 0f, 1f, 0f, a, b, android.graphics.Shader.TileMode.CLAMP)
+    }
+    private fun bodyShader(tr: GloopTrait) = bodyShaders.getOrPut(tr) {
+        android.graphics.RadialGradient(-0.35f, -0.45f, 1.7f, intArrayOf(tr.light, tr.base, tr.dark), floatArrayOf(0f, 0.45f, 1f), android.graphics.Shader.TileMode.CLAMP)
+    }
 
     override fun paint(c: Canvas) {
         val floor = floorY
@@ -537,7 +556,9 @@ class GloopScene(context: Context) : CanvasCreature(context) {
         // Body: glossy jelly with a rim and an inner glow.
         ink.glow(c, 0f, 0f, r * 1.35f, r * 1.35f, tr.rim, 0.18f)
         val body = bodyPath(b, r)
-        gp.shader = android.graphics.RadialGradient(-r * 0.35f, -r * 0.45f, r * 1.7f, intArrayOf(tr.light, tr.base, tr.dark), floatArrayOf(0f, 0.45f, 1f), android.graphics.Shader.TileMode.CLAMP)
+        val rg = bodyShader(tr)
+        gm.reset(); gm.setScale(r, r); rg.setLocalMatrix(gm)
+        gp.shader = rg
         gp.alpha = 255
         c.drawPath(body, gp); gp.shader = null
         // jelly: a translucent inner core and a bright wet rim

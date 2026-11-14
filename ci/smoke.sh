@@ -136,8 +136,6 @@ portrait() {  # name, extras...
   for t in 1 2 3; do sleep 4; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_$t.png" 2>/dev/null || true; done
 }
 portrait c7 --ei char 7 --ei env 0 --ei coat 0
-portrait c9 --ei char 9 --ei env 0 --ei coat 2
-portrait c9b --ei char 9 --ei env 3 --ei coat 3
 portrait c2 --ei char 2 --ei env 0
 portrait c3 --ei char 3 --ei env 0 --ei coat 1
 portrait c3b --ei char 3 --ei env 1 --ei coat 0
@@ -163,8 +161,16 @@ friends() {  # name, picks
   adb shell am start -W -n $PKG/app.pulsify.MainActivity --ei portrait 1 --ei char 1 --ei env 1 --es friends "$1" > /dev/null 2>&1
   for t in 01 02 03 04 05 06 07 08 09 10 11 12 13 14; do sleep 1.2; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_$t.png" 2>/dev/null || true; done
 }
+# Gloop last: it has taken the emulator down before, so stream the log to the host while it runs.
+gloop_shot() {
+  (timeout 120 adb logcat -v threadtime > "$OUT/gloop_$1_logcat.txt" 2>&1 &)
+  portrait "$@"
+}
+adb logcat -c
 friends fa "1,4,7"
-friends fb "8,2,9"
 friends fc "3,6,5"
+gloop_shot c9 --ei char 9 --ei env 0 --ei coat 2
+gloop_shot c9b --ei char 9 --ei env 3 --ei coat 3
+friends fb "8,2,9"
 logs _p
 adb shell dumpsys battery reset
