@@ -317,10 +317,14 @@ class GloopScene(context: Context) : CanvasCreature(context) {
 
     /** Gooey bits: springy outlines that dent on contact, sticky strands, little droplets. */
     private fun goo(dt: Float, floor: Float) {
+        for (b in blobs) if (b.x.isNaN() || b.y.isNaN() || b.vx.isNaN() || b.vy.isNaN() || b.sq.isNaN()) {
+            b.x = W / 2f; b.y = floor - b.r; b.vx = 0f; b.vy = 0f; b.sq = 1f; b.sqv = 0f
+        }
         for (b in blobs) {
             for (k in 0 until NODES) {
                 b.radV[k] += ((1f - b.rad[k]) * 260f - b.radV[k] * 5.5f) * dt
                 b.rad[k] = clampF(b.rad[k] + b.radV[k] * dt, 0.55f, 1.35f)
+                if (b.rad[k].isNaN() || b.radV[k].isNaN()) { b.rad[k] = 1f; b.radV[k] = 0f }
             }
             // Pressing on the floor flattens the bottom and bulges the sides.
             for (k in 0 until NODES) {
@@ -425,7 +429,7 @@ class GloopScene(context: Context) : CanvasCreature(context) {
         for (g in glue) {
             val p = g.a; val q = g.b
             val dx = q.x - p.x; val dy = q.y - p.y; val d = max(0.001f, hypot(dx, dy)); val mn = p.r + q.r
-            if (d < mn * 0.8f) continue
+            if (d < mn * 0.8f || d < 2f || d.isNaN() || mn < 1f) continue
             val nx = dx / d; val ny = dy / d; val tx = -ny; val ty = nx
             val t = clampF(1f - (d - mn * 0.8f) / (mn * 0.95f), 0.05f, 1f)
             val wid = min(p.r, q.r) * (0.12f + 0.55f * t * t)
