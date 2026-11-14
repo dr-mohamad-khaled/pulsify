@@ -139,6 +139,8 @@ portrait c7 --ei char 7 --ei env 0 --ei coat 0
 portrait c9 --ei char 9 --ei env 0 --ei coat 2
 portrait c9b --ei char 9 --ei env 3 --ei coat 3
 portrait c2 --ei char 2 --ei env 0
+portrait c3 --ei char 3 --ei env 0 --ei coat 1
+portrait c3b --ei char 3 --ei env 1 --ei coat 0
 portrait loopswitch --ei video 0 --ei video2 8
 portrait sky2 --ei char 0 --ei variant 2
 touchy() {  # name, extras: swipes and taps on the wallpaper, then shots
