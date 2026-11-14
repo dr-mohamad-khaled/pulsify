@@ -71,6 +71,12 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         // Debug builds only: a clean full-screen wallpaper with no UI, for the CI portrait shots.
+        if (BuildConfig.DEBUG && intent?.hasExtra("pin") == true) {
+            // Debug: ask the launcher to place a friend widget (used by the emulator test).
+            app.pulsify.ui.pinWidget(this, intent.getIntExtra("pin", 1), 0)
+            setContent { androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(Color.Black)) }
+            return
+        }
         val portrait = BuildConfig.DEBUG && intent?.hasExtra("portrait") == true
         if (portrait) {
             val i = intent

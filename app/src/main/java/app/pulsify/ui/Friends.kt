@@ -259,7 +259,7 @@ private fun nextCreature(id: Int, used: List<Int>): Int {
 }
 
 /** Pins a widget straight onto the home screen (the launcher asks the user where). */
-private fun pinWidget(ctx: Context, creature: Int, coat: Int): Boolean {
+fun pinWidget(ctx: Context, creature: Int, coat: Int): Boolean {
     val mgr = AppWidgetManager.getInstance(ctx)
     if (!mgr.isRequestPinAppWidgetSupported) return false
     Buddies.pendingCreature = creature; Buddies.pendingCoat = coat

@@ -43,11 +43,13 @@ adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 8; s
 echo "== home-screen friends: open, pin a widget, wake it, swipe"
 adb shell input swipe 540 1700 540 900 400; sleep 2
 ui tap "Home-screen friends"; sleep 6; shot 60_friends
-adb shell input swipe 540 1900 540 700 400; sleep 2; shot 61_friends_add
-ui tap "Kiwi"; sleep 1; ui tap "Add Kiwi to home screen"; sleep 4; shot 62_pin_dialog
-ui tap "Add to home screen"; ui tap "Add automatically"; ui tap "ADD AUTOMATICALLY"; sleep 3
-ui tap "Mochi"; sleep 1; ui tap "Add Mochi to home screen"; sleep 4
-ui tap "Add to home screen"; ui tap "Add automatically"; ui tap "ADD AUTOMATICALLY"; sleep 3
+adb shell input keyevent KEYCODE_BACK; sleep 2; adb shell input keyevent KEYCODE_HOME; sleep 4
+for c in 4 1; do
+  adb shell am start -n $PKG/app.pulsify.MainActivity --ei pin $c > /dev/null 2>&1; sleep 5; shot 62_pin_dialog_$c
+  ui tap "Add to home screen"; ui tap "Add automatically"; ui tap "ADD AUTOMATICALLY"; sleep 3
+  adb shell am force-stop $PKG; sleep 1
+done
+timeout 30 adb shell dumpsys appwidget | grep -i -B2 -A6 pulsify > $OUT/appwidget.txt 2>&1
 adb shell input keyevent KEYCODE_HOME; sleep 6; shot 63_home_widgets
 ui tapid ":id/root" $OUT/widgets.txt; sleep 2; shot 64_widgets_woken
 sleep 3; shot 65_widgets_later
