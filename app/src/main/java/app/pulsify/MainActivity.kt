@@ -107,6 +107,8 @@ class MainActivity : ComponentActivity() {
                 }
                 return
             }
+            val next = i.getIntExtra("video2", -1)
+            if (next >= 0) android.os.Handler(mainLooper).postDelayed({ Pulse.prefs.video = next }, 5000)
             setContent { app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true, fpsCap = 0) }
             return
         }

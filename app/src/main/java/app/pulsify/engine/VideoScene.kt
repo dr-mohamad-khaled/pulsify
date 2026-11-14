@@ -26,6 +26,13 @@ val VIDEO_LOOPS = listOf(
     VideoLoop(2, "Jade Turtle", "turtle.mp4", "Glowing shell, drifting through the void.", 0xFF4ADE80.toInt(), 0xFF2DD4BF.toInt()),
     VideoLoop(3, "Pharaohs", "pharaohs.mp4", "Golden eyes light up under the pyramids.", 0xFFFFD166.toInt(), 0xFF7A5A1E.toInt()),
     VideoLoop(4, "Neon Jelly", "jelly.mp4", "Pink and blue, pulsing upward forever.", 0xFFFF5FA2.toInt(), 0xFF5B8CFF.toInt()),
+    VideoLoop(5, "Violet Panther", "panther.mp4", "Neon-veined, stalking across black water.", 0xFF9D4EDD.toInt(), 0xFF4ADE80.toInt()),
+    VideoLoop(6, "Royal Betta", "fish.mp4", "Silk fins unfurling in the void.", 0xFFFF4F86.toInt(), 0xFF6B7BFF.toInt()),
+    VideoLoop(7, "Phoenix", "bird.mp4", "Feathers of fire on a branch of glass.", 0xFFFF7A2E.toInt(), 0xFFFFC266.toInt()),
+    VideoLoop(8, "Lion", "lion.mp4", "Slow steps out of the dark, straight at you.", 0xFFD9A55B.toInt(), 0xFF7A5A2B.toInt()),
+    VideoLoop(9, "Astronaut", "astronaut.mp4", "Drifting free, tether trailing behind.", 0xFFE8EEF7.toInt(), 0xFF5B8CFF.toInt()),
+    VideoLoop(10, "Ember Dragon", "dragon.mp4", "Coiled, breathing, glowing from inside.", 0xFFFF5A2E.toInt(), 0xFF6B4FB0.toInt()),
+    VideoLoop(11, "Gold Tiger", "tiger.mp4", "Golden stripes walking out of the dark.", 0xFFFFC14D.toInt(), 0xFF3A2A12.toInt()),
 )
 
 fun videoLoop(id: Int): VideoLoop? = VIDEO_LOOPS.firstOrNull { it.id == id }
@@ -62,6 +69,9 @@ class VideoScene(private val context: Context) {
         val loop = videoLoop(id) ?: return
         try {
             if (prog == 0) createGl()
+            // A fresh surface per video: a decoder that was just released can still be
+            // attached to the old one, and the next video would then stay black.
+            newSurface()
             val looper = Looper.myLooper() ?: return
             val p = ExoPlayer.Builder(context, DefaultRenderersFactory(context).setEnableDecoderFallback(true))
                 .setLooper(looper)
@@ -109,6 +119,13 @@ void main(){
         fb.position(0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, q.size * 4, fb, GLES20.GL_STATIC_DRAW)
+    }
+
+    private fun newSurface() {
+        surface?.release(); surface = null
+        st?.release(); st = null
+        if (tex != 0) GLES20.glDeleteTextures(1, intArrayOf(tex), 0)
+        val ids = IntArray(1)
         GLES20.glGenTextures(1, ids, 0); tex = ids[0]
         GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, tex)
         GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
@@ -119,6 +136,7 @@ void main(){
         s.setOnFrameAvailableListener { frameReady = true }
         st = s
         surface = Surface(s)
+        hasFrame = false; frameReady = false
     }
 
     /** True when a new decoded frame is waiting (the loop renders exactly at the video's rate). */
@@ -151,7 +169,7 @@ void main(){
     }
 
     private fun stop() {
-        try { player?.release() } catch (_: Throwable) {}
+        try { player?.clearVideoSurface(); player?.release() } catch (_: Throwable) {}
         player = null
         hasFrame = false; frameReady = false
         current = -1
