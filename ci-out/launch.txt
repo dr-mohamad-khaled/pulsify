@@ -1,0 +1,7 @@
+Starting: Intent { cmp=app.pulsify.v3/app.pulsify.MainActivity }
+Status: ok
+LaunchState: COLD
+Activity: app.pulsify.v3/app.pulsify.MainActivity
+TotalTime: 2160
+WaitTime: 2162
+Complete

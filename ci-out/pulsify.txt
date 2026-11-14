@@ -1,0 +1,26 @@
+--------- beginning of main
+11-14 15:41:28.459  4114  4169 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:41:28.461  4114  4169 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:41:28.470  4114  4169 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-14 15:41:30.175  3033  3153 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:41:30.175  3033  3153 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:41:30.176  3033  3153 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-14 15:41:31.513  4260  4374 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:41:31.527  4260  4374 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:41:31.529  4260  4374 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-14 15:42:08.553  4949  4972 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:42:08.554  4949  4972 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:42:08.555  4949  4972 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-14 15:42:27.647  5356  5460 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:42:27.648  5356  5460 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:42:27.649  5356  5460 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-14 15:42:32.669   522   570 E libEGL  : call to OpenGL ES API with no current context (logged once per thread)
+11-14 15:44:26.991  6821  6848 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:44:26.992  6821  6848 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:44:26.994  6821  6848 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-14 15:46:52.894  7570  7595 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:46:52.896  7570  7595 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:46:52.898  7570  7595 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-14 15:52:43.791  9173  9200 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-14 15:52:43.794  9173  9200 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-14 15:52:43.796  9173  9200 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so

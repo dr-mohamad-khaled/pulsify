@@ -1,0 +1,12 @@
+ACTIVITY MANAGER PROCESS EXIT INFO (dumpsys activity exit-info)
+Last Timestamp of Persistence Into Persistent Storage: 1970-01-01 00:00:00.000
+  package: app.pulsify.v3
+    Historical Process Exit for uid=10192
+        ApplicationExitInfo #0:
+          timestamp=2026-11-14 15:53:27.638 pid=7570 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=6 (ANR) subreason=0 (UNKNOWN) status=0
+          importance=100 pss=92MB rss=204MB description=user request after error: Input dispatching timed out (776e8d5 app.pulsify.v3/app.pulsify.MainActivity (server) is not responding. Waited 5000ms for MotionEvent(deviceId=-1, eventTime=618650000000, source=TOUCHSCREEN, displayId=0, action=MOVE, actionButton=0x00000000, flags=0x00000000, metaState=0x00000000, buttonState=0x00000000, classification=NONE, edgeFlags=0x00000000, xPrecision=1.0, yPrecision=1.0, xCursorPosition=nan, yCursorPosition=nan, pointers=[0: (361.9, 1423.1)]), policyFlags=0x6b000000) state=empty trace=/data/system/procexitstore/anr_2026-11-14-15-51-05-904.gz
+        ApplicationExitInfo #1:
+          timestamp=2026-11-14 15:46:40.952 pid=4260 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=400 pss=81MB rss=124MB description=stop app.pulsify.v3 due to from pid 7539 state=empty trace=null
