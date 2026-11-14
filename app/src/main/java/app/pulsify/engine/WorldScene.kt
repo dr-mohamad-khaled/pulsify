@@ -32,6 +32,7 @@ class WorldScene(private val context: Context) {
     private var cachedWorld = -1
     private var cachedHourBucket = -1
     private var dirty = true
+    private var strip = 0
     private var time = 0f
     private var par = 0f
 
@@ -52,7 +53,7 @@ class WorldScene(private val context: Context) {
     var groundY = Float.NaN; private set
 
     var sinceTouch = 99f; private set
-    val busy: Boolean get() = sinceTouch < 1.5f
+    val busy: Boolean get() = sinceTouch < 1.5f || dirty
 
     /** Floor line in uv, shared with the creatures so feet sit on the ground. */
     private fun floorUv(): Float = -0.5f * h / min(w, h) + 0.3f
@@ -82,7 +83,7 @@ class WorldScene(private val context: Context) {
         w = max(1, width); h = max(1, height)
         createTarget()
         updateGround()
-        dirty = true
+        dirty = true; strip = 0
     }
 
     private fun createTarget() {
@@ -129,7 +130,7 @@ class WorldScene(private val context: Context) {
         par += (input.parallax - par) * min(1f, dt * 6f)
         // Re-render the cached painting when the world changes or the clock moves on 5 minutes.
         val bucket = (input.hour * 12f).toInt()
-        if (input.world != cachedWorld || bucket != cachedHourBucket) dirty = true
+        if (!dirty && (input.world != cachedWorld || bucket != cachedHourBucket)) { dirty = true; strip = 0 }
         if (input.world != loadedWorld) loadImages(input.world)
     }
 
@@ -159,7 +160,7 @@ class WorldScene(private val context: Context) {
         }
         if (imageMode != wasImage) createTarget()
         updateGround()
-        dirty = true
+        dirty = true; strip = 0
     }
 
     private fun decode(path: String): android.graphics.Bitmap? = try {
@@ -262,11 +263,30 @@ class WorldScene(private val context: Context) {
         if (dirty) {
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
             GLES20.glViewport(0, 0, tw, th)
-            drawWorld(input, tw, th)
+            if (imageMode) {
+                drawWorld(input, tw, th)
+                dirty = false
+            } else {
+                // The procedural painting is one very long shader: paint it a few strips per frame
+                // so no single draw keeps the GPU busy for long (soft GPUs give up on those).
+                if (strip == 0 && cachedWorld != input.world) {
+                    GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
+                }
+                GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+                val sh = (th + WORLD_STRIPS - 1) / WORLD_STRIPS
+                var n = 0
+                while (n < STRIPS_PER_FRAME && strip < WORLD_STRIPS) {
+                    GLES20.glScissor(0, strip * sh, tw, sh)
+                    drawWorld(input, tw, th)
+                    GLES20.glFlush()
+                    strip++; n++
+                }
+                GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+                if (strip >= WORLD_STRIPS) { strip = 0; dirty = false }
+            }
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
             cachedWorld = input.world
             cachedHourBucket = (input.hour * 12f).toInt()
-            dirty = false
         }
         GLES20.glViewport(0, 0, w, h)
         bindTri(overlayProg)
@@ -305,6 +325,8 @@ class WorldScene(private val context: Context) {
     }
 
     companion object {
+        private const val WORLD_STRIPS = 12
+        private const val STRIPS_PER_FRAME = 3
         fun nightAmount(hour: Float): Float {
             val day = smooth(5.5f, 8f, hour) * (1f - smooth(17.5f, 20f, hour))
             return 1f - day
