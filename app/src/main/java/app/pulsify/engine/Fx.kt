@@ -127,9 +127,15 @@ void main(){ gl_FragColor = texture2D(uTex, (uMtx * vec4(vUv, 0.0, 1.0)).xy) * u
         if (adding.isNotEmpty()) { items += adding; adding.clear() }
     }
 
+    private var tick = 0
+
     fun draw(alpha: Float) {
         if (items.isEmpty()) return
         val s = surface ?: return
+        // Repaint at most every other frame (the canvas shares the UI's render thread); the
+        // last picture is composited in between.
+        tick++
+        if (hasFrame && tick % 2 == 1) { composite(alpha); return }
         val c: Canvas? = try { if (software) s.lockCanvas(null) else s.lockHardwareCanvas() } catch (t: Throwable) {
             if (!software) { software = true; app.pulsify.core.CrashLog.note("fx: software canvas") }
             null
@@ -146,6 +152,10 @@ void main(){ gl_FragColor = texture2D(uTex, (uMtx * vec4(vUv, 0.0, 1.0)).xy) * u
             fresh = false
             try { stx?.updateTexImage(); stx?.getTransformMatrix(mtx); hasFrame = true } catch (_: Throwable) {}
         }
+        composite(alpha)
+    }
+
+    private fun composite(alpha: Float) {
         if (!hasFrame) return
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
@@ -184,6 +194,8 @@ void main(){ gl_FragColor = texture2D(uTex, (uMtx * vec4(vUv, 0.0, 1.0)).xy) * u
         var killed = false
         override val done: Boolean get() = killed || super.done
         override fun paint(c: Canvas, k: Float) {
+            // A friend that has slid off screen takes its words with it.
+            if (b.headX < 0f || b.headX > W || !b.visible) return
             val age = (now - start)
             val pop = backOut(age / 0.24f)
             val out = min(1f, (1f - k) / 0.18f)

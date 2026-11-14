@@ -377,7 +377,7 @@ fun Playground(picks: List<Int>, modifier: Modifier = Modifier, autoDemo: Boolea
             .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.05f))), RoundedCornerShape(38.dp))
             .background(Color.Black),
     ) {
-        LiveSky(Modifier.fillMaxSize(), renderScale = 0.6f, fpsCap = 0, onLoop = { l: GlLoop -> l.showMainCreature = false; l.buddyFeed = sim })
+        LiveSky(Modifier.fillMaxSize(), renderScale = 0.6f, fpsCap = 30, onLoop = { l: GlLoop -> l.showMainCreature = false; l.buddyFeed = sim })
         BoxWithConstraints(
             Modifier.fillMaxSize()
                 .pointerInput(Unit) {
