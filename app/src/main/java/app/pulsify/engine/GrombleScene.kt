@@ -195,6 +195,8 @@ class GrombleScene(private val context: Context) : Creature {
         bubble.say(listOf("Grrr!", "Back off!", "I bite!", "Fear me!", "Hssss!").random(), 1.2f)
     }
 
+    override fun swiped(dir: Float, fast: Boolean) { if (!perform(if (fast) "cape" else "fire")) greet() }
+
     override fun greet() { startAct(Act.BOO) }
 
     override fun perform(trick: String): Boolean {

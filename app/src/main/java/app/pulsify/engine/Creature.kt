@@ -18,6 +18,8 @@ interface Creature {
     fun setGround(y: Float) {}
     /** Plays a named trick from the Studio's Tricks tab. Returns false for unknown ids. */
     fun perform(trick: String): Boolean = false
+    /** The home screen was swiped to another page and settled ([dir] = -1 left, 1 right). */
+    fun swiped(dir: Float, fast: Boolean) { greet() }
     fun update(dt: Float, input: SceneInput)
     fun draw(input: SceneInput)
     fun release()

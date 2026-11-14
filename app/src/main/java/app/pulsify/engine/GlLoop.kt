@@ -17,7 +17,9 @@ import app.pulsify.core.AudioFrame
 import app.pulsify.core.Mood
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.sign
 import kotlin.math.min
 
 /**
@@ -77,6 +79,14 @@ class GlLoop(
     var buddyFeed: BuddyFeed?
         get() = buddies.feed
         set(v) { handler.post { buddies.feed = v } }
+    /** Home-screen page under the screen (fractional mid-swipe), from the launcher. */
+    @Volatile var pagePos = 0f
+    private var lastPage = Float.NaN
+    private var pageVel = 0f
+    private var lag = 0f; private var lagV = 0f
+    private var swipeTravel = 0f; private var swipeMax = 0f; private var swipeDir = 0f; private var settle = 0f
+    private var lastSwipeReact = 0L
+
     /** Off in the friends playground, where only the widget creatures are shown. */
     @Volatile var showMainCreature = true
 
@@ -237,6 +247,35 @@ class GlLoop(
 
     /** Loads what this frame shows and releases what it no longer shows. Each part compiles on its
      *  own: a shader this GPU rejects disables only that part. */
+    /**
+     * Swiping home-screen pages pushes the creature along (it slides with the pages, then
+     * springs back with a little overshoot) and, once the pages settle, it reacts.
+     */
+    private fun swipePhysics(dt: Float, c: Creature) {
+        val p = pagePos
+        if (lastPage.isNaN()) lastPage = p
+        val v = (p - lastPage) / max(dt, 1e-3f)
+        lastPage = p
+        pageVel = pageVel * 0.55f + v * 0.45f
+        val target = (-pageVel * 0.045f).coerceIn(-0.16f, 0.16f)
+        lagV += ((target - lag) * 140f - lagV * 11f) * dt
+        lag += lagV * dt
+        if (abs(pageVel) > 0.08f) {
+            swipeTravel += abs(pageVel) * dt; swipeMax = max(swipeMax, abs(pageVel)); swipeDir = sign(pageVel); settle = 0f
+        } else {
+            settle += dt
+            if (settle > 0.2f && swipeTravel > 0.45f) {
+                val now = System.currentTimeMillis()
+                if (now - lastSwipeReact > 2500) {
+                    lastSwipeReact = now
+                    try { c.swiped(swipeDir, swipeMax > 3f || swipeTravel > 1.6f) } catch (_: Throwable) {}
+                }
+                swipeTravel = 0f; swipeMax = 0f
+            } else if (settle > 0.2f) { swipeTravel = 0f; swipeMax = 0f }
+        }
+        if (abs(lag) < 0.0005f && abs(lagV) < 0.001f) { lag = 0f; lagV = 0f }
+    }
+
     private fun ensureParts() {
         val wantWorld = input.world >= 0 && input.video < 0
         val wantSky = input.world < 0 && input.video < 0
@@ -387,7 +426,7 @@ class GlLoop(
         // (At least 4 times a second anyway, so a change of wallpaper is noticed.)
         if (input.video >= 0 && !video.wantsFrame && lastFrameNs != 0L && now - lastFrameNs < 250_000_000L) return
         val audioActive = input.audio.source != AudioFrame.Source.NONE
-        val busy = (if (worldOn) world.busy else scene.busy) || active?.busy == true || buddies.busy
+        val busy = (if (worldOn) world.busy else scene.busy) || active?.busy == true || buddies.busy || abs(lag) > 0.001f || abs(pageVel) > 0.05f
         // Frame budget: full rate while anything moves fast, a steady lower rate when calm.
         targetFps = when {
             batterySaver -> if (busy || audioActive) 30 else 20
@@ -420,7 +459,15 @@ class GlLoop(
         } else {
             GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         }
-        if (showMainCreature) active?.let { it.setGround(if (worldOn) world.groundY else Float.NaN); it.update(dt, input); it.draw(input) }
+        if (showMainCreature) active?.let { c ->
+            c.setGround(if (worldOn) world.groundY else Float.NaN); c.update(dt, input)
+            swipePhysics(dt, c)
+            val vw = if (offscreen) fbW else surfW; val vh = if (offscreen) fbH else surfH
+            val px = (lag * vw).toInt()
+            if (px != 0) GLES20.glViewport(px, 0, vw, vh)
+            c.draw(input)
+            if (px != 0) GLES20.glViewport(0, 0, vw, vh)
+        }
         if (buddies.feed != null) {
             try {
                 buddies.frame(dt, input, Gl.target, if (offscreen) fbW else surfW, if (offscreen) fbH else surfH)

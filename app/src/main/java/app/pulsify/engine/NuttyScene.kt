@@ -113,6 +113,8 @@ class NuttyScene(context: Context) : CanvasCreature(context) {
         return true
     }
 
+    override fun swiped(dir: Float, fast: Boolean) { if (!perform(if (fast) "catch" else "lookout")) greet() }
+
     override fun greet() { say(listOf("hi!!", "got nuts?", "oh! you!").random(), 1.6f); start(Act.FLICK) }
 
     override fun perform(trick: String): Boolean {

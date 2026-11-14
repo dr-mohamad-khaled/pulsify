@@ -132,6 +132,8 @@ class GloopScene(context: Context) : CanvasCreature(context) {
         return true
     }
 
+    override fun swiped(dir: Float, fast: Boolean) { if (!perform(if (fast) "squish" else "wave")) greet() }
+
     override fun greet() { startGame(Game.BOUNCE) }
 
     override fun perform(trick: String): Boolean {

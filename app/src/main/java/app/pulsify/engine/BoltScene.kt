@@ -100,6 +100,8 @@ class BoltScene(context: Context) : CanvasCreature(context) {
         return true
     }
 
+    override fun swiped(dir: Float, fast: Boolean) { perform(if (fast) "glitch" else listOf("wave", "radar", "faces", "jump").random()) }
+
     override fun greet() { start(Act.WAVE) }
 
     override fun perform(trick: String): Boolean {

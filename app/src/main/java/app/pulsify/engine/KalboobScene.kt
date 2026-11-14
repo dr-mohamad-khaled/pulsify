@@ -54,6 +54,8 @@ class KalboobScene(private val context: Context) : Creature {
 
     // Body.
     private var x = 0f; private var vx = 0f
+    private var hopping = false; private var hopFrom = 0f; private var hopTo = 0f; private var hopT = 0f
+    private val HOP_TIME = 0.3f
     private var jumpY = 0f; private var vy = 0f
     private var sy = 1f; private var syV = 0f
     private var shear = 0f
@@ -287,6 +289,8 @@ class KalboobScene(private val context: Context) : Creature {
         tiltT = if (d in 0.35f..1.1f) 0.3f * (if (ux > bodyX) 1f else -1f) else 0f
         nextWander = 3f + Random.nextFloat() * 2f
     }
+
+    override fun swiped(dir: Float, fast: Boolean) { perform(if (fast) "zoomies" else listOf("hello", "paw").random()) }
 
     override fun greet() { awakeFor = 10f; startAct(Act.GREET) }
 
@@ -559,17 +563,24 @@ class KalboobScene(private val context: Context) : Creature {
         }
         if (ballState == 3 && act != Act.FETCH) { ballVis = max(0f, ballVis - dt * 0.8f); if (ballVis == 0f) ballState = 0 }
 
-        // Locomotion.
-        vx += ((targetX - x) * 7f - vx * 4f) * dt
-        x += vx * dt
-        facing += ((vx * 1.5f).coerceIn(-0.3f, 0.3f) - facing) * min(1f, dt * 8f)
+        // Locomotion: a sitting pup doesn't glide; it gets there in little bouncy hops.
+        if (!hopping && jumpY == 0f && vy == 0f && abs(targetX - x) > 0.05f * size) {
+            hopFrom = x; hopTo = x + (targetX - x).coerceIn(-0.38f * size, 0.38f * size); hopT = 0f; hopping = true
+            vy = 4.2f * size * HOP_TIME * 0.5f
+        }
+        if (hopping) {
+            hopT = min(1f, hopT + dt / HOP_TIME)
+            val e = hopT * hopT * (3f - 2f * hopT)
+            x = hopFrom + (hopTo - hopFrom) * e
+            vx = (hopTo - hopFrom) / HOP_TIME
+            if (hopT >= 1f) { hopping = false; x = hopTo }
+        } else vx = 0f
+        facing += ((vx * 1.2f).coerceIn(-0.3f, 0.3f) - facing) * min(1f, dt * 8f)
         if (jumpY > 0f || vy > 0f) {
             vy -= 4.2f * size * dt; jumpY += vy * dt
             if (jumpY <= 0f) { jumpY = 0f; if (vy < -0.3f * size) syV -= 3f; vy = 0f }
             earLV -= vy * dt * 60f; earRV -= vy * dt * 60f
         }
-        // Running bounce.
-        if (abs(vx) > 0.15f && jumpY == 0f && sin(time * 18f) > 0.9f) vy = 0.12f * size
 
         happy = max(0.35f, happy - dt * 0.04f)
 

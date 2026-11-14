@@ -98,6 +98,9 @@ class Buddy internal constructor(val slot: BuddySlot, val creature: Creature?, i
     internal var byeSaid = false
     internal var pokes = 0; internal var lastPoke = -9f
     var visible = false; internal set
+    // The little world the creature lives in (a rounded card under the widget).
+    internal var cardTex = 0; internal var cardKey = ""; internal var cardOk = 0
+    internal var cardX = Float.NaN
     internal var lookX = 0f
     val name: String get() = creatureInfo(slot.creature)?.name ?: "Friend"
 
@@ -182,6 +185,7 @@ class BuddyLayer(private val context: Context) {
         GLES20.glViewport(0, 0, rw, rh)
         GLES20.glEnable(GLES20.GL_BLEND)
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
+        for (b in buddies.values) if (b.visible) drawCard(b, main)
         for (b in buddies.values) if (b.visible && b.gl == 1) drawShadow(b)
         for (b in buddies.values) if (b.visible && b.gl == 1) drawSprite(b)
         GLES20.glDisable(GLES20.GL_BLEND)
@@ -225,6 +229,7 @@ class BuddyLayer(private val context: Context) {
         b.gl = a.gl; b.fbo = a.fbo; b.tex = a.tex; b.fw = a.fw; b.fh = a.fh
         b.vw = a.vw; b.vh = a.vh; b.winTop = a.winTop; b.winBot = a.winBot; b.feetV = a.feetV
         b.x = a.x; b.vx = a.vx; b.bag = a.bag
+        b.cardTex = a.cardTex; b.cardKey = a.cardKey; b.cardOk = a.cardOk
     }
 
     private fun geometry(b: Buddy) {
@@ -923,7 +928,8 @@ void main(){ float r = dot(vP, vP); float k = exp(-r * 3.2) * (1.0 - smoothstep(
         GLES20.glUniform1f(u["uWave"]!!, p.wave)
         GLES20.glUniform1f(u["uTime"]!!, time)
         GLES20.glUniform1f(u["uAlpha"]!!, p.alpha * hiddenFade)
-        GLES20.glUniform1f(u["uClipY"]!!, if (p.clip) b.feetY + b.s * 0.04f else 1e6f)
+        // Nothing pokes out under the card; peekaboo hides below the feet.
+        GLES20.glUniform1f(u["uClipY"]!!, if (p.clip) b.feetY + b.s * 0.04f else b.feetY + 0.07f * b.h - 1f)
         GLES20.glUniform1f(u["uSick"]!!, p.sick)
         GLES20.glUniform1f(u["uBlush"]!!, p.blush)
         GLES20.glUniform1f(u["uFlash"]!!, p.flash)
@@ -933,7 +939,143 @@ void main(){ float r = dot(vP, vP); float k = exp(-r * 3.2) * (1.0 - smoothstep(
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     }
 
+    // ------------------------------------------------------------------ the world card
+
+    private fun cardProgram() {
+        val vs = """
+attribute vec2 aPos;
+uniform vec4 uRect; uniform vec2 uRes; uniform float uPad;
+varying vec2 vP;
+void main(){
+  vec2 p = uRect.xy - uPad + aPos * (uRect.zw + 2.0 * uPad);
+  vP = p - (uRect.xy + uRect.zw * 0.5);
+  gl_Position = vec4(p.x / uRes.x * 2.0 - 1.0, 1.0 - p.y / uRes.y * 2.0, 0.0, 1.0);
+}
+"""
+        val fs = """
+precision mediump float;
+varying vec2 vP;
+uniform sampler2D uTex; uniform float uHasTex; uniform vec2 uSize; uniform float uR; uniform float uA;
+uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uRim; uniform float uTime; uniform float uNight;
+float sd(vec2 p, vec2 b, float r){ vec2 q = abs(p) - b + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+float h1(vec2 p){ return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5); }
+void main(){
+  float d = sd(vP, uSize * 0.5, uR);
+  vec2 uv = vP / uSize + 0.5;
+  // soft shadow outside the card
+  float sh = exp(-max(d, 0.0) / (uR * 0.55)) * 0.55 * smoothstep(-uSize.y * 0.6, uSize.y * 0.2, vP.y);
+  vec3 col;
+  if (uHasTex > 0.5) {
+    col = texture2D(uTex, uv).rgb;
+  } else {
+    // A simple painted little world: sky gradient, glow, a soft floor.
+    col = mix(uC2 * 0.55, uC1, smoothstep(1.0, 0.0, uv.y));
+    col += uC2 * 0.35 * exp(-dot(uv - vec2(0.7, 0.25), uv - vec2(0.7, 0.25)) * 9.0);
+    float floorY = 0.86 + 0.02 * sin(uv.x * 9.0 + uTime * 0.6);
+    col = mix(col, uC1 * 0.45 + uC2 * 0.25, smoothstep(floorY - 0.01, floorY + 0.01, uv.y));
+    vec2 g = floor(uv * vec2(14.0, 22.0));
+    float st = step(0.93, h1(g)) * (0.5 + 0.5 * sin(uTime * 2.0 + h1(g + 3.0) * 30.0));
+    col += vec3(1.0) * st * 0.6 * smoothstep(0.8, 0.2, uv.y) * (1.0 - smoothstep(0.08, 0.2, length(fract(uv * vec2(14.0, 22.0)) - 0.5)));
+  }
+  // depth: darker edges, a glassy sheen on top, a thin bright rim
+  float vig = smoothstep(1.05, 0.25, length((uv - vec2(0.5, 0.55)) * vec2(1.0, 0.9)));
+  col *= 0.72 + 0.28 * vig;
+  col = mix(col, col * vec3(0.55, 0.6, 0.85), uNight * 0.25);
+  float sheen = smoothstep(0.42, 0.0, uv.y) * 0.10 * smoothstep(0.0, 0.25, uv.x + 0.2 - uv.y);
+  col += sheen;
+  float rim = 1.0 - smoothstep(0.0, 1.6, abs(d + 0.8));
+  float topLight = mix(0.35, 1.0, smoothstep(0.7, 0.0, uv.y));
+  col = mix(col, uRim, rim * 0.55 * topLight);
+  float inside = 1.0 - smoothstep(-0.8, 0.8, d);
+  vec4 c = vec4(col, 1.0) * inside + vec4(0.0, 0.0, 0.0, sh) * (1.0 - inside);
+  gl_FragColor = c * uA;
+}
+"""
+        cardProg = Gl.program(vs, fs)
+        for (n in listOf("uRect", "uRes", "uPad", "uTex", "uHasTex", "uSize", "uR", "uA", "uC1", "uC2", "uRim", "uTime", "uNight"))
+            cu[n] = GLES20.glGetUniformLocation(cardProg, n)
+    }
+
+    private val cu = HashMap<String, Int>()
+    private var cardProg = 0
+
+    /** Loads the creature's own painted world, cropped so its ground sits where the feet are. */
+    private fun ensureCard(b: Buddy, night: Boolean) {
+        val info = creatureInfo(b.slot.creature)
+        val env = if (b.slot.creature == 9) null else info?.envs?.firstOrNull { it.world > 0 }
+        val key = "${env?.world ?: -1}_${night}_${b.w.toInt()}x${b.h.toInt()}"
+        if (key == b.cardKey) return
+        b.cardKey = key
+        if (b.cardTex != 0) { GLES20.glDeleteTextures(1, intArrayOf(b.cardTex), 0); b.cardTex = 0 }
+        b.cardOk = -1
+        if (env == null || b.w < 8f || b.h < 8f) return
+        try {
+            val ground = WorldScene.WORLD_IMAGES[env.world] ?: 0.82f
+            val name = if (night) "worlds/w${env.world}_night.jpg" else "worlds/w${env.world}_day.jpg"
+            val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }
+            val src = (try { context.assets.open(name) } catch (_: Throwable) { context.assets.open("worlds/w${env.world}_day.jpg") })
+                .use { android.graphics.BitmapFactory.decodeStream(it, null, opts) } ?: return
+            val a = b.w / b.h
+            var cw = src.width * 0.78f; var ch = cw / a
+            if (ch > src.height) { ch = src.height.toFloat(); cw = ch * a }
+            if (cw > src.width) { cw = src.width.toFloat(); ch = cw / a }
+            val top = (ground * src.height - 0.93f * ch).coerceIn(0f, src.height - ch)
+            val left = (src.width - cw) / 2f
+            val tw = min(512, max(16, b.w.toInt())); val th = max(16, (tw / a).toInt())
+            val out = android.graphics.Bitmap.createBitmap(tw, th, android.graphics.Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(out).drawBitmap(src, android.graphics.Rect(left.toInt(), top.toInt(), (left + cw).toInt(), (top + ch).toInt()),
+                android.graphics.Rect(0, 0, tw, th), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            src.recycle()
+            val ids = IntArray(1); GLES20.glGenTextures(1, ids, 0); b.cardTex = ids[0]
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, b.cardTex)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+            android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, out, 0)
+            out.recycle()
+            b.cardOk = 1
+        } catch (t: Throwable) { app.pulsify.core.CrashLog.note("buddy card: ${t.message}") }
+    }
+
+    private fun drawCard(b: Buddy, main: SceneInput) {
+        if (cardProg == 0) cardProgram()
+        val night = main.mood == Mood.NIGHT || main.mood == Mood.EVENING
+        ensureCard(b, night)
+        // The card is the widget: it moves with the page, wobbling only a little with its creature.
+        val x = b.idealX + (b.x - b.idealX) * 0.25f
+        b.cardX = x
+        val l = x - b.w / 2f; val t = b.feetY + 0.07f * b.h - b.h
+        val info = creatureInfo(b.slot.creature)
+        val env = info?.envs?.firstOrNull()
+        val c1 = env?.c1 ?: 0xFF2B2140.toInt(); val c2 = env?.c2 ?: 0xFFCDB4FF.toInt()
+        val acc = info?.accent ?: 0xFFCDB4FF.toInt()
+        GLES20.glUseProgram(cardProg)
+        GLES20.glUniform4f(cu["uRect"]!!, l, t, b.w, b.h)
+        GLES20.glUniform2f(cu["uRes"]!!, rw.toFloat(), rh.toFloat())
+        val r = min(b.w, b.h) * 0.16f
+        GLES20.glUniform1f(cu["uPad"]!!, r * 1.2f)
+        GLES20.glUniform2f(cu["uSize"]!!, b.w, b.h)
+        GLES20.glUniform1f(cu["uR"]!!, r)
+        GLES20.glUniform1f(cu["uA"]!!, hiddenFade)
+        GLES20.glUniform3f(cu["uC1"]!!, ((c1 shr 16) and 255) / 255f, ((c1 shr 8) and 255) / 255f, (c1 and 255) / 255f)
+        GLES20.glUniform3f(cu["uC2"]!!, ((c2 shr 16) and 255) / 255f, ((c2 shr 8) and 255) / 255f, (c2 and 255) / 255f)
+        val rim = 0.55f
+        GLES20.glUniform3f(cu["uRim"]!!, lerpF(1f, ((acc shr 16) and 255) / 255f, rim), lerpF(1f, ((acc shr 8) and 255) / 255f, rim), lerpF(1f, (acc and 255) / 255f, rim))
+        GLES20.glUniform1f(cu["uTime"]!!, time)
+        GLES20.glUniform1f(cu["uNight"]!!, if (night) 1f else 0f)
+        GLES20.glUniform1f(cu["uHasTex"]!!, if (b.cardOk == 1) 1f else 0f)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, b.cardTex)
+        GLES20.glUniform1i(cu["uTex"]!!, 0)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+        GLES20.glEnableVertexAttribArray(0)
+        GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
+        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+    }
+
     private fun freeBuddy(b: Buddy) {
+        if (b.cardTex != 0) { GLES20.glDeleteTextures(1, intArrayOf(b.cardTex), 0); b.cardTex = 0; b.cardKey = "" }
         if (b.gl == 1) try { b.creature?.release() } catch (_: Throwable) {}
         freeTarget(b)
         b.gl = 0
@@ -944,6 +1086,8 @@ void main(){ float r = dot(vP, vP); float k = exp(-r * 3.2) * (1.0 - smoothstep(
         buddies.clear(); lastSlots = null
         if (prog != 0) GLES20.glDeleteProgram(prog)
         if (shadowProg != 0) GLES20.glDeleteProgram(shadowProg)
+        if (cardProg != 0) GLES20.glDeleteProgram(cardProg)
+        cardProg = 0
         if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0)
         prog = 0; shadowProg = 0; vbo = 0
         fx.release()

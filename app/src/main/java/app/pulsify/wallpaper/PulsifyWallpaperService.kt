@@ -127,6 +127,7 @@ class PulsifyWallpaperService : WallpaperService() {
             val known = xStep > 0.0001f && xStep <= 1f
             feed.pagesKnown = known
             feed.pagePos = if (known) xOffset / xStep else 0f
+            loop.pagePos = if (known) xOffset / xStep else xOffset * 4f
         }
 
         override fun onTouchEvent(event: MotionEvent) {

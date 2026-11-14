@@ -201,6 +201,8 @@ class GlowyScene(private val context: Context) : Creature {
         fX = ux; fY = uy
     }
 
+    override fun swiped(dir: Float, fast: Boolean) { if (!fast || !perform("puff")) greet() }
+
     override fun greet() { flashLure(); startAct(Act.LOOP) }
 
     override fun perform(trick: String): Boolean {
