@@ -18,6 +18,7 @@ import kotlin.math.roundToInt
 class WorldScene(private val context: Context) {
 
     private var worldProg = 0
+    private var worldFile = ""
     private var overlayProg = 0
     private var vbo = 0
     private var fbo = 0
@@ -236,9 +237,13 @@ class WorldScene(private val context: Context) {
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
             return
         }
-        if (worldProg == 0) {
+        // The Gloop worlds live in their own small shader; the big one holds the old painted worlds.
+        val file = if (input.world >= 28) "gloopworld" else "world"
+        if (worldProg == 0 || worldFile != file) {
+            if (worldProg != 0) GLES20.glDeleteProgram(worldProg)
             val vert = "attribute vec2 aPos;\nvoid main(){ gl_Position = vec4(aPos, 0.0, 1.0); }\n"
-            worldProg = Gl.program(vert, context.assets.open("shaders/world.frag").bufferedReader().use { it.readText() })
+            worldProg = Gl.program(vert, context.assets.open("shaders/$file.frag").bufferedReader().use { it.readText() })
+            worldFile = file
             for (n in listOf("uRes", "uHalf", "uFloor", "uWorld", "uHour", "uSeed")) wu[n] = GLES20.glGetUniformLocation(worldProg, n)
         }
         bindTri(worldProg)
@@ -320,7 +325,7 @@ class WorldScene(private val context: Context) {
         if (worldProg != 0) GLES20.glDeleteProgram(worldProg)
         if (overlayProg != 0) GLES20.glDeleteProgram(overlayProg)
         if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0)
-        worldProg = 0; overlayProg = 0; vbo = 0
+        worldProg = 0; worldFile = ""; overlayProg = 0; vbo = 0
         cachedWorld = -1
     }
 
