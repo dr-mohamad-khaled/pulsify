@@ -101,7 +101,7 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         row.forEach { argb ->
                             val sel = state.accent == argb
-                            val v = SKY_VARIANTS[state.variant.coerceIn(0, 2)]
+                            val v = SKY_VARIANTS[state.variant.coerceIn(0, SKY_VARIANTS.size - 1)]
                             Box(
                                 Modifier.size(44.dp).clip(CircleShape)
                                     .background(

@@ -110,7 +110,9 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
 
     fun onSurfaceChanged(width: Int, height: Int) {
         w = max(1, width); h = max(1, height)
+        field?.size(w, h)
     }
+    private var lastDt = 1f / 60f
 
     // ---- Touch, in normalised screen coordinates (0..1, y down) ----
 
@@ -118,6 +120,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     private fun toUvY(ny: Float): Float = (0.5f - ny) * h / min(w, h).toFloat()
 
     fun touchDown(nx: Float, ny: Float) {
+        field?.touchDown(nx, ny)
         touchDown = true
         tx = toUvX(nx); ty = toUvY(ny)
         downX = tx; downY = ty; downAt = time
@@ -127,6 +130,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     }
 
     fun touchMove(nx: Float, ny: Float) {
+        field?.touchMove(nx, ny)
         if (!touchDown) return
         val x = toUvX(nx); val y = toUvY(ny)
         val dt = max(1e-3f, time - lastMoveAt)
@@ -140,6 +144,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     }
 
     fun touchUp() {
+        field?.touchUp()
         if (!touchDown) return
         touchDown = false
         sinceTouch = 0f
@@ -212,6 +217,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     // ---- Frame ----
 
     fun update(dt: Float, input: SceneInput) {
+        lastDt = dt
         time += dt
         sinceTouch += dt
         val a = input.audio
@@ -271,7 +277,24 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
         colorsInit = true
     }
 
+    // Liquid Obsidian / Neon Light Play live in their own simulated field.
+    private var field: FieldScene? = null
+    private fun ensureField(v: Int): FieldScene? {
+        val want = if (v == FieldScene.LIQUID || v == FieldScene.NEON) v else -1
+        val f = field
+        if (f != null && f.kind != want) { f.release(); field = null }
+        if (want >= 0 && field == null) field = try { FieldScene(want).also { it.create(); it.size(w, h) } } catch (t: Throwable) {
+            app.pulsify.core.CrashLog.note("field: ${t.message}"); null
+        }
+        return field
+    }
+
     fun draw(input: SceneInput) {
+        ensureField(input.variant)?.let { f ->
+            ensureNebula(false)
+            f.update(lastDt, input); f.draw(input)
+            return
+        }
         GLES20.glViewport(0, 0, w, h)
         GLES20.glClearColor(0f, 0f, 0f, 1f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
@@ -310,7 +333,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
         GLES20.glUniform1f(u("uWish"), wish)
         ensureNebula(input.variant == 2)
         GLES20.glUseProgram(program)
-        if (nebTex != 0) {
+        if (nebReady) {
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nebTex)
             GLES20.glUniform1i(u("uNeb"), 0)
@@ -319,7 +342,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
             if (sa < ia) { val k = sa / ia; GLES20.glUniform4f(u("uNebMap"), k, 1f, (1f - k) * 0.5f, 0f) }
             else { val k = ia / sa; GLES20.glUniform4f(u("uNebMap"), 1f, k, 0f, (1f - k) * 0.5f) }
         }
-        GLES20.glUniform1f(u("uNebOn"), if (nebTex != 0) 1f else 0f)
+        GLES20.glUniform1f(u("uNebOn"), if (nebReady) 1f else 0f)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glEnableVertexAttribArray(0)
         GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
@@ -328,34 +351,70 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
 
     /** True while something on screen is still moving fast enough to need 60 fps. */
     val busy: Boolean
-        get() = touchDown || sinceTouch < 2f || shootActive || showerLeft > 0 || wish > 0f
+        get() = field != null || touchDown || sinceTouch < 2f || shootActive || showerLeft > 0 || wish > 0f
 
-    // The Nebula is a painted deep-space picture brought to life in the shader (flowing gas,
-    // bass-lit cores). Loaded only while the Nebula is shown.
-    private var nebTex = 0
+    // The Nebula is painted procedurally, once, into a texture (no pictures): a heavy shader
+    // run in a few strips over several frames so nothing stalls. The sky shader then animates
+    // it (flowing gas, bass-lit cores). Kept only while the Nebula is shown.
+    private var nebTex = 0; private var nebFbo = 0; private var nebProg = 0
     private var nebW = 1; private var nebH = 1
+    private var nebRows = 0
+    private val NEB_STRIPS = 10
+    private val nebReady: Boolean get() = nebTex != 0 && nebRows >= NEB_STRIPS
     private fun ensureNebula(want: Boolean) {
         if (want && nebTex == 0) {
-            val bmp = try {
-                context.assets.open("sky/nebula.jpg").use { android.graphics.BitmapFactory.decodeStream(it) }
-            } catch (_: Throwable) { null } ?: return
-            nebW = bmp.width; nebH = bmp.height
+            nebW = 720; nebH = (720f * max(h, w) / min(w, h)).toInt().coerceIn(720, 1600)
             val ids = IntArray(1); GLES20.glGenTextures(1, ids, 0); nebTex = ids[0]
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nebTex)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
-            android.opengl.GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
-            bmp.recycle()
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, nebW, nebH, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, null)
+            GLES20.glGenFramebuffers(1, ids, 0); nebFbo = ids[0]
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, nebFbo)
+            GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, nebTex, 0)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
+            if (nebProg == 0) nebProg = try {
+                Gl.program(VERT, context.assets.open("shaders/nebgen.frag").bufferedReader().use { it.readText() })
+            } catch (t: Throwable) { app.pulsify.core.CrashLog.note("nebgen: ${t.message}"); 0 }
+            nebRows = 0
         } else if (!want && nebTex != 0) {
-            GLES20.glDeleteTextures(1, intArrayOf(nebTex), 0); nebTex = 0
+            freeNebula()
+        }
+        if (want && nebTex != 0 && nebRows < NEB_STRIPS && nebProg != 0) {
+            // Paint the next strip.
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, nebFbo)
+            GLES20.glViewport(0, 0, nebW, nebH)
+            GLES20.glEnable(GLES20.GL_SCISSOR_TEST)
+            val y0 = nebH * nebRows / NEB_STRIPS; val y1 = nebH * (nebRows + 1) / NEB_STRIPS
+            GLES20.glScissor(0, y0, nebW, y1 - y0)
+            GLES20.glDisable(GLES20.GL_BLEND)
+            GLES20.glUseProgram(nebProg)
+            GLES20.glUniform2f(GLES20.glGetUniformLocation(nebProg, "uRes"), nebW.toFloat(), nebH.toFloat())
+            GLES20.glUniform1f(GLES20.glGetUniformLocation(nebProg, "uSeed"), 1f)
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
+            GLES20.glEnableVertexAttribArray(0)
+            GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+            GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
+            GLES20.glViewport(0, 0, w, h)
+            nebRows++
         }
     }
 
-    fun release() {
+    private fun freeNebula() {
         if (nebTex != 0) GLES20.glDeleteTextures(1, intArrayOf(nebTex), 0)
-        nebTex = 0
+        if (nebFbo != 0) GLES20.glDeleteFramebuffers(1, intArrayOf(nebFbo), 0)
+        nebTex = 0; nebFbo = 0; nebRows = 0
+    }
+
+    fun release() {
+        field?.release(); field = null
+        freeNebula()
+        if (nebProg != 0) GLES20.glDeleteProgram(nebProg)
+        nebProg = 0
         if (program != 0) GLES20.glDeleteProgram(program)
         if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0)
         program = 0; vbo = 0

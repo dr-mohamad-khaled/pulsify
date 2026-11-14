@@ -120,7 +120,7 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
             Shelf("Skies", "Just the sky, reacting to touch and music", Modifier.enter(5)) {
                 items(SKY_VARIANTS) { v ->
                     PosterCard(
-                        if (v.id == 2) "thumbs/sky_2.jpg" else null, v.name, v.tagline, Color(v.accent1),
+                        if (v.id >= 2) "thumbs/sky_${v.id}.jpg" else null, v.name, v.tagline, Color(v.accent1),
                         live = state.video < 0 && state.character == 0 && state.variant == v.id, sky = v.id, sky2 = Color(v.accent2),
                     ) { state.applyCharacter(0); state.applyVariant(v.id); onOpenStudio() }
                 }

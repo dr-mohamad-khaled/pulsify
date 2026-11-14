@@ -779,7 +779,7 @@ private fun SkyPanel(state: AppState) {
         Gap(4.dp)
         LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             itemsIndexed(SKY_VARIANTS) { _, v ->
-                Poster(if (v.id == 2) "sky/nebula.jpg" else null, v.name, state.character == 0 && state.variant == v.id, Color(v.accent1), Color(v.accent2), skyStyle = v.id) {
+                Poster(if (v.id >= 2) "thumbs/sky_${v.id}.jpg" else null, v.name, state.character == 0 && state.variant == v.id, Color(v.accent1), Color(v.accent2), skyStyle = v.id) {
                     state.applyCharacter(0); state.applyVariant(v.id)
                 }
             }
