@@ -121,12 +121,65 @@ float sdBolt(vec2 q) {
     return min(sdTri(q, vec2(0.18, 0.5), vec2(-0.32, -0.06), vec2(0.06, -0.06)), sdTri(q, vec2(-0.18, -0.5), vec2(0.32, 0.06), vec2(-0.06, 0.06)));
 }
 
+
+// The tail as a chain of fluffy capsules. Small uTail.x: raised behind like a question mark;
+// large: wrapped around the front paws.
+vec2 cr(vec2 a, vec2 b, vec2 c, vec2 d, float t) {
+    float t2 = t * t, t3 = t2 * t;
+    return 0.5 * ((2.0 * b) + (-a + c) * t + (2.0 * a - 5.0 * b + 4.0 * c - d) * t2 + (-a + 3.0 * b - 3.0 * c + d) * t3);
+}
+vec2 tailCP(int i, float wrap) {
+    // Raised: a question mark behind the right side. Wrapped: down and around the front paws.
+    vec2 up, wr;
+    if (i == 0) { up = vec2(0.16, -0.46); wr = vec2(0.2, -0.46); }
+    else if (i == 1) { up = vec2(0.3, -0.34); wr = vec2(0.33, -0.53); }
+    else if (i == 2) { up = vec2(0.36, -0.06); wr = vec2(0.08, -0.56); }
+    else if (i == 3) { up = vec2(0.33, 0.2); wr = vec2(-0.2, -0.54); }
+    else { up = vec2(0.21, 0.3); wr = vec2(-0.32, -0.42); }
+    return mix(up, wr, wrap);
+}
+float tailD(vec2 p, out float tt) {
+    float wrap = smoothstep(0.2, 1.6, uTail.x);
+    vec2 c0 = tailCP(0, wrap), c1 = tailCP(1, wrap), c2 = tailCP(2, wrap), c3 = tailCP(3, wrap), c4 = tailCP(4, wrap);
+    float best = 1e5; tt = 0.0;
+    vec2 prev = c0;
+    for (int i = 1; i <= 12; i++) {
+        float t = float(i) / 12.0;
+        float seg = t * 4.0;
+        vec2 q;
+        if (seg <= 1.0) q = cr(c0 * 2.0 - c1, c0, c1, c2, seg);
+        else if (seg <= 2.0) q = cr(c0, c1, c2, c3, seg - 1.0);
+        else if (seg <= 3.0) q = cr(c1, c2, c3, c4, seg - 2.0);
+        else q = cr(c2, c3, c4, c4 * 2.0 - c3, seg - 3.0);
+        // Sway: a wave travelling to the tip.
+        q += vec2(1.0 - wrap, wrap) * uTail.w * sin(uTail.z - t * 3.0) * t * 0.35;
+        float th = (0.058 - 0.008 * t) * (1.0 + 0.9 * uPuff);
+        float d = sdCapsule(p, prev, q, th, th * (i == 12 ? 0.85 : 1.0));
+        if (d < best) { best = d; tt = (float(i - 1) + clamp(dot(p - prev, q - prev) / max(dot(q - prev, q - prev), 1e-5), 0.0, 1.0)) * 0.75; }
+        prev = q;
+    }
+    return best;
+}
+
+void drawTail(inout vec4 acc, vec2 p, vec3 fur, vec3 dark, vec3 white) {
+    float tt;
+    float best = tailD(p, tt);
+    if (best > 0.09) return;
+    float d = fluff(best, p, 1.6 + uPuff * 2.0);
+    // Soft rings along the tail, a darker tip (or a white one for the tuxedo-ish coats).
+    float band = smoothstep(0.3, 0.8, 0.5 + 0.5 * sin(tt * 2.2 + 0.6));
+    vec3 tc = mix(fur, dark, band * 0.35 * (1.0 - uPoints));
+    tc = mix(tc, dark, max(smoothstep(7.0, 8.8, tt) * 0.75, uPoints * smoothstep(1.0, 5.0, tt)));
+    float depth = clamp(-best / 0.06, 0.0, 1.0);
+    vec2 q = vec2((1.0 - depth) * 0.9 - 0.2, 0.1 + 0.3 * (1.0 - depth));
+    over(acc, lit(tc, q, p), fillFur(d));
+}
+
 void main() {
     vec2 p = (vUv - uPos) / uSize;
     vec2 sp = p;
     p.y = (p.y + 0.55) / uSquash.y - 0.55;
     p.x = p.x / uSquash.x;
-    // Butt wiggle: the bottom shifts, the head stays put.
     p.x -= uShear * (1.0 - clamp((p.y + 0.55) / 0.5, 0.0, 1.0));
 
     vec4 acc = vec4(0.0);
@@ -134,11 +187,12 @@ void main() {
     vec3 fur = uFur, white = uWhite;
     vec3 dark = mix(uStripe, uStripe * 0.6, uPoints);
     float breath = 0.006 * sin(uTime * 1.9);
+    float wrap = smoothstep(0.2, 1.6, uTail.x);
 
-    // ---- Soft contact shadow on the floor ----
+    // ---- Soft contact shadow ----
     {
-        vec2 q = (sp - vec2(0.02, -0.565)) / vec2(mix(0.34, 0.44, loaf), 0.05);
-        over(acc, vec3(0.0), exp(-dot(q, q) * 1.6) * 0.42);
+        vec2 q = (sp - vec2(0.0, -0.565)) / vec2(mix(0.36, 0.46, loaf), 0.05);
+        over(acc, vec3(0.0), exp(-dot(q, q) * 1.6) * 0.45);
     }
 
     // ---- Milk dish (charging): the bowl sits to the left, the straw is drawn last ----
@@ -164,86 +218,70 @@ void main() {
         over(acc, uGlow, exp(-max(milk, 0.0) * 30.0) * 0.22 * uPad.x);
     }
 
-    // ---- Tail: thick and fluffy, curling up the right side ----
-    {
-        vec2 a = vec2(mix(0.17, 0.27, loaf), -0.49);
-        float ang = uTail.x;
-        float best = 1e5; float bestT = 0.0;
-        for (int i = 0; i < 7; i++) {
-            float fi = float(i);
-            float aa = ang + uTail.y * fi + uTail.w * sin(uTail.z - fi * 0.55);
-            vec2 b = a + vec2(sin(aa), cos(aa)) * 0.075;
-            float th = (0.05 - 0.002 * fi) * (1.0 + 1.2 * uPuff);
-            float d = sdCapsule(p, a, b, th, th * (fi > 5.5 ? 0.75 : 1.0));
-            if (d < best) { best = d; bestT = fi + clamp(dot(p - a, b - a) / dot(b - a, b - a), 0.0, 1.0); }
-            a = b;
-        }
-        if (best < 0.08) {
-            float d = fluff(best, p, 1.3 + uPuff * 2.0);
-            float band = smoothstep(0.25, 0.75, 0.5 + 0.5 * sin(bestT * 3.3 + 1.0));
-            vec3 tc = mix(fur, dark, band * 0.75 * (1.0 - uPoints));
-            tc = mix(tc, dark, max(smoothstep(5.2, 6.6, bestT) * 0.85, uPoints * smoothstep(1.0, 4.0, bestT)));
-            vec2 q = vec2(clamp(-best / 0.05, 0.0, 1.0) * -0.6 + 0.3, 0.2);
-            over(acc, lit(tc, q, p), fillFur(d));
-        }
-    }
 
-    // ---- Hind feet peeking out at the sides ----
+    // ---- Tail behind (when raised) ----
+    if (wrap < 0.55) drawTail(acc, p, fur, dark, white);
+
+    // ---- Haunches: two round thighs ----
     for (int s = 0; s < 2; s++) {
         float side = s == 0 ? -1.0 : 1.0;
-        vec2 c = vec2(mix(0.17, 0.26, loaf) * side, -0.515);
-        float ft = sdEllipse(p - c, vec2(0.075, 0.042));
-        over(acc, lit(mix(white, dark, uPoints), (p - c) / vec2(0.09, 0.06), p), fillFur(fluff(ft, p, 0.5)) * (1.0 - 0.9 * loaf));
-    }
-
-    // ---- Body: small pear with soft haunches ----
-    vec2 bc = vec2(0.0, mix(-0.31, -0.42, loaf) - crouch * 0.05);
-    vec2 br = vec2(mix(0.185, 0.34, loaf), mix(0.235, 0.14, loaf) + breath) * (1.0 + 0.12 * uPuff);
-    vec2 hc2 = vec2(0.0, mix(-0.44, -0.45, loaf) + crouch * 0.06);
-    vec2 hr2 = vec2(mix(0.25, 0.36, loaf), mix(0.115, 0.11, loaf)) * (1.0 + 0.12 * uPuff);
-    float body = smin(sdEllipse(p - bc, br), sdEllipse(p - hc2, hr2), 0.1);
-    vec2 hp = vec2(0.0, mix(0.07, -0.16, loaf) + uHeadY - crouch * 0.14);
-    if (body < 0.1) {
-        float d = fluff(body, p, 1.0);
-        vec2 q = (p - vec2(0.0, bc.y - 0.03)) / vec2(br.x * 1.45, br.y * 1.35);
+        vec2 c = vec2(mix(0.15, 0.25, loaf) * side, mix(-0.42, -0.46, loaf));
+        float th = sdEllipse(p - c, vec2(mix(0.13, 0.15, loaf), mix(0.12, 0.09, loaf)));
+        vec2 q = (p - c) / vec2(0.16, 0.15);
         vec3 col = lit(fur, q, p);
-        float st = softStripe(vec2(abs(p.x), p.y), vec2(0.3, 1.0), 30.0, 1.0) * smoothstep(0.07, 0.17, abs(p.x)) * (1.0 - uPoints);
-        col = mix(col, lit(dark, q, p), st * 0.6);
-        // Shadow under the chin grounds the head on the body.
-        col *= 1.0 - 0.38 * smoothstep(0.2, 0.0, length((p - hp - vec2(0.0, -0.24)) / vec2(1.3, 0.8)));
-        over(acc, col, fillFur(d));
-        // Fluffy white bib.
-        float bib = sdEllipse(p - bc - vec2(0.0, br.y * 0.2), vec2(br.x * 0.6, br.y * 0.72));
-        vec3 wc = lit(white, q, p) * (1.0 - 0.3 * smoothstep(0.2, 0.0, length((p - hp - vec2(0.0, -0.24)) / vec2(1.3, 0.8))));
-        over(acc, wc, fillFur(fluff(bib, p * 1.3, 2.2)) * fill(body) * (1.0 - uPoints * 0.6));
+        float st = smoothstep(0.4, 0.9, sin((p.y + p.x * side * 0.6) * 38.0 + vnoise(p * 8.0) * 2.0)) * (1.0 - uPoints);
+        col = mix(col, lit(dark, q, p), st * 0.45);
+        over(acc, col, fillFur(fluff(th, p, 0.9)));
     }
 
-    // ---- Front legs: short and chubby with white mittens ----
+    // ---- Body: a chubby pear, fluffy white chest ruff ----
+    vec2 bc = vec2(0.0, mix(-0.3, -0.42, loaf) - crouch * 0.05);
+    vec2 br = vec2(mix(0.19, 0.34, loaf), mix(0.24, 0.14, loaf) + breath) * (1.0 + 0.14 * uPuff);
+    float body = sdEllipse(p - bc, br);
+    vec2 hp = vec2(0.0, mix(0.04, -0.17, loaf) + uHeadY - crouch * 0.14);
+    if (body < 0.1) {
+        float d = fluff(body, p, 1.1);
+        vec2 q = (p - bc) / (br * 1.3);
+        vec3 col = lit(fur, q, p);
+        float st = smoothstep(0.45, 0.95, sin(abs(p.x) * 26.0 + p.y * 9.0 + vnoise(p * 6.0) * 2.5)) * smoothstep(0.06, 0.16, abs(p.x)) * (1.0 - uPoints);
+        col = mix(col, lit(dark, q, p), st * 0.5);
+        col *= 1.0 - 0.35 * smoothstep(0.2, 0.0, length((p - hp - vec2(0.0, -0.22)) / vec2(1.4, 0.7)));
+        over(acc, col, fillFur(d));
+        // Chest ruff: a fluffy white bib with long soft tufts.
+        float bib = sdEllipse(p - bc - vec2(0.0, br.y * 0.25), vec2(br.x * 0.62, br.y * 0.8));
+        vec3 wc = lit(white, q * 0.85, p) * (1.0 - 0.28 * smoothstep(0.2, 0.0, length((p - hp - vec2(0.0, -0.22)) / vec2(1.4, 0.7))));
+        over(acc, wc, fillFur(fluff(bib, p * 1.25, 2.6)) * fill(body) * (1.0 - uPoints * 0.6));
+    }
+
+    // ---- Front legs: straight, chubby, with mitten paws ----
     for (int s = 0; s < 2; s++) {
         float side = s == 0 ? -1.0 : 1.0;
         vec2 paw = s == 0 ? uPawL : uPawR;
-        vec2 sh = vec2(0.075 * side, mix(-0.26, -0.4, loaf) - crouch * 0.04);
-        float len = mix(0.255, 0.1, loaf) * paw.y * (1.0 - 0.35 * crouch);
+        vec2 sh = vec2(0.085 * side, mix(-0.24, -0.4, loaf) - crouch * 0.04);
+        float len = mix(0.27, 0.1, loaf) * paw.y * (1.0 - 0.35 * crouch);
         vec2 dir = rot(vec2(0.0, -1.0), paw.x * side);
         vec2 foot = sh + dir * len;
-        if (loaf > 0.85 && paw.x < 0.05) continue; // tucked in a loaf
-        float leg = sdCapsule(p, sh, foot, 0.052, 0.05);
-        vec2 lq = vec2(dot(p - sh, vec2(dir.y, -dir.x)) / 0.07, 0.1);
-        float sock = smoothstep(0.55, 0.75, dot(p - sh, dir) / max(len, 0.05));
-        over(acc, lit(mix(mix(fur, white, 0.25), mix(white, dark, uPoints), sock), lq, p), fillFur(fluff(leg, p, 0.5)));
+        if (loaf > 0.85 && paw.x < 0.05) continue;
+        float leg = sdCapsule(p, sh, foot, 0.058, 0.054);
+        vec2 lq = vec2(dot(p - sh, vec2(dir.y, -dir.x)) / 0.075, 0.15);
+        float sock = smoothstep(0.5, 0.72, dot(p - sh, dir) / max(len, 0.05));
+        over(acc, lit(mix(mix(fur, white, 0.3), mix(white, dark, uPoints), sock), lq, p), fillFur(fluff(leg, p, 0.6)));
         vec2 tq = rot(p - foot, paw.x * side);
-        float pd = sdEllipse(tq - vec2(0.0, -0.012), vec2(0.064, 0.044));
-        over(acc, lit(mix(white, dark, uPoints), tq / vec2(0.075, 0.055), p), fillFur(fluff(pd, p, 0.35)));
+        float pd = sdEllipse(tq - vec2(0.0, -0.01), vec2(0.07, 0.047));
+        for (int k = 0; k < 3; k++) pd = smin(pd, length(tq - vec2((float(k) - 1.0) * 0.032, -0.04 + abs(float(k) - 1.0) * 0.006)) - 0.021, 0.014);
+        over(acc, lit(mix(white, dark, uPoints), tq / vec2(0.08, 0.06), p), fillFur(fluff(pd, p, 0.35)));
         for (int k = 0; k < 2; k++) {
-            float tl = sdSeg(tq, vec2((float(k) - 0.5) * 0.034, -0.05), vec2((float(k) - 0.5) * 0.03, -0.028)) - 0.0028;
-            over(acc, vec3(0.62, 0.6, 0.7), fill(tl) * 0.55);
+            float tl = sdSeg(tq, vec2((float(k) - 0.5) * 0.034, -0.058), vec2((float(k) - 0.5) * 0.03, -0.034)) - 0.0026;
+            over(acc, mix(white, dark, 0.5) * 0.8, fill(tl) * 0.5);
         }
-        // Pink beans when a paw is raised toward you.
         if (paw.x > 0.9) {
-            over(acc, vec3(1.0, 0.62, 0.72), fill(length(tq - vec2(0.0, -0.016)) - 0.02));
-            for (int k = 0; k < 3; k++) over(acc, vec3(1.0, 0.62, 0.72), fill(length(tq - vec2((float(k) - 1.0) * 0.026, 0.014 - abs(float(k) - 1.0) * 0.008)) - 0.0095));
+            over(acc, vec3(1.0, 0.6, 0.7), fill(sdEllipse(tq - vec2(0.0, -0.008), vec2(0.026, 0.02))));
+            for (int k = 0; k < 3; k++) over(acc, vec3(1.0, 0.6, 0.7), fill(length(tq - vec2((float(k) - 1.0) * 0.03, 0.022 - abs(float(k) - 1.0) * 0.008)) - 0.011));
         }
     }
+
+    // ---- Tail wrapped around the paws ----
+    if (wrap >= 0.55) drawTail(acc, p, fur, dark, white);
 
     // ---- Box (hiding) : front face over the body ----
     if (uBox.x > 0.01) {
@@ -260,119 +298,143 @@ void main() {
         over(acc, vec3(1.0, 0.45, 0.5), fill(sdHeart((q - vec2(-0.2, -0.06)) / 0.06 + vec2(0.0, 0.5)) * 0.06) * uBox.x * 0.8);
     }
 
-    // ---- Head (skipped entirely for pixels far from it) ----
-    vec2 turn = vec2(uLook.x * 0.045, uLook.y * 0.028);
-    vec2 mouthPos = vec2(0.0, -0.118);
-    if (length(p - hp) < 0.72) {
-    vec2 h = rot(p - hp, -uTilt);
-    float skull = sdEllipse(h - vec2(0.0, 0.03), vec2(0.285, 0.245));
-    float cheekL = sdEllipse(h - vec2(-0.2, -0.07), vec2(0.13, 0.1) * (1.0 + 0.1 * uPuff));
-    float cheekR = sdEllipse(h - vec2(0.2, -0.07), vec2(0.13, 0.1) * (1.0 + 0.1 * uPuff));
-    float head = smin(skull, min(cheekL, cheekR), 0.07);
 
-    // Ears behind the head: rounded, with a pink inside and white tufts.
+    // ---- Collar with a little golden bell ----
+    if (loaf < 0.9) {
+        vec2 cc = hp + vec2(0.0, -0.235);
+        vec2 q = p - cc;
+        float band = abs(sdEllipse(q, vec2(0.17, 0.05))) - 0.018;
+        band = max(band, -q.y - 0.01 - 0.04 * (1.0 - abs(q.x) / 0.17));
+        vec3 col = mix(vec3(0.95, 0.32, 0.5), vec3(1.0, 0.55, 0.68), smoothstep(-0.02, 0.03, q.y));
+        col *= mix(0.6, 1.05, smoothstep(0.17, -0.05, q.x));
+        over(acc, col, fill(band));
+        vec2 bq = q - vec2(0.0, -0.06 + 0.004 * sin(uTime * 7.0));
+        float bell = length(bq) - 0.032;
+        vec3 gold = mix(vec3(0.75, 0.48, 0.1), vec3(1.0, 0.86, 0.4), smoothstep(0.03, -0.03, bq.x - bq.y * 0.5));
+        gold += vec3(1.0) * pow(max(1.0 - length((bq - vec2(-0.01, 0.012)) / 0.012), 0.0), 2.0) * 0.8;
+        over(acc, gold, fill(bell));
+        over(acc, vec3(0.3, 0.18, 0.05), fill(max(abs(bq.y + 0.008) - 0.003, abs(bq.x) - 0.02)) * fill(bell));
+        over(acc, vec3(0.25, 0.15, 0.04), fill(length(bq + vec2(0.0, 0.018)) - 0.006) * fill(bell));
+    }
+
+    // ---- Head ----
+    vec2 turn = vec2(uLook.x * 0.045, uLook.y * 0.028);
+    vec2 mouthPos = vec2(0.0, -0.12);
+    if (length(p - hp) < 0.75) {
+    vec2 h = rot(p - hp, -uTilt);
+    // Big round head, wide at the cheeks, with a fluffy ruff sticking out at the sides.
+    float skull = sdEllipse(h - vec2(0.0, 0.04), vec2(0.29, 0.25));
+    float jaw = sdEllipse(h - vec2(0.0, -0.065), vec2(0.27, 0.165) * (1.0 + 0.1 * uPuff));
+    float head = smin(skull, jaw, 0.09);
+    // Cheek ruff tufts.
+    for (int s = 0; s < 2; s++) {
+        float side = s == 0 ? -1.0 : 1.0;
+        for (int k = 0; k < 3; k++) {
+            float fk = float(k);
+            vec2 a = vec2(0.22 * side, -0.04 - fk * 0.05);
+            vec2 b = a + vec2((0.07 - fk * 0.012) * side, -0.035 - fk * 0.01);
+            head = smin(head, sdCapsule(h, a, b, 0.04, 0.004), 0.03);
+        }
+    }
+
+    // Ears: big and wide-set, pink inside with white wisps.
     for (int s = 0; s < 2; s++) {
         float side = s == 0 ? -1.0 : 1.0;
         float sw = (s == 0 ? uEars.x : uEars.y);
-        vec2 pivot = vec2(0.17 * side, 0.19);
-        vec2 eq = rot(h - pivot, -(sw + uEarsDown * 0.9 * side) - 0.12 * side);
-        float tip = 0.2 - 0.08 * uEarsDown;
-        float ear = sdTri(eq, vec2(-0.1 * side, -0.05), vec2(0.085 * side, -0.04), vec2(0.03 * side, tip)) - 0.022;
-        float inner = sdTri(eq, vec2(-0.055 * side, -0.02), vec2(0.05 * side, -0.015), vec2(0.026 * side, tip - 0.055)) - 0.01;
-        vec2 q = eq / vec2(0.12, 0.2);
-        over(acc, lit(mix(fur, dark, max(uPoints, 0.12)), q, h), fillFur(fluff(ear, h, 0.5)));
-        vec3 pink = mix(vec3(1.0, 0.62, 0.7), vec3(0.85, 0.4, 0.5), smoothstep(0.1, -0.03, eq.y));
+        vec2 pivot = vec2(0.165 * side, 0.17);
+        vec2 eq = rot(h - pivot, -(sw + uEarsDown * 0.9 * side) - 0.16 * side);
+        float tip = 0.21 - 0.08 * uEarsDown;
+        float ear = sdTri(eq, vec2(-0.11 * side, -0.06), vec2(0.095 * side, -0.05), vec2(0.02 * side, tip)) - 0.03;
+        float inner = sdTri(eq, vec2(-0.06 * side, -0.025), vec2(0.055 * side, -0.02), vec2(0.018 * side, tip - 0.06)) - 0.014;
+        over(acc, lit(mix(fur, dark, max(uPoints, 0.1)), eq / vec2(0.13, 0.22), h), fillFur(fluff(ear, h, 0.5)));
+        vec3 pink = mix(vec3(1.0, 0.66, 0.74), vec3(0.88, 0.45, 0.55), smoothstep(0.12, -0.03, eq.y));
         over(acc, pink, fill(inner) * 0.95);
-        for (int k = 0; k < 3; k++) {
+        for (int k = 0; k < 4; k++) {
             float fk = float(k);
-            float t = sdCapsule(eq, vec2((-0.03 + fk * 0.028) * side, -0.03), vec2((0.0 + fk * 0.022) * side, 0.05 - fk * 0.012), 0.008, 0.001);
-            over(acc, white, fill(t) * 0.85);
+            float t = sdCapsule(eq, vec2((-0.04 + fk * 0.026) * side, -0.035), vec2((-0.005 + fk * 0.02) * side, 0.06 - abs(fk - 1.5) * 0.014), 0.007, 0.001);
+            over(acc, white, fill(t) * 0.9);
         }
     }
     {
-        float d = fluff(head, h, 1.25);
-        vec2 q = (h - vec2(0.0, 0.0)) / vec2(0.36, 0.3);
+        float d = fluff(head, h, 1.35);
+        vec2 q = h / vec2(0.37, 0.3);
         vec3 col = lit(fur, q, h);
-        // Soft tabby marks: forehead "M", cheek swipes.
         if (uPoints < 0.5) {
-            float m = min(min(sdCapsule(h - turn * 0.5, vec2(-0.075, 0.13), vec2(-0.055, 0.225), 0.014, 0.008), sdCapsule(h - turn * 0.5, vec2(0.0, 0.14), vec2(0.0, 0.245), 0.015, 0.008)), sdCapsule(h - turn * 0.5, vec2(0.075, 0.13), vec2(0.055, 0.225), 0.014, 0.008));
+            // Tabby "M" and cheek swirls.
+            vec2 hm = h - turn * 0.5;
+            float m = min(min(sdCapsule(hm, vec2(-0.08, 0.13), vec2(-0.055, 0.23), 0.015, 0.007), sdCapsule(hm, vec2(0.0, 0.145), vec2(0.0, 0.25), 0.016, 0.007)), sdCapsule(hm, vec2(0.08, 0.13), vec2(0.055, 0.23), 0.015, 0.007));
             col = mix(col, lit(dark, q, h), smoothstep(0.012, -0.012, m) * 0.6);
             for (int s = 0; s < 2; s++) {
                 float side = s == 0 ? -1.0 : 1.0;
                 for (int k = 0; k < 2; k++) {
-                    float y = -0.035 - float(k) * 0.05;
-                    float cs = sdCapsule(h, vec2(0.215 * side, y + 0.012), vec2(0.31 * side, y + 0.03), 0.012, 0.004);
+                    float y = -0.03 - float(k) * 0.05;
+                    float cs = sdCapsule(h, vec2(0.22 * side, y + 0.012), vec2(0.33 * side, y + 0.035), 0.013, 0.004);
                     col = mix(col, lit(dark, q, h), smoothstep(0.012, -0.012, cs) * 0.5);
                 }
             }
         }
-        // Siamese mask.
-        col = mix(col, lit(dark, q, h), uPoints * smoothstep(0.22, 0.06, length((h - vec2(0.0, -0.04)) * vec2(1.0, 1.2))) * 0.9);
+        col = mix(col, lit(dark, q, h), uPoints * smoothstep(0.23, 0.06, length((h - vec2(0.0, -0.04)) * vec2(1.0, 1.2))) * 0.9);
         over(acc, col, fillFur(d));
     }
     vec2 f = h - turn;
     float face = fill(head + 0.01);
-    vec2 fq = h / vec2(0.36, 0.3);
+    vec2 fq = h / vec2(0.37, 0.3);
 
-    // White blaze, muzzle and chin.
-    float muzzle = smin(sdEllipse(f - vec2(-0.05, -0.105), vec2(0.07, 0.052)), sdEllipse(f - vec2(0.05, -0.105), vec2(0.07, 0.052)), 0.025);
-    muzzle = smin(muzzle, sdCapsule(f, vec2(0.0, -0.08), vec2(0.0, 0.07), 0.035, 0.012), 0.04);
-    muzzle = smin(muzzle, sdEllipse(f - vec2(0.0, -0.15), vec2(0.06, 0.035)), 0.03);
+    // White muzzle and chin, a soft blaze up the nose.
+    float muzzle = smin(sdEllipse(f - vec2(-0.052, -0.11), vec2(0.075, 0.056)), sdEllipse(f - vec2(0.052, -0.11), vec2(0.075, 0.056)), 0.025);
+    muzzle = smin(muzzle, sdCapsule(f, vec2(0.0, -0.085), vec2(0.0, 0.06), 0.035, 0.01), 0.04);
+    muzzle = smin(muzzle, sdEllipse(f - vec2(0.0, -0.16), vec2(0.065, 0.036)), 0.03);
     over(acc, lit(mix(white, dark * 1.1, uPoints), fq + vec2(0.0, 0.1), f), fillFur(fluff(muzzle, f, 0.6)) * face);
 
-    // Blush.
     for (int s = 0; s < 2; s++) {
         float side = s == 0 ? -1.0 : 1.0;
-        vec2 bq = (f - vec2(0.175 * side, -0.075)) / vec2(0.055, 0.032);
-        over(acc, vec3(1.0, 0.5, 0.62), exp(-dot(bq, bq) * 1.3) * 0.42 * face * (1.0 - uPoints));
+        vec2 bq = (f - vec2(0.19 * side, -0.08)) / vec2(0.055, 0.032);
+        over(acc, vec3(1.0, 0.5, 0.62), exp(-dot(bq, bq) * 1.3) * 0.45 * face * (1.0 - uPoints));
     }
 
-    // Eyes: big, round and glossy.
+    // Eyes: huge almond eyes with a flick at the outer corner.
     for (int s = 0; s < 2; s++) {
         float side = s == 0 ? -1.0 : 1.0;
-        vec2 ec = f - vec2(0.118 * side, 0.0);
-        ec = rot(ec, 0.1 * side);
-        vec2 look = uLook * vec2(0.014, 0.012);
+        vec2 ec = f - vec2(0.125 * side, 0.005);
+        ec = rot(ec, 0.14 * side);
+        vec2 look = uLook * vec2(0.015, 0.012);
         if (uEyeMode < 0.5 || uEyeMode > 1.5 && uEyeMode < 2.5 || uEyeMode > 3.5) {
             float open = uEyeOpen;
             if (uEyeMode > 1.5 && uEyeMode < 2.5) open = min(open, 0.4);
-            if (uEyeMode > 3.5) open = 1.12;
-            vec2 er = vec2(0.074, 0.084 * max(open, 0.06));
+            if (uEyeMode > 3.5) open = 1.15;
+            vec2 er = vec2(0.08, 0.088 * max(open, 0.06));
             float eye = sdEllipse(ec, er);
-            // Dark lash line all around, thicker on top.
-            over(acc, vec3(0.07, 0.05, 0.1), fill(eye - 0.007 - 0.006 * smoothstep(-0.02, 0.05, ec.y)) * face);
-            // Iris: deep at the top, bright and saturated toward the bottom.
-            float ir = length(ec - look * 0.6) / 0.075;
-            vec3 iris = mix(uEye * 1.25 + vec3(0.12, 0.16, 0.12), uEye * 0.35, smoothstep(-0.05, 0.06, ec.y));
-            iris = mix(iris, uEye * 0.22, smoothstep(0.78, 1.0, ir));
+            // Lash line with a cat-eye flick.
+            float flick = sdCapsule(ec, vec2(0.065 * side, 0.03 * open), vec2(0.1 * side, 0.05 * open), 0.007, 0.002);
+            over(acc, vec3(0.06, 0.04, 0.08), fill(min(eye - 0.007 - 0.006 * smoothstep(-0.02, 0.05, ec.y), flick)) * face);
+            float ir = length(ec - look * 0.6) / 0.08;
+            vec3 iris = mix(uEye * 1.35 + vec3(0.15, 0.18, 0.12), uEye * 0.3, smoothstep(-0.06, 0.07, ec.y));
+            iris = mix(iris, uEye * 0.2, smoothstep(0.8, 1.0, ir));
             iris += uEye * uEyeGlow * 0.9;
             over(acc, iris, fill(eye) * face);
-            // Radial iris fibres.
-            float fib = vnoise(vec2(atan(ec.y - look.y, ec.x - look.x) * 9.0, ir * 3.0));
-            over(acc, uEye * 1.5, fill(eye) * face * fib * 0.18 * smoothstep(0.3, 0.7, ir));
-            // Pupil: round and huge when excited, a slit when focused.
-            vec2 pr = vec2(mix(0.012, 0.047, uPupil), mix(0.06, 0.056, uPupil));
+            float fib = vnoise(vec2(atan(ec.y - look.y, ec.x - look.x) * 10.0, ir * 3.0));
+            over(acc, uEye * 1.6, fill(eye) * face * fib * 0.2 * smoothstep(0.3, 0.75, ir));
+            vec2 pr = vec2(mix(0.013, 0.05, uPupil), mix(0.066, 0.06, uPupil));
             float pupil = sdEllipse(ec - look, pr);
             over(acc, vec3(0.015, 0.01, 0.03), fill(max(pupil, eye)) * face);
-            // Lid shadow across the top of the eye.
-            over(acc, vec3(0.03, 0.02, 0.08), fill(eye) * face * smoothstep(0.02, 0.085, ec.y + 0.012) * 0.55);
+            over(acc, vec3(0.03, 0.02, 0.08), fill(eye) * face * smoothstep(0.02, 0.09, ec.y + 0.012) * 0.5);
             if (open > 0.3) {
-                float hl = sdEllipse(ec - look * 0.4 - vec2(-0.022, 0.03), vec2(0.021, 0.024));
-                float hl2 = length(ec - look * 0.4 - vec2(0.026, -0.03)) - 0.01;
-                float hl3 = sdEllipse(ec - vec2(0.0, -0.058), vec2(0.035, 0.012));
+                float hl = sdEllipse(ec - look * 0.4 - vec2(-0.024, 0.032), vec2(0.024, 0.027));
+                float hl2 = length(ec - look * 0.4 - vec2(0.028, -0.032)) - 0.011;
+                float hl3 = sdEllipse(ec - vec2(0.0, -0.062), vec2(0.04, 0.012));
                 over(acc, vec3(1.0), (fill(max(hl, eye)) + fill(hl2) * 0.85) * face);
-                over(acc, mix(uEye, vec3(1.0), 0.6), fill(max(hl3, eye)) * face * 0.35);
+                over(acc, mix(uEye, vec3(1.0), 0.6), fill(max(hl3, eye)) * face * 0.4);
             }
             if (uEyeGlow > 0.01) over(acc, uEye * 1.4, exp(-max(eye, 0.0) * 50.0) * uEyeGlow * 0.6 * face);
         } else if (uEyeMode < 1.5) {
-            float ln = sdArc(ec + vec2(0.0, 0.02), 0.05, 1.15) - 0.0085;
+            float ln = sdArc(ec + vec2(0.0, 0.02), 0.055, 1.15) - 0.009;
             over(acc, vec3(0.08, 0.06, 0.12), fill(ln) * face);
         } else {
-            float ln = sdArc(ec * vec2(1.0, -1.0) + vec2(0.0, 0.022), 0.052, 1.05) - 0.0075;
+            float ln = sdArc(ec * vec2(1.0, -1.0) + vec2(0.0, 0.024), 0.058, 1.05) - 0.008;
             over(acc, vec3(0.08, 0.06, 0.12), fill(ln) * face);
             for (int k = 0; k < 2; k++) {
                 float fk = float(k);
-                float lash = sdSeg(ec, vec2((0.03 + fk * 0.018) * side, -0.022 + fk * 0.008), vec2((0.045 + fk * 0.02) * side, -0.04 + fk * 0.012)) - 0.004;
+                float lash = sdSeg(ec, vec2((0.034 + fk * 0.018) * side, -0.024 + fk * 0.008), vec2((0.05 + fk * 0.02) * side, -0.042 + fk * 0.012)) - 0.004;
                 over(acc, vec3(0.08, 0.06, 0.12), fill(lash) * face);
             }
         }
@@ -380,18 +442,17 @@ void main() {
 
     // Nose and mouth.
     {
-        vec2 nq = f - vec2(0.0, -0.075);
-        float nose = sdTri(nq, vec2(-0.02, 0.01), vec2(0.02, 0.01), vec2(0.0, -0.012)) - 0.009;
-        vec3 nc = mix(vec3(1.0, 0.52, 0.62), vec3(0.3, 0.2, 0.22), uPoints);
+        vec2 nq = f - vec2(0.0, -0.078);
+        float nose = sdTri(nq, vec2(-0.022, 0.01), vec2(0.022, 0.01), vec2(0.0, -0.014)) - 0.009;
+        vec3 nc = mix(vec3(1.0, 0.55, 0.65), vec3(0.3, 0.2, 0.22), uPoints);
         over(acc, nc * mix(0.8, 1.1, smoothstep(-0.02, 0.02, nq.y)), fill(nose) * face);
-        over(acc, vec3(1.0), fill(sdEllipse(nq - vec2(-0.006, 0.008), vec2(0.008, 0.004))) * face * 0.7);
+        over(acc, vec3(1.0), fill(sdEllipse(nq - vec2(-0.006, 0.008), vec2(0.009, 0.004))) * face * 0.7);
         vec2 mc = f - mouthPos;
         vec3 line = vec3(0.3, 0.16, 0.2);
         if (uPad.x > 0.5 && uMouth > 3.5) {
-            // Sipping: a tiny round mouth around the straw.
             over(acc, vec3(0.3, 0.08, 0.12), fill(length(mc) - 0.017) * face);
         } else if (uMouth < 0.5) {
-            over(acc, line, fill(sdSeg(f, vec2(0.0, -0.092), vec2(0.0, -0.108)) - 0.003) * face);
+            over(acc, line, fill(sdSeg(f, vec2(0.0, -0.095), vec2(0.0, -0.11)) - 0.003) * face);
             float w1 = sdArc((mc - vec2(-0.022, 0.012)) * vec2(1.0, -1.0), 0.022, 1.25);
             float w2 = sdArc((mc - vec2(0.022, 0.012)) * vec2(1.0, -1.0), 0.022, 1.25);
             over(acc, line, fill(min(w1, w2) - 0.0035) * face);
@@ -401,22 +462,21 @@ void main() {
             over(acc, vec3(0.38, 0.08, 0.14), fill(dm) * face);
             float tongue = sdEllipse(mc + vec2(0.0, o * 1.05 + (uMouth > 2.5 ? 0.014 : 0.0)), vec2(0.024, uMouth > 2.5 ? 0.032 : 0.02));
             over(acc, vec3(1.0, 0.5, 0.6), fill(uMouth > 2.5 ? tongue : max(tongue, dm)) * face);
-            if (uMouth > 1.5 && uMouth < 2.5) {
+            if (uMouth > 0.5 && uMouth < 2.5) {
                 for (int s = 0; s < 2; s++) {
                     float side = s == 0 ? -1.0 : 1.0;
-                    float fang = sdTri(mc, vec2(0.02 * side, 0.02), vec2(0.034 * side, 0.02), vec2(0.027 * side, -0.006));
+                    float fang = sdTri(mc, vec2(0.018 * side, 0.02), vec2(0.032 * side, 0.02), vec2(0.025 * side, -0.006));
                     over(acc, vec3(1.0), fill(fang) * face);
                 }
             }
         }
     }
-    // Whiskers: fine, curved, slightly see-through.
     for (int s = 0; s < 2; s++) {
         float side = s == 0 ? -1.0 : 1.0;
         for (int k = 0; k < 3; k++) {
             float fk = float(k);
-            vec2 a = vec2(0.09 * side, -0.1 - fk * 0.012);
-            vec2 b = vec2((0.4 - fk * 0.025) * side, -0.055 - fk * 0.055 + 0.012 * sin(uTime * 2.0 + fk + side));
+            vec2 a = vec2(0.095 * side, -0.105 - fk * 0.012);
+            vec2 b = vec2((0.43 - fk * 0.025) * side, -0.06 - fk * 0.055 + 0.012 * sin(uTime * 2.0 + fk + side));
             vec2 pa = f - a, ba = b - a;
             float t = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
             float wsk = length(pa - ba * t + vec2(0.0, 0.03 * t * (1.0 - t))) - mix(0.003, 0.0008, t);

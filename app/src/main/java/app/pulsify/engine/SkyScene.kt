@@ -110,7 +110,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
 
     fun onSurfaceChanged(width: Int, height: Int) {
         w = max(1, width); h = max(1, height)
-        field?.size(w, h)
+        fieldScene?.size(w, h)
     }
     private var lastDt = 1f / 60f
 
@@ -120,7 +120,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     private fun toUvY(ny: Float): Float = (0.5f - ny) * h / min(w, h).toFloat()
 
     fun touchDown(nx: Float, ny: Float) {
-        field?.touchDown(nx, ny)
+        fieldScene?.touchDown(nx, ny)
         touchDown = true
         tx = toUvX(nx); ty = toUvY(ny)
         downX = tx; downY = ty; downAt = time
@@ -130,7 +130,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     }
 
     fun touchMove(nx: Float, ny: Float) {
-        field?.touchMove(nx, ny)
+        fieldScene?.touchMove(nx, ny)
         if (!touchDown) return
         val x = toUvX(nx); val y = toUvY(ny)
         val dt = max(1e-3f, time - lastMoveAt)
@@ -144,7 +144,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     }
 
     fun touchUp() {
-        field?.touchUp()
+        fieldScene?.touchUp()
         if (!touchDown) return
         touchDown = false
         sinceTouch = 0f
@@ -278,15 +278,15 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     }
 
     // Liquid Obsidian / Neon Light Play live in their own simulated field.
-    private var field: FieldScene? = null
+    private var fieldScene: FieldScene? = null
     private fun ensureField(v: Int): FieldScene? {
         val want = if (v == FieldScene.LIQUID || v == FieldScene.NEON) v else -1
-        val f = field
-        if (f != null && f.kind != want) { f.release(); field = null }
-        if (want >= 0 && field == null) field = try { FieldScene(want).also { it.create(); it.size(w, h) } } catch (t: Throwable) {
+        val f = fieldScene
+        if (f != null && f.kind != want) { f.release(); fieldScene = null }
+        if (want >= 0 && fieldScene == null) fieldScene = try { FieldScene(want).also { it.create(); it.size(w, h) } } catch (t: Throwable) {
             app.pulsify.core.CrashLog.note("field: ${t.message}"); null
         }
-        return field
+        return fieldScene
     }
 
     fun draw(input: SceneInput) {
@@ -351,7 +351,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
 
     /** True while something on screen is still moving fast enough to need 60 fps. */
     val busy: Boolean
-        get() = field != null || touchDown || sinceTouch < 2f || shootActive || showerLeft > 0 || wish > 0f
+        get() = fieldScene != null || touchDown || sinceTouch < 2f || shootActive || showerLeft > 0 || wish > 0f
 
     // The Nebula is painted procedurally, once, into a texture (no pictures): a heavy shader
     // run in a few strips over several frames so nothing stalls. The sky shader then animates
@@ -411,7 +411,7 @@ class SkyScene(private val context: Context, var listener: SceneListener? = null
     }
 
     fun release() {
-        field?.release(); field = null
+        fieldScene?.release(); fieldScene = null
         freeNebula()
         if (nebProg != 0) GLES20.glDeleteProgram(nebProg)
         nebProg = 0
