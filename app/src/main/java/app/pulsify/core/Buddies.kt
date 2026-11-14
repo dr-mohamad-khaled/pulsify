@@ -48,8 +48,13 @@ object Buddies {
     /** Taps waiting for the wallpaper (it knows which page is showing). */
     val pokes = ConcurrentLinkedQueue<BuddyPoke>()
     /** The creature the next pinned widget gets (set by the app before asking the launcher). */
-    @Volatile var pendingCreature = 1
-    @Volatile var pendingCoat = 0
+    /** Kept on disk: the launcher may add the widget after our process was gone. */
+    var pendingCreature: Int
+        get() = if (::prefs.isInitialized) prefs.getInt("pending", 1) else 1
+        set(v) { if (::prefs.isInitialized) prefs.edit().putInt("pending", v).apply() }
+    var pendingCoat: Int
+        get() = if (::prefs.isInitialized) prefs.getInt("pendingCoat", 0) else 0
+        set(v) { if (::prefs.isInitialized) prefs.edit().putInt("pendingCoat", v).apply() }
     /** True while a live wallpaper engine is on the home screen and consuming taps. */
     @Volatile var wallpaperLive = false
 

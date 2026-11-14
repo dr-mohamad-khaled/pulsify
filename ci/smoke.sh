@@ -47,10 +47,11 @@ adb shell input keyevent KEYCODE_BACK; sleep 2; adb shell input keyevent KEYCODE
 for c in 4 1; do
   adb shell am start -n $PKG/app.pulsify.MainActivity --ei pin $c > /dev/null 2>&1; sleep 5; shot 62_pin_dialog_$c
   ui tap "Add to home screen"; ui tap "Add automatically"; ui tap "ADD AUTOMATICALLY"; sleep 3
-  adb shell am force-stop $PKG; sleep 1
+  adb shell input keyevent KEYCODE_HOME; sleep 2
 done
 timeout 30 adb shell dumpsys appwidget | grep -i -B2 -A6 pulsify > $OUT/appwidget.txt 2>&1
 adb shell input keyevent KEYCODE_HOME; sleep 6; shot 63_home_widgets
+timeout 30 adb shell dumpsys wallpaper | grep -i -m2 "pulsify" > $OUT/wallpaper_at_widgets.txt
 ui tapid ":id/root" $OUT/widgets.txt; sleep 2; shot 64_widgets_woken
 sleep 3; shot 65_widgets_later
 adb shell input swipe 950 1200 100 1200 250; sleep 1; shot 66_page2
