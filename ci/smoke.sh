@@ -39,7 +39,9 @@ adb shell input swipe 900 1200 150 1200 300; sleep 3; adb shell input swipe 150 
 adb shell input keyevent KEYCODE_SLEEP; sleep 5; adb shell input keyevent KEYCODE_WAKEUP; sleep 3
 adb shell wm dismiss-keyguard; sleep 5; shot 35_after_unlock
 echo "== change things in the app while the wallpaper is live"
-adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 8; shot 36_app_with_live
+adb shell am start -n $PKG/app.pulsify.MainActivity > /dev/null 2>&1; sleep 7
+for i in 1 2 3 4 5 6 7; do shot "50_intro_$i"; ui tap "Next"; sleep 2; done
+shot 50_intro_8; ui tap "Start with Mochi"; sleep 6; shot 36_app_with_live
 echo "== home-screen friends: open, pin a widget, wake it, swipe"
 adb shell input swipe 540 1700 540 900 400; sleep 2
 ui tap "Home-screen friends"; sleep 6; shot 60_friends
@@ -138,6 +140,20 @@ portrait c9 --ei char 9 --ei env 0 --ei coat 2
 portrait c9b --ei char 9 --ei env 3 --ei coat 3
 portrait c2 --ei char 2 --ei env 0
 portrait loopswitch --ei video 0 --ei video2 8
+portrait sky2 --ei char 0 --ei variant 2
+touchy() {  # name, extras: swipes and taps on the wallpaper, then shots
+  local name=$1; shift
+  adb shell am force-stop $PKG; sleep 1
+  adb shell am start -W -n $PKG/app.pulsify.MainActivity --ei portrait 1 "$@" > /dev/null 2>&1
+  sleep 4
+  adb shell input swipe 200 600 900 1500 400; adb shell input swipe 900 700 150 1300 500; adb shell input tap 540 1000
+  sleep 0.4; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_1.png" 2>/dev/null || true
+  adb shell input swipe 300 1800 800 500 600; adb shell input tap 300 800; adb shell input tap 800 1600
+  sleep 0.6; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_2.png" 2>/dev/null || true
+  sleep 2; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_3.png" 2>/dev/null || true
+}
+touchy sky3 --ei char 0 --ei variant 3
+touchy sky4 --ei char 0 --ei variant 4
 # Home-screen friends playground: many shots over ~24 s to catch swipe reactions and games.
 friends() {  # name, picks
   local name=$1; shift

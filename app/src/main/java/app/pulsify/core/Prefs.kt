@@ -17,6 +17,11 @@ class Prefs(context: Context) {
         get() = sp.getInt(K_CHAR, 1)
         set(v) = sp.edit().putInt(K_CHAR, v).apply()
 
+    /** The first-run intro has been seen. */
+    var introSeen: Boolean
+        get() = sp.getBoolean("introSeen", false)
+        set(v) = sp.edit().putBoolean("introSeen", v).apply()
+
     /** The chosen video loop, or -1 when a creature / sky is the wallpaper. */
     var video: Int
         get() = sp.getInt(K_VIDEO, -1)

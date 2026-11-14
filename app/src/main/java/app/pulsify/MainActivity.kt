@@ -41,6 +41,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,6 +123,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun App(start: Screen = Screen.HOME) {
+    var intro by remember { mutableStateOf(!Pulse.prefs.introSeen) }
+    if (intro) {
+        app.pulsify.ui.IntroScreen { id -> Pulse.prefs.introSeen = true; Pulse.prefs.video = -1; Pulse.prefs.character = id; intro = false }
+        return
+    }
     val state = remember { AppState().also { it.screen = start } }
     DisposableEffect(Unit) { onDispose { state.dispose() } }
     LaunchedEffect(Unit) {
