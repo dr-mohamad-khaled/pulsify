@@ -92,10 +92,10 @@ val GLOOP_INFO = CreatureInfo(
     0xFF8EE03B.toInt(),
     GLOOP_SIZES.mapIndexed { i, n -> CoatInfo(if (n == 8) "Full gang" else "$n blobs", GLOOP_TRAITS[i * 2 % GLOOP_TRAITS.size].base, GLOOP_TRAITS[(i * 2 + 1) % GLOOP_TRAITS.size].base) },
     listOf(
-        EnvInfo("Disco", 24, c1 = 0xFFCD78FF.toInt(), c2 = 0xFF8CFF96.toInt()),
-        EnvInfo("Bubble Bath", 25, c1 = 0xFF8FD9FF.toInt(), c2 = 0xFFFFD23F.toInt()),
-        EnvInfo("Outer Space", 26, c1 = 0xFF9D4EDD.toInt(), c2 = 0xFFFFB36B.toInt()),
-        EnvInfo("Candy Clouds", 27, c1 = 0xFFFFB6D9.toInt(), c2 = 0xFFC8B6FF.toInt()),
+        EnvInfo("Jelly Room", 28, c1 = 0xFFC9A6FF.toInt(), c2 = 0xFFFFD6F2.toInt()),
+        EnvInfo("Gum Pool", 29, c1 = 0xFF73F2C8.toInt(), c2 = 0xFFFFC6DA.toInt()),
+        EnvInfo("Moon Jelly", 30, c1 = 0xFF9D5CF2.toInt(), c2 = 0xFFFFE6FA.toInt()),
+        EnvInfo("Sherbet Hills", 31, c1 = 0xFFFFB38F.toInt(), c2 = 0xFFFF9EB8.toInt()),
     ),
     listOf(
         TrickInfo("tag", "Tag", "🏃"), TrickInfo("tower", "Jelly tower", "🗼"), TrickInfo("conga", "Conga line", "💃"),

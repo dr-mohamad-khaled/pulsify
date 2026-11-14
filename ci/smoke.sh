@@ -134,6 +134,9 @@ portrait() {  # name, extras...
   for t in 1 2 3; do sleep 4; timeout 30 adb exec-out screencap -p > "$OUT/portraits/${name}_$t.png" 2>/dev/null || true; done
 }
 portrait c7 --ei char 7 --ei env 0 --ei coat 0
+portrait c9 --ei char 9 --ei env 0 --ei coat 2
+portrait c9b --ei char 9 --ei env 3 --ei coat 3
+portrait c2 --ei char 2 --ei env 0
 portrait loopswitch --ei video 0 --ei video2 8
 # Home-screen friends playground: many shots over ~24 s to catch swipe reactions and games.
 friends() {  # name, picks

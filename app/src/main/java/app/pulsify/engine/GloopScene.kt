@@ -47,7 +47,17 @@ class GloopScene(context: Context) : CanvasCreature(context) {
         var r = 0f; var x = 0f; var y = 0f; var vx = 0f; var vy = 0f; var tx = 0f; var ty = 0f; var next = 0f
         var sq = 1f; var sqv = 0f; var ang = 0f; val seed = Random.nextFloat() * 10f; val blink = 3f + Random.nextFloat() * 3f
         var lx = 0f; var ly = 0f; var surprise = 0f; var hidden = 0f
+        // Soft body: the outline is NODES springy radii, dented where it touches things.
+        val rad = FloatArray(NODES) { 1f }; val radV = FloatArray(NODES)
     }
+
+    /** Two blobs that touched stay glued by a stretchy strand until it snaps. */
+    private class Glue(val a: Blob, val b: Blob, val since: Float)
+    private val glue = ArrayList<Glue>()
+    private val unglued = HashMap<Long, Float>()
+    private class Drop(var x: Float, var y: Float, var vx: Float, var vy: Float, val r: Float, val col: Int, var life: Float)
+    private val drops = ArrayList<Drop>()
+    private fun key(a: Blob, b: Blob): Long { val i = blobs.indexOf(a).toLong(); val j = blobs.indexOf(b).toLong(); return min(i, j) * 64 + max(i, j) }
 
     private val blobs = ArrayList<Blob>()
     private var count = 5
@@ -267,6 +277,7 @@ class GloopScene(context: Context) : CanvasCreature(context) {
             val p = blobs[i]; val q = blobs[j]
             val dx = q.x - p.x; val dy = q.y - p.y; val d = max(0.001f, hypot(dx, dy)); val mn = p.r + q.r
             if (d < mn) {
+                if (glue.none { (it.a === p && it.b === q) || (it.a === q && it.b === p) } && time - (unglued[key(p, q)] ?: -9f) > 0.8f) glue += Glue(p, q, time)
                 val push = (mn - d) / 2f; val nx = dx / d; val ny = dy / d
                 if (p !== grab) { p.x -= nx * push; p.y -= ny * push }
                 if (q !== grab) { q.x += nx * push; q.y += ny * push }
@@ -284,9 +295,10 @@ class GloopScene(context: Context) : CanvasCreature(context) {
                 }
             }
         }
+        goo(dt, floor)
         // Wobble, gaze.
         for (b in blobs) {
-            b.sqv += ((1f - b.sq) * 120f - b.sqv * 7f) * dt
+            b.sqv += ((1f - b.sq) * 120f - b.sqv * 4.2f) * dt
             b.sq = clampF(b.sq + b.sqv * dt, 0.72f, 1.3f)
             if (game == Game.MUSIC) b.sq = clampF(b.sq, 0.85f, 1.15f)
             b.surprise = max(0f, b.surprise - dt * 0.8f)
@@ -302,6 +314,143 @@ class GloopScene(context: Context) : CanvasCreature(context) {
             b.lx += (lx - b.lx) * min(1f, dt * 6f); b.ly += (ly - b.ly) * min(1f, dt * 6f)
         }
     }
+
+    /** Gooey bits: springy outlines that dent on contact, sticky strands, little droplets. */
+    private fun goo(dt: Float, floor: Float) {
+        for (b in blobs) {
+            for (k in 0 until NODES) {
+                b.radV[k] += ((1f - b.rad[k]) * 260f - b.radV[k] * 5.5f) * dt
+                b.rad[k] = clampF(b.rad[k] + b.radV[k] * dt, 0.55f, 1.35f)
+            }
+            // Pressing on the floor flattens the bottom and bulges the sides.
+            for (k in 0 until NODES) {
+                val sn = NODE_SIN[k]
+                if (sn > 0.15f) {
+                    val lim = (floor - b.y) / (b.r * sn * b.sq)
+                    if (b.rad[k] > lim) { val dd = b.rad[k] - lim; b.rad[k] = max(0.55f, lim); b.radV[k] -= dd * 18f
+                        bulge(b, k, dd) }
+                }
+            }
+        }
+        // Dents where two blobs press together.
+        for (i in 0 until blobs.size) for (j in i + 1 until blobs.size) {
+            val p = blobs[i]; val q = blobs[j]
+            val dx = q.x - p.x; val dy = q.y - p.y; val d = max(0.001f, hypot(dx, dy)); val mn = p.r + q.r
+            if (d > mn * 1.06f) continue
+            val nx = dx / d; val ny = dy / d
+            dent(p, nx, ny, d * p.r / mn)
+            dent(q, -nx, -ny, d * q.r / mn)
+        }
+        // Sticky strands: they pull back together, stretch, and finally snap with a splat.
+        val it = glue.iterator()
+        while (it.hasNext()) {
+            val g = it.next(); val p = g.a; val q = g.b
+            if (p !in blobs || q !in blobs) { it.remove(); continue }
+            val dx = q.x - p.x; val dy = q.y - p.y; val d = max(0.001f, hypot(dx, dy)); val mn = p.r + q.r
+            val nx = dx / d; val ny = dy / d
+            val tooLong = d > mn * 1.75f
+            val tooOld = time - g.since > 3.2f && d > mn * 1.05f
+            if (tooLong || tooOld) {
+                it.remove(); unglued[key(p, q)] = time
+                if (d > mn * 1.2f) {
+                    p.sqv += 4f; q.sqv += 4f
+                    for (k in 0 until NODES) { p.radV[k] += (Random.nextFloat() - 0.5f) * 4f; q.radV[k] += (Random.nextFloat() - 0.5f) * 4f }
+                    val mx = (p.x + q.x) / 2f; val my = (p.y + q.y) / 2f
+                    for (k in 0 until 6) drops += Drop(mx, my, (Random.nextFloat() - 0.5f) * W * 0.5f, -Random.nextFloat() * H * 0.35f,
+                        min(p.r, q.r) * (0.08f + Random.nextFloat() * 0.08f), if (k % 2 == 0) p.tr.base else q.tr.base, 0.9f)
+                }
+                continue
+            }
+            if (d > mn * 0.98f) {
+                val f = (d - mn * 0.98f) * 14f * dt
+                if (p !== grab) { p.vx += nx * f; p.vy += ny * f }
+                if (q !== grab) { q.vx -= nx * f; q.vy -= ny * f }
+                // Each side gets pulled out into a teardrop toward the other.
+                pull(p, nx, ny, (d - mn) / mn)
+                pull(q, -nx, -ny, (d - mn) / mn)
+            }
+        }
+        val dIt = drops.iterator()
+        while (dIt.hasNext()) {
+            val o = dIt.next()
+            o.vy += H * 1.6f * dt; o.x += o.vx * dt; o.y += o.vy * dt; o.life -= dt
+            if (o.y > floor) { o.y = floor; o.vy = -o.vy * 0.2f; o.vx *= 0.5f }
+            if (o.life <= 0f) dIt.remove()
+        }
+    }
+
+    private fun dent(b: Blob, nx: Float, ny: Float, reach: Float) {
+        for (k in 0 until NODES) {
+            val dot = NODE_COS[k] * nx + NODE_SIN[k] * ny
+            if (dot < 0.25f) continue
+            val lim = reach / (b.r * dot)
+            if (b.rad[k] > lim) { val dd = b.rad[k] - lim; b.rad[k] = max(0.55f, lim); b.radV[k] -= dd * 14f; bulge(b, k, dd) }
+        }
+    }
+
+    private fun bulge(b: Blob, k: Int, dd: Float) {
+        // Volume goes somewhere: the neighbours a quarter-turn away puff out.
+        val a = (k + NODES / 4) % NODES; val c = (k + NODES * 3 / 4) % NODES
+        b.radV[a] += dd * 4f; b.radV[c] += dd * 4f
+    }
+
+    private fun pull(b: Blob, nx: Float, ny: Float, amount: Float) {
+        val s = clampF(amount, 0f, 0.75f)
+        for (k in 0 until NODES) {
+            val dot = NODE_COS[k] * nx + NODE_SIN[k] * ny
+            if (dot > 0.5f) b.rad[k] = max(b.rad[k], 1f + s * 0.45f * (dot - 0.5f) * 2f)
+        }
+    }
+
+    /** The springy outline of a blob, in its own (scaled, rotated) frame. */
+    private fun bodyPath(b: Blob, r: Float): android.graphics.Path {
+        val path = bodyP; path.reset()
+        val px = FloatArray(NODES); val py = FloatArray(NODES)
+        for (k in 0 until NODES) {
+            // undo the blob's rotation so dents stay on the world-facing side
+            val ang = NODE_ANG[k] - b.ang
+            px[k] = cos(ang) * r * b.rad[k]; py[k] = sin(ang) * r * b.rad[k]
+        }
+        path.moveTo((px[NODES - 1] + px[0]) / 2f, (py[NODES - 1] + py[0]) / 2f)
+        for (k in 0 until NODES) {
+            val n = (k + 1) % NODES
+            path.quadTo(px[k], py[k], (px[k] + px[n]) / 2f, (py[k] + py[n]) / 2f)
+        }
+        path.close()
+        return path
+    }
+    private val bodyP = android.graphics.Path()
+
+    private fun paintGlue(c: Canvas) {
+        for (g in glue) {
+            val p = g.a; val q = g.b
+            val dx = q.x - p.x; val dy = q.y - p.y; val d = max(0.001f, hypot(dx, dy)); val mn = p.r + q.r
+            if (d < mn * 0.8f) continue
+            val nx = dx / d; val ny = dy / d; val tx = -ny; val ty = nx
+            val t = clampF(1f - (d - mn * 0.8f) / (mn * 0.95f), 0.05f, 1f)
+            val wid = min(p.r, q.r) * (0.12f + 0.55f * t * t)
+            val ap = 0.55f + 0.35f * t; val aq = ap
+            val p1x = p.x + (nx * cos(ap) - tx * sin(ap)) * p.r * 0.95f; val p1y = p.y + (ny * cos(ap) - ty * sin(ap)) * p.r * 0.95f
+            val p2x = p.x + (nx * cos(ap) + tx * sin(ap)) * p.r * 0.95f; val p2y = p.y + (ny * cos(ap) + ty * sin(ap)) * p.r * 0.95f
+            val q1x = q.x - (nx * cos(aq) + tx * sin(aq)) * q.r * 0.95f; val q1y = q.y - (ny * cos(aq) + ty * sin(aq)) * q.r * 0.95f
+            val q2x = q.x - (nx * cos(aq) - tx * sin(aq)) * q.r * 0.95f; val q2y = q.y - (ny * cos(aq) - ty * sin(aq)) * q.r * 0.95f
+            val mx = (p.x + q.x) / 2f; val my = (p.y + q.y) / 2f + (1f - t) * min(p.r, q.r) * 0.25f   // strands sag
+            val path = ink.path; path.reset()
+            path.moveTo(p1x, p1y); path.quadTo(mx - tx * wid, my - ty * wid, q2x, q2y)
+            path.lineTo(q1x, q1y); path.quadTo(mx + tx * wid, my + ty * wid, p2x, p2y); path.close()
+            gp.shader = android.graphics.LinearGradient(p.x, p.y, q.x, q.y, p.tr.base, q.tr.base, android.graphics.Shader.TileMode.CLAMP)
+            gp.alpha = 245
+            c.drawPath(path, gp)
+            gp.shader = null
+            // a wet highlight running along the strand
+            ink.line(c, lerpF(p.x, q.x, 0.3f) - tx * wid * 0.45f, lerpF(p.y, q.y, 0.3f) - ty * wid * 0.45f,
+                lerpF(p.x, q.x, 0.7f) - tx * wid * 0.45f, lerpF(p.y, q.y, 0.7f) - ty * wid * 0.45f, Color.WHITE, max(1f, wid * 0.18f), 0.35f)
+        }
+        for (o in drops) {
+            ink.glossy(c, o.x, o.y, o.r, o.r * 1.15f, o.col, Color.WHITE, o.col, a = clampF(o.life * 2f, 0f, 1f))
+        }
+    }
+    private val gp = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
 
     override fun paint(c: Canvas) {
         val floor = floorY
@@ -322,6 +471,7 @@ class GloopScene(context: Context) : CanvasCreature(context) {
             val d = clampF((floor - b.y) / H, 0f, 1f)
             ink.ell(c, b.x, floor + 4f, b.r * (0.9f - d * 0.5f), b.r * 0.15f * (1f - d * 0.5f), Color.BLACK, 0.35f * (1f - d))
         }
+        paintGlue(c)
         // Back to front.
         val order = blobs.sortedBy { it.y }
         val itb = if (game == Game.TAG) blobs.getOrNull(itIdx % max(1, blobs.size)) else null
@@ -382,9 +532,13 @@ class GloopScene(context: Context) : CanvasCreature(context) {
         }
         // Body: glossy jelly with a rim and an inner glow.
         ink.glow(c, 0f, 0f, r * 1.35f, r * 1.35f, tr.rim, 0.18f)
-        ink.glossy(c, 0f, 0f, r, r, tr.base, tr.light, tr.dark)
-        ink.r.set(-r + r * 0.02f, -r + r * 0.02f, r - r * 0.02f, r - r * 0.02f)
-        c.drawOval(ink.r, ink.stroke(tr.rim, max(1.5f, r * 0.035f), 0.9f))
+        val body = bodyPath(b, r)
+        gp.shader = android.graphics.RadialGradient(-r * 0.35f, -r * 0.45f, r * 1.7f, intArrayOf(tr.light, tr.base, tr.dark), floatArrayOf(0f, 0.45f, 1f), android.graphics.Shader.TileMode.CLAMP)
+        gp.alpha = 255
+        c.drawPath(body, gp); gp.shader = null
+        // jelly: a translucent inner core and a bright wet rim
+        ink.glow(c, r * 0.1f, r * 0.25f, r * 0.55f, r * 0.45f, tr.light, 0.22f)
+        c.drawPath(body, ink.stroke(tr.rim, max(1.5f, r * 0.035f), 0.9f))
         ink.glow(c, 0f, r * 0.5f, r * 0.6f, r * 0.4f, Color.WHITE, 0.18f)
         ink.shine(c, -r * 0.38f, -r * 0.52f, r * 0.3f, r * 0.15f, 0.5f)
         ink.ell(c, -r * 0.05f, -r * 0.62f, r * 0.05f, r * 0.05f, Color.WHITE, 0.8f)
@@ -485,5 +639,12 @@ class GloopScene(context: Context) : CanvasCreature(context) {
             ink.ell(c, (i - 0.5f) * r * 0.8f, r * 0.9f + kk * r * 0.4f, r * 0.06f, r * 0.09f, tr.base, 1f - kk)
         }
         c.restore()
+    }
+
+    private companion object {
+        const val NODES = 20
+        val NODE_ANG = FloatArray(NODES) { it * 2f * PI.toFloat() / NODES }
+        val NODE_COS = FloatArray(NODES) { cos(NODE_ANG[it]) }
+        val NODE_SIN = FloatArray(NODES) { sin(NODE_ANG[it]) }
     }
 }
