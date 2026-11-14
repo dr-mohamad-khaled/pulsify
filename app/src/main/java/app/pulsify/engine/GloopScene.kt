@@ -446,10 +446,10 @@ class GloopScene(context: Context) : CanvasCreature(context) {
             // One cached unit gradient per colour pair, stretched onto the strand: a fresh shader per
             // strand per frame makes the GPU build a new gradient texture every frame.
             val lg = strandShader(p.tr.base, q.tr.base)
-            val dx = q.x - p.x; val dy = q.y - p.y
-            val len = max(1f, hypot(dx, dy))
+            val sdx = q.x - p.x; val sdy = q.y - p.y
+            val len = max(1f, hypot(sdx, sdy))
             gm.reset(); gm.setScale(len, len)
-            gm.postRotate(Math.toDegrees(atan2(dy, dx).toDouble()).toFloat())
+            gm.postRotate(Math.toDegrees(atan2(sdy, sdx).toDouble()).toFloat())
             gm.postTranslate(p.x, p.y)
             lg.setLocalMatrix(gm)
             gp.shader = lg
