@@ -1,0 +1,68 @@
+ACTIVITY MANAGER PROCESS EXIT INFO (dumpsys activity exit-info)
+Last Timestamp of Persistence Into Persistent Storage: 1970-01-01 00:00:00.000
+  package: app.pulsify.v3
+    Historical Process Exit for uid=10192
+        ApplicationExitInfo #0:
+          timestamp=2026-11-15 15:01:15.055 pid=10229 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 10287 state=empty trace=null
+        ApplicationExitInfo #1:
+          timestamp=2026-11-15 15:00:53.949 pid=10166 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 10218 state=empty trace=null
+        ApplicationExitInfo #2:
+          timestamp=2026-11-15 15:00:32.867 pid=10022 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=66MB rss=172MB description=stop app.pulsify.v3 due to from pid 10157 state=empty trace=null
+        ApplicationExitInfo #3:
+          timestamp=2026-11-15 14:59:23.596 pid=9901 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 10012 state=empty trace=null
+        ApplicationExitInfo #4:
+          timestamp=2026-11-15 14:58:21.752 pid=9804 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9893 state=empty trace=null
+        ApplicationExitInfo #5:
+          timestamp=2026-11-15 14:57:46.044 pid=9710 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9796 state=empty trace=null
+        ApplicationExitInfo #6:
+          timestamp=2026-11-15 14:57:10.397 pid=9619 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9702 state=empty trace=null
+        ApplicationExitInfo #7:
+          timestamp=2026-11-15 14:56:43.906 pid=9554 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9611 state=empty trace=null
+        ApplicationExitInfo #8:
+          timestamp=2026-11-15 14:56:22.236 pid=9458 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9543 state=empty trace=null
+        ApplicationExitInfo #9:
+          timestamp=2026-11-15 14:56:01.231 pid=9383 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9447 state=empty trace=null
+        ApplicationExitInfo #10:
+          timestamp=2026-11-15 14:55:39.592 pid=9238 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9293 state=empty trace=null
+        ApplicationExitInfo #11:
+          timestamp=2026-11-15 14:55:18.494 pid=9178 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9228 state=empty trace=null
+        ApplicationExitInfo #12:
+          timestamp=2026-11-15 14:54:57.881 pid=9118 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9168 state=empty trace=null
+        ApplicationExitInfo #13:
+          timestamp=2026-11-15 14:54:36.729 pid=9053 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9108 state=empty trace=null
+        ApplicationExitInfo #14:
+          timestamp=2026-11-15 14:54:01.002 pid=8935 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 9043 state=empty trace=null
+        ApplicationExitInfo #15:
+          timestamp=2026-11-15 14:53:25.691 pid=8818 realUid=10192 packageUid=10192 definingUid=10192 user=0
+          process=app.pulsify.v3 reason=10 (USER REQUESTED) subreason=21 (FORCE STOP) status=0
+          importance=325 pss=0.00 rss=0.00 description=stop app.pulsify.v3 due to from pid 8927 state=empty trace=null

@@ -1,0 +1,381 @@
+--------- beginning of main
+11-15 14:58:21.775   401   401 E BpTransactionCompletedListener: Failed to transact (-32)
+11-15 14:58:24.411  9901  9924 E SurfaceSyncGroup: Failed to receive transaction ready in 1000ms. Marking SurfaceSyncGroup(wmsSync-VRI[MainActivity]#0) as ready
+11-15 14:58:24.411  9901  9924 E SurfaceSyncGroup: Failed to receive transaction ready in 1000ms. Marking SurfaceSyncGroup(VRI[MainActivity]#1) as ready
+--------- beginning of system
+11-15 14:58:25.758   521  3343 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-15 14:58:27.621  9901  9923 E EGL_emulation: eglQueryContext 32c0  EGL_BAD_ATTRIBUTE
+11-15 14:58:27.621  9901  9923 E EGL_emulation: tid 9923: eglQueryContext(2146): error 0x3004 (EGL_BAD_ATTRIBUTE)
+11-15 14:58:27.879   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 14:58:32.887   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 14:58:38.395   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 14:58:43.399   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 14:58:48.907   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:58:53.911   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:58:58.915   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+--------- beginning of kernel
+11-15 14:59:01.489     0     0 E binder  : invalid inc weak node for 786668
+11-15 14:59:01.290   401   417 E IPCThreadState: Binder transaction failure: 786856/29189/-22
+11-15 14:59:03.921   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:08.932   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:13.935   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:18.950   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:23.624   401   401 E BpTransactionCompletedListener: Failed to transact (-32)
+11-15 14:59:23.954   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:23.954   521   621 E WindowManager: Unknown app appToken:ActivityRecord{d79baf6 u0 app.pulsify.v3/app.pulsify.MainActivity t24}. Dropping notifyNoFocusedWindowAnr request
+11-15 14:59:26.278 10022 10045 E SurfaceSyncGroup: Failed to receive transaction ready in 1000ms. Marking SurfaceSyncGroup(wmsSync-VRI[MainActivity]#0) as ready
+11-15 14:59:26.278 10022 10045 E SurfaceSyncGroup: Failed to receive transaction ready in 1000ms. Marking SurfaceSyncGroup(VRI[MainActivity]#1) as ready
+11-15 14:59:27.601   521  3343 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-15 14:59:29.231 10022 10044 E EGL_emulation: eglQueryContext 32c0  EGL_BAD_ATTRIBUTE
+11-15 14:59:29.231 10022 10044 E EGL_emulation: tid 10044: eglQueryContext(2146): error 0x3004 (EGL_BAD_ATTRIBUTE)
+11-15 14:59:29.720   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:34.727   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:39.731   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:44.735   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:49.739   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:54.743   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 14:59:59.748   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:04.751   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:09.755   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:11.030     0     0 E binder  : invalid inc weak node for 788529
+11-15 15:00:10.855   401   416 E IPCThreadState: Binder transaction failure: 789011/29189/-22
+11-15 15:00:14.759   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:19.769   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:24.775   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:29.787   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:33.024   401   401 E BpTransactionCompletedListener: Failed to transact (-32)
+11-15 15:00:34.873 10166 10189 E EGL_emulation: eglQueryContext 32c0  EGL_BAD_ATTRIBUTE
+11-15 15:00:34.873 10166 10189 E EGL_emulation: tid 10189: eglQueryContext(2146): error 0x3004 (EGL_BAD_ATTRIBUTE)
+11-15 15:00:36.132 10166 10185 E OpenGLRenderer: Unable to match the desired swap behavior.
+11-15 15:00:36.376   521  3343 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-15 15:00:39.063   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:40.397 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:40.633 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:40.812 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.015 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.148 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.285 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.323 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.534 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.566 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.772 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:41.950 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.095 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.232 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.270 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.488 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.529 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.739 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.869 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:42.997 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:43.139 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:43.275 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:43.407 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:43.539 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:43.681 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:43.816 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:43.944 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:44.067   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:44.077 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:44.240 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:44.276 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:44.411 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:44.565 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:44.826 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:44.957 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:45.089 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:45.231 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:45.288 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:45.492 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:45.631 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:45.776 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:45.914 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.043 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.170 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.303 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.447 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.587 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.721 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.792 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:46.970 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.005 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.208 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.301 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.364 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.636 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.770 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.895 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:47.924 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:48.149 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:48.182 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:48.388 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:48.535 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:48.672 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:48.811 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:48.933 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:49.073   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:49.087 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:49.256 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:49.386 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:49.528 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:49.567 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:49.811 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:49.842 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.061 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.195 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.325 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.457 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.493 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.718 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.787 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:50.960 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:51.093 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:51.224 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:51.354 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:51.390 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:51.624 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:51.717 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:51.879 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.013 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.148 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.285 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.302 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.565 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.692 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.825 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:52.957 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.006 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.207 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.224 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.358 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.503 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.786 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.818 10166 10185 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:00:53.991   401   401 E BpTransactionCompletedListener: Failed to transact (-32)
+11-15 15:00:54.077   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:00:54.078   521   621 E WindowManager: Unknown app appToken:ActivityRecord{31fba9d u0 app.pulsify.v3/app.pulsify.MainActivity t26}. Dropping notifyNoFocusedWindowAnr request
+11-15 15:00:55.926 10229 10252 E EGL_emulation: eglQueryContext 32c0  EGL_BAD_ATTRIBUTE
+11-15 15:00:55.926 10229 10252 E EGL_emulation: tid 10252: eglQueryContext(2146): error 0x3004 (EGL_BAD_ATTRIBUTE)
+11-15 15:00:57.112 10229 10248 E OpenGLRenderer: Unable to match the desired swap behavior.
+11-15 15:00:57.955   521  3343 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-15 15:01:00.084   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:01.550   521   761 E WifiStaIfaceAidlImpl: installApfPacketFilter failed with service-specific exception: android.os.ServiceSpecificException:  (code 4)
+11-15 15:01:01.594 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:01.836 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:02.069 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:02.287 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:02.450 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:02.590 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:02.727 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:02.870 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:03.011 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:03.148 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:03.289 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:03.595 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:03.732 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:03.880 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:04.032 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:04.079 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:04.282 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:04.432 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:04.730 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:04.882 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:05.024 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:05.095   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:05.173 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:05.315 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:05.355 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:05.664 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:05.803 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:05.949 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:06.095 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:06.140 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:06.393 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:06.433 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:06.737 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:06.895 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:07.061 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:07.220 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:07.274 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:07.519 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:07.572 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:07.851 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:07.985 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:08.120 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:08.267 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:08.409 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:08.556 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:08.706 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:08.840 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:08.979 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:09.124 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:09.267 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:09.401 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:09.541 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:09.684 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:09.829 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:09.988 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:10.099   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:10.141 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:10.281 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:10.418 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:10.557 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:10.712 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:10.850 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:10.996 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:11.142 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:11.302 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:11.446 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:11.506 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:11.701 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:11.744 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:11.960 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.101 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.241 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.389 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.447 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.644 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.696 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.900 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:12.944 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:13.179 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:13.210 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:13.446 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:13.496 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:13.709 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:13.752 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:13.962 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:14.111 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:14.266 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:14.420 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:14.585 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:14.736 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:14.906 10229 10248 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:15.091   401   401 E BpTransactionCompletedListener: Failed to transact (-32)
+11-15 15:01:15.103   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:15.104   521   621 E WindowManager: Unknown app appToken:ActivityRecord{3358c70 u0 app.pulsify.v3/app.pulsify.MainActivity t27}. Dropping notifyNoFocusedWindowAnr request
+11-15 15:01:17.724 10297 10320 E SurfaceSyncGroup: Failed to receive transaction ready in 1000ms. Marking SurfaceSyncGroup(wmsSync-VRI[MainActivity]#0) as ready
+11-15 15:01:17.725 10297 10320 E SurfaceSyncGroup: Failed to receive transaction ready in 1000ms. Marking SurfaceSyncGroup(VRI[MainActivity]#1) as ready
+11-15 15:01:18.563   521  3343 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+11-15 15:01:20.944 10297 10319 E EGL_emulation: eglQueryContext 32c0  EGL_BAD_ATTRIBUTE
+11-15 15:01:20.944 10297 10319 E EGL_emulation: tid 10319: eglQueryContext(2146): error 0x3004 (EGL_BAD_ATTRIBUTE)
+11-15 15:01:20.949 10297 10319 E EGL_emulation: eglQueryContext 32c0  EGL_BAD_ATTRIBUTE
+11-15 15:01:20.949 10297 10319 E EGL_emulation: tid 10319: eglQueryContext(2146): error 0x3004 (EGL_BAD_ATTRIBUTE)
+11-15 15:01:21.179   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:21.604 10297 10315 E OpenGLRenderer: Unable to match the desired swap behavior.
+11-15 15:01:26.183   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 15:01:31.187   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 15:01:36.444   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 15:01:41.447   521   621 E InputDispatcher: Dropping KEY event because there is no focused window
+11-15 15:01:46.703   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:51.707   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:53.087 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:53.095 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:53.243 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:53.449 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:53.669 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:53.880 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:54.173 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:54.330 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:54.707 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:54.905 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:54.914 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:55.115 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:55.463 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:55.862 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:56.004 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:56.331 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:56.657 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:56.711   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:01:56.950 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:57.446 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:57.598 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:58.138 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:58.308 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:58.780 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:58.920 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:59.198 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:01:59.678 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:00.845 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:00.850 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:01.020 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:01.298 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:01.496 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:01.514 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:01.651 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:01.719   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:02:01.997 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:02.014 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:02.337 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:02.528 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:02.653 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:02.671 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:02.857 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:03.149 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:03.174 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:03.484 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:03.730 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:03.932 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:03.955 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:04.181 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:04.389 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:04.547 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:04.912 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:05.101 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:05.299 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:05.505 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:05.701 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:05.722 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:06.134 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:06.157 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:06.644 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:06.727   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:02:06.879 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:06.907 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:07.341 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:07.591 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:07.837 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:07.861 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:08.245 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:08.429 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:08.455 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:08.618 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:08.994 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:08.999 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:09.197 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:09.533 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:09.730 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:09.779 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:09.991 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:10.186 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:10.352 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:10.678 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:10.878 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:10.885 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:11.108 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:11.285 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:11.475 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:11.672 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:11.735   521   621 E InputDispatcher: Dropping MOTION event because there is no focused window
+11-15 15:02:11.864 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:12.250 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:12.271 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:12.626 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:12.819 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:12.836 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:13.202 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:13.218 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:13.424 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:13.619 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:13.814 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:14.020 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:14.150 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:14.346 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:14.631 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:14.758 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:14.787 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:14.936 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:15.052 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:15.256 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:15.421 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.
+11-15 15:02:15.630 10297 10315 E FrameEvents: updateAcquireFence: Did not find frame.

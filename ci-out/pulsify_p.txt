@@ -1,0 +1,16 @@
+--------- beginning of main
+11-15 14:58:23.100  9901  9921 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 14:58:23.101  9901  9921 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 14:58:23.102  9901  9921 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 14:59:24.948 10022 10042 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 14:59:24.950 10022 10042 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 14:59:24.951 10022 10042 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 15:00:34.286 10166 10187 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 15:00:34.287 10166 10187 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 15:00:34.289 10166 10187 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 15:00:55.332 10229 10250 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 15:00:55.335 10229 10250 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 15:00:55.337 10229 10250 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 15:01:16.413 10297 10317 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 15:01:16.415 10297 10317 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 15:01:16.417 10297 10317 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so

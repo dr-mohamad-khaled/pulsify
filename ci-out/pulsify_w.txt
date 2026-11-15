@@ -1,0 +1,17 @@
+--------- beginning of main
+11-15 14:36:26.787  3890  3935 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 14:36:26.788  3890  3935 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 14:36:26.789  3890  3935 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 14:36:29.808  3251  3299 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 14:36:29.813  3251  3299 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 14:36:29.814  3251  3299 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 14:36:32.112  3989  4249 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 14:36:32.114  3989  4249 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 14:36:32.116  3989  4249 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 14:37:06.365  4887  4907 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 14:37:06.371  4887  4907 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 14:37:06.373  4887  4907 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
+11-15 14:37:31.375   521   568 E libEGL  : call to OpenGL ES API with no current context (logged once per thread)
+11-15 14:37:53.965  5777  5874 D libEGL  : loaded /vendor/lib64/egl/libEGL_emulation.so
+11-15 14:37:53.996  5777  5874 D libEGL  : loaded /vendor/lib64/egl/libGLESv1_CM_emulation.so
+11-15 14:37:54.032  5777  5874 D libEGL  : loaded /vendor/lib64/egl/libGLESv2_emulation.so
