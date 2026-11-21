@@ -1,0 +1,378 @@
+// Pulsify — per-frame layer over a cached environment. GLSL ES 1.00. Kept deliberately cheap:
+// one texture read, a twinkle on glowing pixels, a handful of particles, touch bursts.
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+
+uniform sampler2D uTex;
+uniform vec2  uRes;
+uniform vec2  uHalf;
+uniform float uFloor;
+uniform float uTime;
+uniform float uWorld;
+uniform float uNight;     // 0 day .. 1 night
+uniform float uBass;
+uniform float uTreble;
+uniform float uBeat;
+uniform float uPar;       // home-screen parallax -1..1
+uniform vec4  uBurst[3];  // x, y, age (s), strength
+uniform float uBright;
+uniform float uDim;
+// Photo worlds (id >= 40): depth parallax + living layers
+uniform float uFx;        // effect kind, see below
+uniform float uHorizon;   // horizon line in p space
+uniform vec2  uTilt;      // phone tilt changes -1..1
+uniform float uZoom;      // the cache holds a bit more than the screen; we look through a window
+uniform float uRays;      // low-sun light rays 0..1
+uniform float uSky;       // 1 = open sky (stars, cloud shadows), 0 = indoors / underwater
+uniform float uLive;      // living picture: +1 plants sway in the wind, +2 water ripples, +4 lights flicker, +8 clouds drift
+uniform vec2  uWater;     // water band in p space: top, bottom
+
+float h11(float n) { return fract(sin(n * 127.1) * 43758.5453); }
+float h21(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+
+// A soft round particle that drifts on a loop. dir = travel per second (uv), wrap inside the screen.
+float mote(vec2 p, float i, vec2 dir, float size, float seed) {
+    vec2 start = vec2(h11(i + seed) * 2.0 - 1.0, h11(i * 3.7 + seed) * 2.0 - 1.0) * uHalf;
+    vec2 span = uHalf * 2.0 + 0.2;
+    vec2 pos = mod(start + dir * uTime + uHalf + 0.1, span) - uHalf - 0.1;
+    pos.x += 0.03 * sin(uTime * (0.7 + h11(i)) + i);
+    float d = length(p - pos);
+    return exp(-d * d / (size * size));
+}
+
+void main() {
+    vec2 uv = gl_FragCoord.xy / uRes;
+    vec2 p = (uv - 0.5) * uHalf * 2.0;
+    vec4 base;
+    float depth = 0.0;
+    if (uWorld > 39.5) {
+        // Depth parallax: the ground near you slides more than the far scenery and the sky,
+        // so swiping pages and tilting the phone make the picture feel three-dimensional.
+        depth = smoothstep(uHorizon, -uHalf.y, p.y);
+        float far = 0.25 + 0.75 * depth;
+        vec2 off = vec2(uPar * 0.012 + uTilt.x * 0.022, -uTilt.y * 0.014) * far;
+        vec2 suv = (uv - 0.5) * uZoom + 0.5 + off * (1.0 - uZoom) * 8.0;
+        base = texture2D(uTex, clamp(suv, 0.001, 0.999));
+        if (uLive > 0.5) {
+            float lv = uLive;
+            float bWater = mod(floor(lv / 2.0), 2.0), bSway = mod(lv, 2.0);
+            // water: the picture's own water ripples (a gentle refraction wobble inside the water band)
+            if (bWater > 0.5 && p.y < uWater.x && p.y > uWater.y) {
+                float k = smoothstep(uWater.y, uWater.y + 0.04, p.y) * smoothstep(uWater.x, uWater.x - 0.03, p.y);
+                float persp = 0.4 + 0.6 * (uWater.x - p.y) / max(0.01, uWater.x - uWater.y);
+                vec2 w = vec2(sin(p.y * 160.0 / persp + uTime * 1.6 + sin(p.x * 9.0 + uTime * 0.7) * 2.0),
+                              sin(p.x * 40.0 + p.y * 90.0 / persp - uTime * 1.1)) * vec2(0.0016, 0.0011) * persp * k;
+                vec4 wb = texture2D(uTex, clamp(suv + w, 0.001, 0.999));
+                base = wb;
+                base.rgb += vec3(1.0, 0.97, 0.9) * pow(max(0.0, sin(p.x * 70.0 + uTime * 1.3 + sin(p.y * 200.0 / persp - uTime) * 2.0)), 24.0) * 0.12 * k * (1.0 - uNight * 0.7);
+            }
+            // wind: leaves, grass and flowers sway; only green / leafy pixels move, the floor in the middle stays still
+            if (bSway > 0.5) {
+                float edge = smoothstep(0.12, 0.42, abs(p.x) / uHalf.x) + smoothstep(uHorizon - 0.02, uHorizon + 0.35, p.y);
+                edge = clamp(edge, 0.0, 1.0);
+                float gust = 0.6 + 0.4 * sin(uTime * 0.37) * sin(uTime * 0.23 + 1.0);
+                float ph = uTime * 1.7 + p.x * 3.0 + p.y * 5.0;
+                vec2 sw = vec2(sin(ph) + 0.4 * sin(ph * 2.3 + 1.0), 0.25 * sin(ph * 1.3)) * 0.0022 * gust * edge;
+                vec4 sb = texture2D(uTex, clamp(suv + sw, 0.001, 0.999));
+                float leafy = smoothstep(0.02, 0.10, sb.g - max(sb.r * 0.92, sb.b)) + smoothstep(0.06, 0.18, sb.r - sb.g) * smoothstep(0.25, 0.6, sb.r) * 0.0;
+                base = mix(base, sb, clamp(leafy, 0.0, 1.0));
+            }
+        }
+    } else {
+        base = texture2D(uTex, clamp(uv + vec2(uPar * 0.006, 0.0), 0.001, 0.999));
+    }
+    vec3 col = base.rgb;
+    float glow = base.a;
+
+    // Glowing pixels breathe, twinkle and kick with the bass.
+    // Stars are painted with glow 0.6 exactly; only they twinkle. Every glowing pixel breathes with the music.
+    vec2 cell = floor(p * 40.0);
+    float star = 1.0 - smoothstep(0.02, 0.06, abs(glow - 0.6));
+    float tw = 0.75 + 0.25 * sin(uTime * (1.3 + 3.0 * h21(cell)) + h21(cell + 5.0) * 40.0);
+    col += col * glow * (0.35 * uBass + 0.3 * uBeat + 0.06 * sin(uTime * 1.7));
+    col += col * star * (tw - 0.85) * uNight * 1.5;
+
+    vec3 add = vec3(0.0);
+    if (uWorld > 39.5) {
+        float day = 1.0 - uNight;
+        if (uLive > 0.5) {
+            // warm lights (windows, lamps, the fire) flicker softly once it gets dark
+            if (mod(floor(uLive / 4.0), 2.0) > 0.5) {
+                float warm = smoothstep(0.55, 0.85, col.r) * smoothstep(0.15, 0.35, col.r - col.b) * smoothstep(0.25, 0.55, col.g);
+                float fl = 0.06 * sin(uTime * 7.3 + p.x * 3.0) + 0.04 * sin(uTime * 13.1 + p.y * 5.0) + 0.05 * sin(uTime * 2.1);
+                col += col * warm * fl * (0.3 + uNight);
+                col += vec3(1.0, 0.6, 0.25) * warm * uNight * (0.05 + 0.05 * sin(uTime * 3.0)) ;
+            }
+            // clouds: soft wisps drifting slowly across the sky
+            if (mod(floor(uLive / 8.0), 2.0) > 0.5 && p.y > uHorizon) {
+                vec2 cq = vec2(p.x * 1.4 + uTime * 0.012, p.y * 3.2);
+                float cn = sin(cq.x * 3.1 + sin(cq.y * 2.0 + uTime * 0.05)) * sin(cq.y * 2.3 + cq.x * 1.7) + 0.5 * sin(cq.x * 7.0 - cq.y * 3.0 + 1.3);
+                float sky = smoothstep(uHorizon, uHorizon + 0.3, p.y);
+                add += mix(vec3(1.0, 0.96, 0.92), vec3(0.35, 0.4, 0.6), uNight) * smoothstep(0.55, 1.3, cn) * 0.07 * sky;
+            }
+        }
+        // drifting cloud shadows over the ground (daytime, outdoors)
+        if (uSky > 0.5) {
+            vec2 cq = p * vec2(1.3, 2.6) + vec2(uTime * 0.035, 0.0);
+            float cl = sin(cq.x * 2.1 + sin(cq.y * 1.7)) * sin(cq.y * 1.3 - cq.x * 0.6 + 1.7);
+            col *= 1.0 - 0.11 * smoothstep(0.2, 0.9, cl) * depth * day;
+            // extra twinkling stars in the night sky
+            vec2 sc = floor(p * 70.0);
+            float sh = h21(sc);
+            float st = step(0.985, sh) * smoothstep(0.35, 0.0, length(fract(p * 70.0) - 0.5)) * (0.5 + 0.5 * sin(uTime * (1.0 + 3.0 * h21(sc + 2.0)) + sh * 50.0));
+            add += vec3(0.9, 0.95, 1.0) * st * uNight * smoothstep(uHorizon + 0.1, uHorizon + 0.35, p.y) * 0.6;
+            // a shooting star now and then
+            float ts = mod(uTime, 13.0);
+            vec2 a0 = vec2(-0.2 + 0.4 * h11(floor(uTime / 13.0)), uHalf.y * 0.8);
+            vec2 sp = a0 + vec2(0.5, -0.22) * ts;
+            vec2 sd = normalize(vec2(0.5, -0.22));
+            vec2 q = p - sp; float al = dot(q, sd); float pr = length(q - sd * al);
+            add += vec3(1.0) * uNight * step(ts, 1.2) * exp(-pr * 400.0) * smoothstep(-0.12, 0.0, al) * step(al, 0.0) * 1.5;
+        }
+        // low sun: soft light rays fanning from the top left
+        if (uRays > 0.01) {
+            vec2 o = vec2(-uHalf.x - 0.15, uHalf.y + 0.1);
+            vec2 d = p - o; float ang = atan(d.y, d.x);
+            float ray = 0.5 + 0.5 * sin(ang * 34.0 + sin(ang * 13.0 + uTime * 0.25) * 2.0 + uTime * 0.12);
+            add += vec3(1.0, 0.82, 0.55) * pow(ray, 6.0) * uRays * 0.065 * exp(-length(d) * 0.9);
+        }
+        if (uFx < 1.5) {                 // 1 petals
+            for (int i = 0; i < 12; i++) {
+                float fi = float(i);
+                vec2 start = vec2(h11(fi + 40.0) * 2.0 - 1.0, h11(fi * 3.1 + 40.0) * 2.0 - 1.0) * uHalf;
+                vec2 span = uHalf * 2.0 + 0.2;
+                vec2 pos = mod(start + vec2(0.035, -0.06 - 0.03 * h11(fi)) * uTime + uHalf + 0.1, span) - uHalf - 0.1;
+                pos.x += 0.05 * sin(uTime * (0.8 + h11(fi)) + fi);
+                vec2 q = p - pos; float a = uTime * (1.5 + h11(fi + 2.0)) + fi;
+                q = vec2(cos(a) * q.x - sin(a) * q.y, sin(a) * q.x + cos(a) * q.y); q.x *= 1.0 + 0.8 * abs(sin(a * 0.7));
+                add += mix(vec3(1.0, 0.7, 0.82), vec3(0.45, 0.35, 0.5), uNight) * smoothstep(0.004, -0.004, length(q * vec2(1.0, 1.7)) - 0.011) * 0.9;
+            }
+        } else if (uFx < 2.5) {          // 2 autumn leaves tumbling
+            for (int i = 0; i < 10; i++) {
+                float fi = float(i);
+                vec2 start = vec2(h11(fi + 50.0) * 2.0 - 1.0, h11(fi * 2.7 + 50.0) * 2.0 - 1.0) * uHalf;
+                vec2 span = uHalf * 2.0 + 0.2;
+                vec2 pos = mod(start + vec2(0.05, -0.07 - 0.03 * h11(fi)) * uTime + uHalf + 0.1, span) - uHalf - 0.1;
+                pos.x += 0.07 * sin(uTime * (0.9 + h11(fi)) + fi);
+                vec2 q = p - pos; float a = uTime * (2.0 + h11(fi + 2.0)) + fi;
+                q = vec2(cos(a) * q.x - sin(a) * q.y, sin(a) * q.x + cos(a) * q.y); q.y *= 1.0 + 1.2 * abs(sin(a * 0.6));
+                vec3 lc = mix(vec3(0.95, 0.45, 0.1), vec3(0.95, 0.75, 0.15), h11(fi + 7.0));
+                add += mix(lc, lc * 0.25, uNight) * smoothstep(0.004, -0.004, length(q * vec2(1.0, 2.0)) - 0.015) * 0.9;
+            }
+        } else if (uFx < 3.5) {          // 3 snow
+            for (int layer = 0; layer < 2; layer++) {
+                float fl = float(layer);
+                vec2 q = p * (9.0 + fl * 9.0) + vec2(sin(uTime * 0.3 + fl) * 0.6, uTime * (1.2 + fl * 0.8));
+                vec2 id = floor(q); vec2 f = fract(q) - 0.5;
+                vec2 o = (vec2(h21(id), h21(id + 7.0)) - 0.5) * 0.6;
+                float r = (0.12 - fl * 0.04) * (0.6 + 0.4 * h21(id + 3.0));
+                add += vec3(1.0) * smoothstep(r, r * 0.3, length(f - o)) * step(0.35, h21(id + 11.0)) * (0.75 - fl * 0.25);
+            }
+        } else if (uFx < 4.5) {          // 4 pollen by day, fireflies by night
+            for (int i = 0; i < 10; i++) {
+                float fi = float(i);
+                float m = mote(p, fi, vec2(0.02 * sin(fi), 0.01 + 0.01 * h11(fi)), 0.008, 41.0);
+                add += vec3(1.0, 0.95, 0.7) * m * 0.35 * day;
+                vec2 fp = p * vec2(1.0, 1.4) + vec2(0.0, 0.25);
+                float f = mote(fp, fi + 20.0, vec2(0.025 * sin(fi), 0.018 * cos(fi * 1.3)), 0.013, 43.0);
+                float blink = smoothstep(0.2, 1.0, sin(uTime * (1.0 + h11(fi)) + fi * 2.0));
+                add += vec3(0.8, 1.0, 0.35) * f * blink * uNight * (1.3 + uTreble) * step(p.y, uHorizon + 0.15);
+            }
+        } else if (uFx < 5.5) {          // 5 underwater: bubbles, marine snow, caustics, swaying light
+            for (int i = 0; i < 10; i++) {
+                float fi = float(i);
+                vec2 start = vec2(h11(fi + 80.0) * 2.0 - 1.0, h11(fi * 2.3 + 80.0) * 2.0 - 1.0) * uHalf;
+                vec2 span = uHalf * 2.0 + 0.2;
+                vec2 pos = mod(start + vec2(0.0, 0.07 + 0.05 * h11(fi)) * uTime + uHalf + 0.1, span) - uHalf - 0.1;
+                pos.x += 0.02 * sin(uTime * (1.5 + h11(fi)) + fi * 3.0);
+                float r = 0.008 + 0.012 * h11(fi + 5.0); float d = length(p - pos);
+                add += vec3(0.7, 0.9, 1.0) * (smoothstep(0.004, 0.0, abs(d - r)) * 0.6 + smoothstep(r * 0.4, 0.0, length(p - pos - vec2(-r * 0.35, r * 0.4))) * 0.5);
+                add += vec3(0.75, 0.85, 1.0) * mote(p, fi + 60.0, vec2(0.012 * sin(fi), -0.015), 0.006, 23.0) * 0.35;
+            }
+            float ca = sin(p.x * 14.0 + uTime * 0.8 + sin(p.y * 9.0 + uTime * 0.6) * 1.5) * sin(p.y * 11.0 - uTime * 0.5 + sin(p.x * 7.0) * 1.3);
+            add += vec3(0.5, 0.9, 1.0) * smoothstep(0.7, 1.0, ca) * 0.14 * day * (0.4 + depth);
+            col *= 1.0 + 0.05 * sin(uTime * 0.7 + p.x * 3.0 + p.y * 2.0);
+            add += vec3(0.3, 0.8, 1.0) * uNight * 0.04 * (0.5 + 0.5 * sin(uTime * 1.3 + p.x * 9.0));
+        } else if (uFx < 6.5) {          // 6 indoor dust in the light
+            for (int i = 0; i < 9; i++) {
+                float fi = float(i);
+                add += vec3(1.0, 0.88, 0.65) * mote(p, fi, vec2(0.01 * sin(fi), 0.008), 0.006, 11.0) * (0.45 * day + 0.15);
+            }
+        } else if (uFx < 7.5) {          // 7 sweet sparkles
+            for (int i = 0; i < 10; i++) {
+                float fi = float(i);
+                float m = mote(p, fi, vec2(0.0, 0.04 + 0.03 * h11(fi)), 0.01, 3.0);
+                add += (0.6 + 0.4 * cos(6.28 * (h11(fi + 9.0) + vec3(0.0, 0.33, 0.67)))) * m * (0.6 + 0.6 * uTreble);
+            }
+        } else if (uFx < 8.5) {          // 8 space: drifting dust, the stars a touch alive
+            for (int i = 0; i < 8; i++) {
+                float fi = float(i);
+                add += vec3(0.8, 0.9, 1.0) * mote(p, fi + 200.0, vec2(0.006 * sin(fi), 0.004), 0.004, 51.0) * 0.5;
+            }
+        } else if (uFx < 9.5) {          // 9 mist and wisps
+            float mi = sin(p.x * 3.0 + uTime * 0.15) * sin(p.y * 7.0 - uTime * 0.1 + p.x * 2.0);
+            add += vec3(0.75, 0.8, 0.95) * smoothstep(0.3, 1.0, mi) * 0.08 * depth;
+            for (int i = 0; i < 6; i++) {
+                float fi = float(i);
+                float wsp = mote(p, fi + 110.0, vec2(0.03 * sin(fi * 1.3), 0.012 * cos(fi)), 0.016, 31.0);
+                add += mix(vec3(0.5, 1.0, 0.7), vec3(0.7, 0.6, 1.0), h11(fi)) * wsp * uNight * (0.6 + 0.4 * sin(uTime * 2.0 + fi * 3.0));
+            }
+        } else {                         // 10 water glints along the far edge
+            if (p.y < uHorizon + 0.05 && p.y > uHorizon - 0.35) {
+                vec2 q = p * vec2(30.0, 90.0) + vec2(uTime * 0.3, 0.0);
+                vec2 id = floor(q); vec2 f = fract(q) - 0.5;
+                float gl = step(0.93, h21(id)) * smoothstep(0.25, 0.0, length(f * vec2(1.0, 2.0)));
+                add += vec3(1.0, 0.95, 0.85) * gl * (0.5 + 0.5 * sin(uTime * 5.0 + h21(id + 3.0) * 30.0)) * (0.5 + uTreble) * (1.0 - 0.6 * uNight);
+            }
+        }
+    } else if (uWorld < 1.5) {
+        // Cloud Nursery: pastel sparkles floating up.
+        for (int i = 0; i < 8; i++) {
+            float fi = float(i);
+            float m = mote(p, fi, vec2(0.0, 0.05 + 0.03 * h11(fi)), 0.012, 3.0);
+            add += (0.6 + 0.4 * cos(6.28 * (h11(fi + 9.0) + vec3(0.0, 0.33, 0.67)))) * m * (0.6 + 0.6 * uTreble);
+        }
+    } else if (uWorld < 2.5) {
+        // Battery Lab: energy motes rising.
+        for (int i = 0; i < 9; i++) {
+            float fi = float(i);
+            float m = mote(p, fi, vec2(0.0, 0.08 + 0.05 * h11(fi)), 0.01, 7.0);
+            add += vec3(0.3, 1.0, 0.5) * m * (0.7 + uBass);
+        }
+    } else if (uWorld < 3.5) {
+        // Backyard: petals by day, fireflies at night.
+        for (int i = 0; i < 10; i++) {
+            float fi = float(i);
+            float m = mote(p, fi, vec2(0.04, -0.03 - 0.02 * h11(fi)), 0.011, 1.0);
+            add += vec3(1.0, 0.75, 0.85) * m * 0.7 * (1.0 - uNight);
+            float f = mote(p * vec2(1.0, 1.6) + vec2(0.0, -uFloor * 0.6), fi + 20.0, vec2(0.02 * sin(fi), 0.015 * cos(fi * 1.3)), 0.014, 5.0);
+            float blink = smoothstep(0.2, 1.0, sin(uTime * (1.0 + h11(fi)) + fi * 2.0));
+            add += vec3(0.8, 1.0, 0.35) * f * blink * uNight * (1.2 + uTreble);
+        }
+    } else if (uWorld < 4.5) {
+        // Snow Day: two layers of falling snow.
+        for (int layer = 0; layer < 2; layer++) {
+            float fl = float(layer);
+            float dens = 9.0 + fl * 9.0;
+            vec2 q = p * dens + vec2(sin(uTime * 0.3 + fl) * 0.6, uTime * (1.2 + fl * 0.8));
+            vec2 id = floor(q); vec2 f = fract(q) - 0.5;
+            vec2 o = (vec2(h21(id), h21(id + 7.0)) - 0.5) * 0.6;
+            float r = (0.12 - fl * 0.04) * (0.6 + 0.4 * h21(id + 3.0));
+            float flake = smoothstep(r, r * 0.3, length(f - o)) * step(0.35, h21(id + 11.0));
+            add += vec3(1.0) * flake * (0.75 - fl * 0.25);
+        }
+    } else if (uWorld > 8.5 && uWorld < 9.5) {
+        // Rainforest: mist motes by day, fireflies at night.
+        for (int i = 0; i < 10; i++) {
+            float fi = float(i);
+            float m = mote(p, fi, vec2(0.015 * sin(fi), 0.012), 0.012, 17.0);
+            add += vec3(0.85, 1.0, 0.85) * m * 0.25 * (1.0 - uNight);
+            float f = mote(p, fi + 30.0, vec2(0.03 * sin(fi * 1.7), 0.02 * cos(fi)), 0.012, 19.0);
+            float blink = smoothstep(0.2, 1.0, sin(uTime * (1.2 + h11(fi)) + fi * 2.0));
+            add += vec3(0.7, 1.0, 0.4) * f * blink * uNight * (1.3 + uTreble);
+        }
+    } else if (uWorld > 9.5 && uWorld < 10.5) {
+        // Palm Beach: sun glints dancing on the water.
+        if (p.y < uFloor + 0.42) {
+            vec2 q = p * vec2(30.0, 90.0) + vec2(uTime * 0.3, 0.0);
+            vec2 id = floor(q); vec2 f = fract(q) - 0.5;
+            float gl = step(0.93, h21(id)) * smoothstep(0.25, 0.0, length(f * vec2(1.0, 2.0)));
+            float tw2 = 0.5 + 0.5 * sin(uTime * 5.0 + h21(id + 3.0) * 30.0);
+            add += vec3(1.0, 0.95, 0.85) * gl * tw2 * (0.5 + uTreble) * (1.0 - 0.6 * uNight) * smoothstep(-0.2, 0.2, base.a + 0.2);
+        }
+    } else if (uWorld > 11.5 && uWorld < 14.5) {
+        // The sea: bubbles rising, marine snow, caustic shimmer near the surface.
+        for (int i = 0; i < 9; i++) {
+            float fi = float(i);
+            vec2 start = vec2(h11(fi + 80.0) * 2.0 - 1.0, h11(fi * 2.3 + 80.0) * 2.0 - 1.0) * uHalf;
+            vec2 span = uHalf * 2.0 + 0.2;
+            vec2 pos = mod(start + vec2(0.0, 0.07 + 0.05 * h11(fi)) * uTime + uHalf + 0.1, span) - uHalf - 0.1;
+            pos.x += 0.02 * sin(uTime * (1.5 + h11(fi)) + fi * 3.0);
+            float r = 0.008 + 0.012 * h11(fi + 5.0);
+            float d = length(p - pos);
+            add += vec3(0.7, 0.9, 1.0) * (smoothstep(0.004, 0.0, abs(d - r)) * 0.6 + smoothstep(r * 0.4, 0.0, length(p - pos - vec2(-r * 0.35, r * 0.4))) * 0.5);
+            float sn = mote(p, fi + 60.0, vec2(0.012 * sin(fi), -0.015), 0.006, 23.0);
+            add += vec3(0.75, 0.85, 1.0) * sn * 0.35;
+        }
+        float ca = sin(p.x * 14.0 + uTime * 0.8 + sin(p.y * 9.0 + uTime * 0.6) * 1.5) * sin(p.y * 11.0 - uTime * 0.5 + sin(p.x * 7.0) * 1.3);
+        add += vec3(0.5, 0.85, 1.0) * smoothstep(0.75, 1.0, ca) * 0.12 * (1.0 - uNight) * smoothstep(-uHalf.y * 0.3, uHalf.y, p.y) * (uWorld > 12.5 ? 1.0 : 0.4);
+    } else if (uWorld > 14.5 && uWorld < 15.5) {
+        // Lava Lair: embers rising, the lava light breathing.
+        for (int i = 0; i < 10; i++) {
+            float fi = float(i);
+            float e = mote(p, fi + 90.0, vec2(0.02 * sin(fi * 2.0), 0.07 + 0.04 * h11(fi)), 0.008, 29.0);
+            add += vec3(1.0, 0.5, 0.1) * e * (1.0 + uBass);
+        }
+        add += vec3(1.0, 0.3, 0.05) * base.a * (0.15 + 0.15 * sin(uTime * 1.5 + p.x * 4.0) + 0.3 * uBass);
+    } else if (uWorld > 15.5 && uWorld < 16.5) {
+        // Haunted Hill: fog motes and will-o'-wisps at night.
+        for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            float wsp = mote(p, fi + 110.0, vec2(0.03 * sin(fi * 1.3), 0.012 * cos(fi)), 0.016, 31.0);
+            add += mix(vec3(0.5, 1.0, 0.7), vec3(0.7, 0.6, 1.0), h11(fi)) * wsp * (0.25 + uNight) * (0.6 + 0.4 * sin(uTime * 2.0 + fi * 3.0));
+        }
+    } else if (uWorld > 16.5) {
+        // Evil HQ: dust in the lamp light.
+        for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            add += vec3(0.9, 1.0, 0.8) * mote(p, fi + 130.0, vec2(0.01 * sin(fi), 0.008), 0.007, 37.0) * 0.35;
+        }
+    } else if (uWorld > 10.5) {
+        // Blossom Garden: petals spinning down.
+        for (int i = 0; i < 12; i++) {
+            float fi = float(i);
+            vec2 start = vec2(h11(fi + 40.0) * 2.0 - 1.0, h11(fi * 3.1 + 40.0) * 2.0 - 1.0) * uHalf;
+            vec2 span = uHalf * 2.0 + 0.2;
+            vec2 pos = mod(start + vec2(0.035, -0.06 - 0.03 * h11(fi)) * uTime + uHalf + 0.1, span) - uHalf - 0.1;
+            pos.x += 0.05 * sin(uTime * (0.8 + h11(fi)) + fi);
+            vec2 q = p - pos;
+            float a = uTime * (1.5 + h11(fi + 2.0)) + fi;
+            q = vec2(cos(a) * q.x - sin(a) * q.y, sin(a) * q.x + cos(a) * q.y);
+            q.x *= 1.0 + 0.8 * abs(sin(a * 0.7));
+            float pet = length(q * vec2(1.0, 1.7)) - 0.011;
+            add += mix(vec3(1.0, 0.7, 0.82), vec3(0.5, 0.35, 0.5), uNight) * smoothstep(0.004, -0.004, pet) * 0.9;
+        }
+    } else if (uWorld < 5.5 || uWorld > 7.5) {
+        // Cozy Room / Box Fort: dust motes drifting in warm light.
+        for (int i = 0; i < 7; i++) {
+            float fi = float(i);
+            float m = mote(p, fi, vec2(0.01 * sin(fi), 0.01), 0.006, 11.0);
+            add += vec3(1.0, 0.85, 0.6) * m * 0.45;
+        }
+    } else if (uWorld < 6.5) {
+        // Windowsill: raindrops sliding down the glass on rainy nights; dust motes by day.
+        for (int i = 0; i < 8; i++) {
+            float fi = float(i);
+            float m = mote(p, fi, vec2(0.0, -0.06 - 0.06 * h11(fi)), 0.008, 13.0);
+            add += mix(vec3(1.0, 0.9, 0.7) * 0.35, vec3(0.7, 0.8, 1.0) * 0.5, uNight) * m;
+        }
+    } else {
+        // Rooftop: a little plane blinking across the sky, and drifting embers of city light.
+        float t = mod(uTime * 0.05, 1.0);
+        vec2 plane = vec2(mix(-uHalf.x - 0.2, uHalf.x + 0.2, t), uHalf.y - 0.25);
+        float blink = step(0.5, fract(uTime * 1.2));
+        add += vec3(1.0, 0.3, 0.3) * exp(-length(p - plane) * 260.0) * 2.0 * blink;
+        add += vec3(1.0) * exp(-length(p - plane - vec2(0.01, 0.0)) * 300.0) * 1.5 * (1.0 - blink);
+    }
+
+    // Touch bursts: a ring of sparks.
+    for (int b = 0; b < 3; b++) {
+        vec4 br = uBurst[b];
+        if (br.w <= 0.0) continue;
+        vec2 q = p - br.xy;
+        float age = br.z;
+        float r = age * 0.5;
+        float ring = exp(-pow((length(q) - r) * 30.0, 2.0)) * exp(-age * 2.5);
+        float ang = atan(q.y, q.x);
+        float sparks = pow(max(0.0, cos(ang * 8.0 + br.x * 10.0)), 12.0);
+        vec3 bc = uWorld > 3.5 && uWorld < 4.5 ? vec3(0.85, 0.95, 1.0) : vec3(1.0, 0.85, 0.6);
+        add += bc * ring * (0.4 + sparks) * br.w;
+    }
+
+    col += add;
+    col *= uBright * mix(1.0, 0.45, uDim);
+    gl_FragColor = vec4(col, 1.0);
+}

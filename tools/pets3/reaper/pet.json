@@ -1,0 +1,7 @@
+{"scale": 0.6, "eyeMode": 3, "gloss": 0.25, "atlas": "/home/claude/reaper/eyes_atlas.png", "lash": [0.05, 0.03, 0.03],
+ "clips": [["Idle","Idle",true],["LookAround","LookAround",false],["Walk","Walk",true],["Run","Run",true],["Scared","Scared",false],
+  ["EvilLaugh","EvilLaugh",false],["SpellCast","SpellCast",false],["Boo","Boo",false],["CapeSwish","CapeSwish",false],["Attack","Attack",false],
+  ["Tumble","Tumble",false],["TryToFly","TryToFly",false],["Pet","Pet",true],["Poke","Poke",false],["Tickle","Tickle",false],["Dangle","Dangle",true],
+  ["JumpStart","JumpStart",false],["JumpAir","JumpAir",true],["JumpLand","JumpLand",false],["FallAsleep","FallAsleep",false],["Sleep","Sleep",true],
+  ["WakeUp","WakeUp",false],["HeadTilt","HeadTilt",false],["Shake","Shake",false],["Spin","Spin",false],["ChaseButterfly","ChaseButterfly",false],
+  ["Dance","Dance",false],["AngryKick","AngryKick",false]]}
