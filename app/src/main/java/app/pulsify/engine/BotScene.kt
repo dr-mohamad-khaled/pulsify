@@ -48,7 +48,7 @@ val BOT_LOOKS = listOf(
  * Tink (spring hopper). LED dot-matrix faces, pure AMOLED black around them (no floor glow, no bloom).
  * Port of the "Pulsify Bots" browser preview: Canvas into a screen-sized bitmap, uploaded as a GL texture.
  */
-class BotScene : Creature {
+class BotScene(private val transparent: Boolean = false) : Creature {
     override var listener: SceneListener? = null
     override var bottomInset = 0f
     override val busy: Boolean get() = act != null || held || tx != null
@@ -555,7 +555,7 @@ class BotScene : Creature {
     private var prog = 0; private var vbo = 0; private var tex = 0; private var bmp: Bitmap? = null; private var cvs: Canvas? = null; private var uTex = 0
     private var sw = 1; private var sh = 1
     override fun onSurfaceCreated() {
-        prog = Gl.program(VS, FS); uTex = GLES20.glGetUniformLocation(prog, "uTex")
+        prog = Gl.program(VS, if (transparent) FS_ALPHA else FS); uTex = GLES20.glGetUniformLocation(prog, "uTex")
         val ids = IntArray(1); GLES20.glGenBuffers(1, ids, 0); vbo = ids[0]
         val q = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f); val fb = ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder()).asFloatBuffer().put(q); fb.position(0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, 32, fb, GLES20.GL_STATIC_DRAW); tex = 0
@@ -570,7 +570,7 @@ class BotScene : Creature {
         var b = bmp
         if (b == null || b.width != bw || b.height != bh) { b?.recycle(); b = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888); bmp = b; cvs = Canvas(b); if (tex != 0) GLES20.glDeleteTextures(1, intArrayOf(tex), 0); tex = 0 }
         val cv = cvs!!
-        cv.drawColor(Color.BLACK, PorterDuff.Mode.SRC)
+        cv.drawColor(if (transparent) Color.TRANSPARENT else Color.BLACK, PorterDuff.Mode.SRC)
         drawCable(cv); drawScan(cv)
         // the robot (robot units, y up, origin at its feet)
         cv.save(); cv.translate(CX + x * U, GY - air * U); cv.scale(U, -U)
@@ -589,9 +589,10 @@ class BotScene : Creature {
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE); GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, b, 0) } else { GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex); GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, b) }
         GLES20.glUseProgram(prog); GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex); GLES20.glUniform1i(uTex, 0)
-        GLES20.glDisable(GLES20.GL_BLEND)
+        if (transparent) { GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA) } else GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4); GLES20.glDisableVertexAttribArray(0); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
+        if (transparent) GLES20.glDisable(GLES20.GL_BLEND)
     }
 
     companion object {
@@ -615,6 +616,8 @@ class BotScene : Creature {
         private fun mix(a: Float, b: Float, t: Float) = a + (b - a) * t
         private fun win(t: Float, a: Float, b: Float, c: Float, d: Float) = sm((t - a) / max(1e-4f, b - a)) * (1 - sm((t - c) / max(1e-4f, d - c)))
         private const val VS = "attribute vec2 aPos; varying vec2 vUv; void main(){ vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5); gl_Position = vec4(aPos, 0.0, 1.0); }"
+        /** Widget buddies: the robot over the wallpaper, no black box around it (premultiplied texture). */
+        private const val FS_ALPHA = "precision mediump float; varying vec2 vUv; uniform sampler2D uTex; void main(){ gl_FragColor = texture2D(uTex, vUv); }"
         private const val FS = "precision mediump float; varying vec2 vUv; uniform sampler2D uTex; void main(){ vec3 c = texture2D(uTex, vUv).rgb; float m = max(c.r, max(c.g, c.b)); gl_FragColor = vec4(c * smoothstep(0.012, 0.03, m), 1.0); }"
     }
 }

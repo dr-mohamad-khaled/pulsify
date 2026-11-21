@@ -253,9 +253,10 @@ private fun BackCircle(onBack: () -> Unit) {
 }
 
 private fun nextCreature(id: Int, used: List<Int>): Int {
-    var n = id
-    repeat(app.pulsify.engine.BUDDY_CREATURES.size) { n = n % app.pulsify.engine.BUDDY_CREATURES.size + 1; if (n !in used) return n }
-    return n
+    val ids = app.pulsify.engine.BUDDY_CREATURES.map { it.id }
+    val start = ids.indexOf(id).coerceAtLeast(0)
+    for (k in 1..ids.size) { val n = ids[(start + k) % ids.size]; if (n !in used) return n }
+    return ids.getOrElse(start) { 1 }
 }
 
 /** Pins a widget straight onto the home screen (the launcher asks the user where). */

@@ -10,6 +10,7 @@ import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -112,9 +113,18 @@ class MochiScene(private val context: Context) : Creature {
 
     var sinceTouch = 99f; private set
 
+    // Carry / throw / knocked over (Doodle look). Velocities in uv per second.
+    private var grabbed = false
+    private var flying = false
+    private var knocked = 0f                   // > 0: lying on its side, counting down to getting up
+    private var tilt = 0f; private var tiltV = 0f
+    private var fVx = 0f; private var fVy = 0f // smoothed finger velocity
+    private var grabDY = 0f                    // where on the body the finger holds it
+    private var landedHard = 0
+
     override val busy: Boolean
         get() = touchDown || sinceTouch < 2f || act != Act.NONE || abs(vy) > 0.01f || abs(vx) > 0.01f ||
-            jar == Jar.DRAG || jar == Jar.LOOSE || abs(syV) > 0.05f
+            jar == Jar.DRAG || jar == Jar.LOOSE || abs(syV) > 0.05f || grabbed || flying || knocked > 0f || abs(tilt) > 0.01f
 
     override fun onSurfaceCreated() {
         val vert = context.assets.open("shaders/mochi.vert").bufferedReader().use { it.readText() }
@@ -122,7 +132,7 @@ class MochiScene(private val context: Context) : Creature {
         program = Gl.program(vert, frag)
         for (n in listOf("uQuad", "uRes", "uTime", "uPos", "uSize", "uPx", "uSquash", "uShear", "uLook", "uEyeOpen",
             "uEyeMode", "uMouth", "uTears", "uBlush", "uArmL", "uArmR", "uJar", "uJarHeld", "uSip", "uBase", "uGlow",
-            "uRim", "uBeat", "uPress", "uFx", "uBird", "uBattIcon", "uDim")) {
+            "uRim", "uBeat", "uPress", "uFx", "uBird", "uBattIcon", "uDim", "uTilt")) {
             uni[n] = GLES20.glGetUniformLocation(program, n)
         }
         val ids = IntArray(1)
@@ -177,7 +187,7 @@ class MochiScene(private val context: Context) : Creature {
 
     // Body position in uv.
     private val bodyX get() = homeX + x
-    private val bodyY get() = homeY + jumpY
+    private val bodyY get() = homeY + jumpY + 0.42f * size * abs(sin(tilt)) * (if (grabbed) 0f else 1f)
 
     private fun onBody(ux: Float, uy: Float): Boolean {
         val cx = (ux - bodyX) / size; val cy = (uy - bodyY) / size
@@ -221,8 +231,13 @@ class MochiScene(private val context: Context) : Creature {
         val dt = max(1e-3f, time - lastTT)
         val vxs = (ux - lastTX) / dt
         if (hypot(ux - tX, uy - tY) > 0.03f) moved = true
+        val vys = (uy - lastTY) / dt
+        fVx += (vxs - fVx) * 0.5f; fVy += (vys - fVy) * 0.5f
         if (jar == Jar.DRAG) {
             jarX = ux; jarY = uy
+        } else if (downOnBody && (grabbed || moved) && knocked <= 0f) {
+            if (!grabbed) { grabbed = true; flying = false; grabDY = (tY - bodyY); act = Act.NONE; discover("carried"); syV += 3f }
+            lookAtUv(ux, uy + 0.4f)
         } else {
             lookAtUv(ux, uy)
             // A fast swipe across Mochi sends a jelly wobble.
@@ -239,12 +254,24 @@ class MochiScene(private val context: Context) : Creature {
         if (!touchDown) return false
         touchDown = false
         sinceTouch = 0f
+        if (grabbed) {
+            // Let go: whatever speed the finger had, Mochi keeps it.
+            grabbed = false
+            val sp = hypot(fVx, fVy)
+            val k = if (sp > 6f) 6f / sp else 1f
+            vx = fVx * k; vy = fVy * k
+            flying = true
+            tiltV += -vx * 3f
+            if (sp > 1.2f) discover("thrown")
+            return true
+        }
         val wasDrag = jar == Jar.DRAG
         if (wasDrag) {
             jar = Jar.LOOSE
             return true
         }
         val tap = !moved && time - downAt < 0.35f
+        if (tap && downOnBody && knocked > 0f) { knocked = min(knocked, 0.15f); return true }
         if (tap && downOnBody) {
             tapBody()
             return true
@@ -289,7 +316,7 @@ class MochiScene(private val context: Context) : Creature {
         val cx = (ux - bodyX) / size; val cy = (uy - bodyY - 0.15f * size) / size
         lookTX = (cx / 0.8f).coerceIn(-1f, 1f)
         lookTY = (cy / 0.8f).coerceIn(-1f, 1f)
-        nextLookWander = 2.5f + Random.nextFloat() * 2f
+        nextLookWander = 4f + Random.nextFloat() * 2f
     }
 
     override fun greet() {
@@ -305,7 +332,7 @@ class MochiScene(private val context: Context) : Creature {
     override fun perform(trick: String): Boolean {
         wake()
         val a = when (trick) {
-            "bubble" -> Act.BUBBLE; "star" -> Act.STAR; "bird" -> Act.BIRD; "party" -> Act.CELEBRATE
+            "bubble" -> Act.BUBBLE; "star" -> Act.STAR; "party" -> Act.CELEBRATE
             "wobble" -> Act.WOBBLE; "stretch" -> Act.STRETCH; "giggle" -> Act.GIGGLE; "hello" -> Act.GREET
             else -> return false
         }
@@ -393,17 +420,72 @@ class MochiScene(private val context: Context) : Creature {
             }
             lookAtUv(jx, jy)
             awakeFor = 4f
-        } else {
+        } else if (grabbed) {
+            // Hangs from the finger: follows it with a little lag, swings with the motion.
+            val tx = lastTX - homeX; val ty = max(0f, lastTY - grabDY - homeY)
+            val nx = x + (tx - x) * min(1f, dt * 18f); val ny = jumpY + (ty - jumpY) * min(1f, dt * 18f)
+            vx = (nx - x) / max(dt, 1e-3f); vy = (ny - jumpY) / max(dt, 1e-3f)
+            x = nx; jumpY = ny
+            tiltV += ((-fVx * 0.18f).coerceIn(-0.7f, 0.7f) - tilt) * 40f * dt - tiltV * 6f * dt
+        } else if (!flying && knocked <= 0f) {
             vx += ((-x) * 4f - vx * 3f) * dt
         }
-        x += vx * dt
+        if (!grabbed) {
+            if (flying) {
+                // Ballistic: bounce off the screen edges and the top.
+                val halfW = 0.5f * w / min(w, h) - 0.45f * size
+                val top = 0.5f * h / min(w, h) - 0.6f * size - homeY
+                if (bodyX + vx * dt > halfW || bodyX + vx * dt < -halfW) { vx = -vx * 0.6f; tiltV += vx * 4f; syV -= 3f }
+                if (jumpY > top && vy > 0f) { vy = -vy * 0.4f; syV -= 3f }
+                tiltV += -vx * 0.6f * dt
+            }
+            x += vx * dt
+            if (knocked <= 0f && !flying) x = x.coerceIn(-1.5f, 1.5f)
+        }
 
         // Gravity.
-        if (jumpY > 0f || vy > 0f) {
+        if (!grabbed && (jumpY > 0f || vy > 0f)) {
             vy -= 4.2f * size * dt
             jumpY += vy * dt
-            if (jumpY <= 0f) { jumpY = 0f; if (vy < -0.3f * size) syV -= abs(vy) * 4f / size; vy = 0f }
+            if (jumpY <= 0f) {
+                val impact = -vy / size
+                jumpY = 0f
+                if (vy < -0.3f * size) syV -= min(9f, impact * 4f)
+                if (flying && impact > 2.6f && landedHard == 0) {
+                    // Hard landing: falls over, dizzy for a moment, then gets back up.
+                    landedHard = 1
+                    knocked = 1.6f + Random.nextFloat() * 0.6f
+                    tiltV += if (vx > 0f || (vx == 0f && Random.nextBoolean())) -6f else 6f
+                    spawnFx(4f, 0f, 0.55f, 0.6f); spawnFx(2f, 0.2f, 0.4f, 0.9f)
+                    discover("knocked_over")
+                    vy = 0f; vx *= 0.3f
+                } else if (flying && impact > 1.2f) {
+                    vy = impact * 0.32f * size          // a small bounce
+                    vx *= 0.6f
+                } else {
+                    vy = 0f
+                    if (flying) { flying = false; landedHard = 0; vx *= 0.3f }
+                }
+            }
         }
+        if (knocked > 0f) {
+            flying = false
+            vx *= max(0f, 1f - dt * 6f)
+            val side = if (tilt >= 0f) 1f else -1f
+            knocked -= dt
+            if (knocked > 0f) {
+                tiltV += ((side * 1.45f - tilt) * 70f - tiltV * 10f) * dt
+            } else {
+                // Gets up with a little hop and a giggle.
+                landedHard = 0
+                vy = 0.7f * size; syV -= 3f; tiltV -= side * 4f
+                startAct(Act.GIGGLE)
+            }
+        } else if (!grabbed) {
+            tiltV += (-tilt * 90f - tiltV * 9f) * dt
+        }
+        tilt += tiltV * dt
+        tilt = tilt.coerceIn(-1.7f, 1.7f)
 
         // Music: bounce on the beat, glow colours cycle.
         if (musicOn && !isAsleep()) {
@@ -435,7 +517,7 @@ class MochiScene(private val context: Context) : Creature {
         if (act == Act.NONE && !asleep && !chasing && !touchDown && sinceTouch > 3f) {
             nextIdleAct -= dt
             if (nextIdleAct <= 0f) {
-                val pool = mutableListOf(Act.BUBBLE, Act.STAR, Act.BIRD, Act.PRESS, Act.WOBBLE)
+                val pool = mutableListOf(Act.BUBBLE, Act.STAR, Act.PRESS, Act.WOBBLE, Act.GIGGLE)
                 pool.removeAll(lastActs)
                 val pick = pool.random()
                 lastActs.addLast(pick); if (lastActs.size > 2) lastActs.removeFirst()
@@ -555,10 +637,22 @@ class MochiScene(private val context: Context) : Creature {
             Act.NONE -> {}
         }
         if (act != Act.BIRD) birdVis = max(0f, birdVis - dt * 2f)
+        if (grabbed) {
+            // Dangling: wide eyes, open mouth, little arms flailing.
+            mTarget = 1f; blushT = 0.9f
+            setArms(-0.4f, 0.05f, -2.2f + sin(time * 18f) * 0.5f, 0.4f, 0.05f, 2.2f - sin(time * 18f + 1f) * 0.5f)
+        } else if (flying) {
+            mTarget = 1f; eTarget = 0f
+            setArms(-0.42f, 0.1f, -2.6f, 0.42f, 0.1f, 2.6f)
+        } else if (knocked > 0f) {
+            eTarget = 4f; openTarget = 0.35f; mTarget = 1f; tearT = 0f
+            lookTX = sin(time * 6f) * 0.8f; lookTY = cos(time * 6f) * 0.5f   // dizzy, eyes rolling
+            if (fx[23] == 0f || fx[22] >= 1f) spawnFx(4f, 0.25f * (if (tilt > 0f) -1f else 1f), 0.5f, 0.7f, slot = 5)
+        }
 
         // Gaze: wander when idle.
         nextLookWander -= dt
-        if (nextLookWander <= 0f && !touchDown && act == Act.NONE && !chasing) {
+        if (nextLookWander <= 0f && !touchDown && act == Act.NONE && !chasing && !grabbed && !flying && knocked <= 0f) {
             lookTX = (Random.nextFloat() - 0.5f) * 1.2f; lookTY = (Random.nextFloat() - 0.4f) * 0.8f
             nextLookWander = 2f + Random.nextFloat() * 3f
         }
@@ -634,6 +728,7 @@ class MochiScene(private val context: Context) : Creature {
         var minX = bx - 0.62f * size; var maxX = bx + 0.62f * size
         var minY = by - 0.72f * size; var maxY = by + 1.0f * size
         if (act == Act.STAR || act == Act.BIRD) { maxY = by + 1.9f * size; maxX = bx + 1.5f * size }
+        if (abs(tilt) > 0.01f) { minX = min(minX, bx - 1.25f * size); maxX = max(maxX, bx + 1.25f * size); minY = min(minY, by - 0.75f * size) }
         if (jar == Jar.DRAG || jar == Jar.LOOSE) {
             minX = min(minX, jarX - 0.3f * size); maxX = max(maxX, jarX + 0.3f * size)
             minY = min(minY, jarY - 0.35f * size); maxY = max(maxY, jarY + 0.4f * size)
@@ -672,6 +767,7 @@ class MochiScene(private val context: Context) : Creature {
         GLES20.glUniform1f(u("uBattIcon"), if (input.charging && held) jarVis else 0f)
         val dim = when { input.mood == Mood.NIGHT -> 0.35f; input.lowBattery -> 0.3f; else -> 0f }
         GLES20.glUniform1f(u("uDim"), dim)
+        GLES20.glUniform1f(u("uTilt"), tilt)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
         GLES20.glDisable(GLES20.GL_BLEND)
     }

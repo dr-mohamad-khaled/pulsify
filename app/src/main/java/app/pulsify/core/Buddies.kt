@@ -1,5 +1,6 @@
 package app.pulsify.core
 
+import app.pulsify.engine.RETIRED_CREATURES
 import android.app.WallpaperManager
 import android.content.Context
 import android.content.SharedPreferences
@@ -75,7 +76,7 @@ object Buddies {
             val p = s.split(',')
             if (p.size < 8) return@mapNotNull null
             try {
-                BuddySlot(p[0].toInt(), p[1].toInt(), p[2].toInt(), p[3].toInt(), p[4].toFloat(), p[5].toFloat(), p[6].toFloat(), p[7].toFloat())
+                BuddySlot(p[0].toInt(), p[1].toInt().let { if (it in RETIRED_CREATURES) 1 else it }, p[2].toInt(), p[3].toInt(), p[4].toFloat(), p[5].toFloat(), p[6].toFloat(), p[7].toFloat())
             } catch (_: Throwable) { null }
         }
     }

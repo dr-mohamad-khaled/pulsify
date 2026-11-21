@@ -56,15 +56,14 @@ class GlLoop(
     private var loadedCreature: Creature? = null
     private var rw = 0; private var rh = 0
     val mochi = MochiScene(context)
-    val kalboob = KalboobScene(context)
-    val kitty = KittyScene(context)
-    val kiwi = KiwiScene(context)
+    /** The 2D cast (Canvas creatures): Kalboob, Snowy, Sunny (Kiwi's 2D look), Acorn (Nutty's 2D look). */
+    val kalboob: Creature = ToonScene(PupKind) { it }
+    val duck: Creature = ToonScene(DuckKind) { it }
+    val kiwi: Creature = ToonScene(BirdKind) { it }
     val glowy = GlowyScene(context)
     val gromble = GrombleScene(context)
-    val nutty = NuttyScene(context)
-    val bolt = BoltScene(context)
+    val nutty: Creature = ToonScene(SquirrelKind) { it }
     val gloop = GloopScene(context)
-    val kitty3d = Kitty3DScene(context)
     /** The Meshy 3D pets (Snowball the kitten, Honey the pup, Nimbus the robot, Snowy the duckling). */
     val pet3d = Pet3DScene(context)
     /** Cosmo, the astronaut falling forever through space. */
@@ -81,14 +80,19 @@ class GlLoop(
     val shadow = ShadowScene()
     /** Bolt's robots (Orbi, Pixel, Sentinel, Bubble, Tink). */
     val bots = BotScene()
-    private val creatures: List<Creature> = listOf(mochi, kalboob, kitty, kiwi, glowy, gromble, nutty, bolt, gloop)
-    private val allCreatures: List<Creature> = creatures + kitty3d + pet3d + astro + fish + aquarium + orbit + peachy + shadow + bots
+    /** Pharaohs: Tutankhamun, Nefertiti and Anubis as super wallpapers. */
+    val statue = StatueScene(context)
+    /** By character id - 1 (Kitty, id 3, is retired; Bolt, id 8, is the robots in [bots]). */
+    private val creatures: List<Creature?> = listOf(mochi, kalboob, null, kiwi, glowy, gromble, nutty, null, gloop)
+    private val allCreatures: List<Creature> = creatures.filterNotNull() + pet3d + astro + fish + aquarium + orbit + peachy + shadow + bots + statue + duck
     /** The creature this frame wants: by character id, and for Kitty by style (1.. = 3D shapes). */
     private fun pick(): Creature? {
         if (input.character == 8) { bots.look = BOT_LOOKS[input.style.coerceIn(0, BOT_LOOKS.size - 1)]; return bots }
+        if (input.character == STATUE_ID) { statue.look = STATUE_LOOKS[input.style.coerceIn(0, STATUE_LOOKS.size - 1)]; return statue }
         if (input.character == SHADOW_ID) { shadow.look = SHADOW_LOOKS[input.style.coerceIn(0, SHADOW_LOOKS.size - 1)]; return shadow }
         if (input.character == 1 && input.style == 1) return peachy
         if (input.character == 6 && input.style > 0) { orbit.species = if (input.style == 2) ORBIT_IMP else ORBIT_REAPER; return orbit }
+        if (input.character == SNOWY_ID) return duck
         petSpeciesFor(input.character, input.style, input.coat)?.let { pet3d.species = it; return pet3d }
         if (input.character == COSMO_ID) return astro
         if (input.character == 5 && input.style == 3) return aquarium
@@ -471,6 +475,7 @@ class GlLoop(
     }
     fun setBottomInset(f: Float) = postSafe { allCreatures.forEach { it.bottomInset = f } }
     fun perform(trick: String) = postSafe { active?.perform(trick) }
+    fun screenOn(locked: Boolean) = postSafe { active?.screenOn(locked) }
     fun greet() = postSafe { if (skyOk) scene.greet(); active?.greet() }
 
     @Volatile var dead = false; private set
@@ -579,7 +584,6 @@ class GlLoop(
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         }
         if (showMainCreature) active?.let { c ->
-            if (c === kitty3d) { fillLedges(); kitty3d.viewLag = lag }
             if (c === pet3d) { fillLedges(); pet3d.viewLag = lag }
             if (c === orbit || c === astro) fillLedges()
             c.setGround(if (worldOn) world.groundY else Float.NaN); c.update(dt, input)

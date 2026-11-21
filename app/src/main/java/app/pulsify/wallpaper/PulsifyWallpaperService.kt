@@ -113,7 +113,9 @@ class PulsifyWallpaperService : WallpaperService() {
                 if (isVisible != tiltOn) { tiltOn = isVisible; if (isVisible) app.pulsify.core.Tilt.start(applicationContext) else app.pulsify.core.Tilt.stop() }
                 if (isVisible) {
                     if (!audioHeld) { Pulse.audio.acquire(); audioHeld = true }
-                    feed.hidden = try { keyguard.isKeyguardLocked } catch (_: Throwable) { false }
+                    val locked = try { keyguard.isKeyguardLocked } catch (_: Throwable) { false }
+                    feed.hidden = locked
+                    if (!isPreview) loop.screenOn(locked)
                     Pulse.device.poll(force = true)
                 } else if (audioHeld) {
                     Pulse.audio.release(); audioHeld = false

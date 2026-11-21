@@ -13,8 +13,8 @@ android {
         applicationId = "app.pulsify.v3"
         minSdk = 26
         targetSdk = 35
-        versionCode = 599
-        versionName = "5.9.9"
+        versionCode = 600
+        versionName = "6.0.0"
     }
 
     // A fixed test key, so every build from GitHub installs as an update over the last one.
@@ -42,6 +42,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
     androidResources { noCompress += listOf("mp4") }
+    testOptions { unitTests.isIncludeAndroidResources = false }
 }
 
 dependencies {
@@ -57,4 +58,6 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.media3:media3-exoplayer:1.4.1")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

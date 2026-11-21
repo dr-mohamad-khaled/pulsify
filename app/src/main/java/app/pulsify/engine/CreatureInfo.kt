@@ -64,6 +64,24 @@ fun worlds(photo: List<EnvInfo>, old: List<EnvInfo>, keep: List<EnvInfo> = empty
     return ready + (if (ready.size < 2) old.filter { o -> ready.none { it.name == o.name } } else emptyList()) + keep
 }
 
+/** Creatures taken out of the app for now (Kitty, Leo). A saved pick of one falls back to Mochi. */
+val RETIRED_CREATURES = setOf(3, 12)
+
+/**
+ * Does the coat picker change anything for this creature in this style? Only the looks drawn from
+ * coat colours use it; the others (Peachy, the 3D and photo looks, single-coat creatures) hide it.
+ */
+fun coatMatters(info: CreatureInfo, style: Int): Boolean {
+    if (info.coats.size <= 1) return false
+    return when (info.id) {
+        1, 2, 5, 6, 7 -> style == 0      // Jelly Bean, the pup, Lantern, Pocket Devil, Acorn
+        4 -> true                        // Kiwi: species in both looks
+        9 -> true                        // Gloop Gang: how many
+        SNOWY_ID -> true
+        else -> false
+    }
+}
+
 /** A trick the Studio can ask the creature to do right now. */
 data class TrickInfo(val id: String, val label: String, val emoji: String)
 
@@ -93,7 +111,7 @@ val GLOWY_INFO = CreatureInfo(
         TrickInfo("loop", "Loop", "🌀"), TrickInfo("bubbles", "Bubbles", "🫧"), TrickInfo("yawn", "Big yawn", "🥱"),
         TrickInfo("stare", "Chase the lure", "👀"),
     ),
-    styles = listOf("Doodle", "Real Betta", "Real Clownfish", "Aquarium"),
+    styles = listOf("Lantern", "Crimson Betta", "Clownfish", "Aquarium"),
 )
 
 val GROMBLE_INFO = CreatureInfo(
@@ -111,7 +129,7 @@ val GROMBLE_INFO = CreatureInfo(
         TrickInfo("attack", "Attack!", "💥"), TrickInfo("pet", "Pet him", "🫶"),
         TrickInfo("notify", "Knock (3D)", "🔔"), TrickInfo("world", "Next world (3D)", "🌋"), TrickInfo("walk", "Walk (3D)", "🚶"),
     ),
-    styles = listOf("Doodle", "Reaper", "Mischief"),
+    styles = listOf("Pocket Devil", "Reaper", "Mischief"),
 )
 
 val NUTTY_INFO = CreatureInfo(
@@ -129,13 +147,13 @@ val NUTTY_INFO = CreatureInfo(
         TrickInfo("spin", "Spin", "🌀"), TrickInfo("scratch", "Scratch", "🦶"), TrickInfo("feed", "Give an acorn", "🎁"),
         TrickInfo("drum", "Drum solo", "🥁"),
     ),
-    styles = listOf("Doodle", "Nutmeg"),
+    styles = listOf("Acorn", "Nutmeg"),
 )
 
 val BOLT_INFO = CreatureInfo(
     8, "Bolt", "Five smart little robots with LED faces. Pick one.",
     "Tap it: it giggles (3 fast taps: it overheats). Drag it: you pick it up. Tap the floor: it goes there. Hold the screen: it scans your finger.",
-    0xFF2DD4BF.toInt(), BOLT_COATS.take(1).map { CoatInfo("Graphite", 0xFF231C35.toInt(), 0xFF2DD4BF.toInt()) },
+    0xFF2DD4BF.toInt(), listOf(CoatInfo("Graphite", 0xFF231C35.toInt(), 0xFF2DD4BF.toInt())),
     listOf(EnvInfo("Pitch Black", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF000000.toInt())),
     listOf(
         TrickInfo("wave", "Wave", "👋"), TrickInfo("scan", "Scan", "🔍"), TrickInfo("jump", "Jump", "⬆️"), TrickInfo("glitch", "Glitch", "📺"),
@@ -166,7 +184,7 @@ val GLOOP_INFO = CreatureInfo(
 val SNOWY_INFO = CreatureInfo(
     SNOWY_ID, "Snowy", "Fluffy duckling. Quacks at everything, dreams of flying.",
     "Tap: quack-poke. Hold: cuddles. Rub: giggles. Drag to carry. Tap a widget and it hops on top.",
-    0xFFFFB45C.toInt(), listOf(CoatInfo("Snow white", 0xFFF5F2EA.toInt(), 0xFFFF9A3C.toInt())),
+    0xFFFFB45C.toInt(), DUCK_COATS.map { CoatInfo(it.name, it.fluff or 0xFF000000.toInt(), it.beak or 0xFF000000.toInt()) },
     worlds(listOf(W_POND, W_FARM, P_POND, P_BLOSSOM), listOf(
         EnvInfo("Snow Day", 4, c1 = 0xFFDDEBFF.toInt(), c2 = 0xFF2E7D6B.toInt()),
         EnvInfo("Blossom Garden", 11, c1 = 0xFFFFB7D5.toInt(), c2 = 0xFF8C6CE6.toInt()),
@@ -174,7 +192,7 @@ val SNOWY_INFO = CreatureInfo(
     listOf(
         TrickInfo("quack", "Quack", "🦆"), TrickInfo("flap", "Flap", "🪽"), TrickInfo("fly", "Try to fly", "✈️"),
         TrickInfo("preen", "Preen", "✨"), TrickInfo("crumbs", "Bread crumbs", "🍞"), TrickInfo("splash", "Puddle", "💦"),
-        TrickInfo("toy", "Rubber duck", "🐤"), TrickInfo("butterfly", "Butterfly", "🦋"), TrickInfo("sleep", "Nap", "💤"),
+        TrickInfo("waddle", "Waddle", "🐾"), TrickInfo("sleep", "Nap", "💤"),
     ),
 )
 
@@ -192,7 +210,7 @@ val LEO_INFO = CreatureInfo(
     listOf(
         TrickInfo("roar", "Roar!", "🦁"), TrickInfo("bigroar", "Real roar", "📢"), TrickInfo("pounce", "Pounce", "🐾"),
         TrickInfo("ball", "Ball", "⚽"), TrickInfo("belly", "Belly rub", "🫶"), TrickInfo("groom", "Wash up", "✨"),
-        TrickInfo("beg", "Beg", "🙏"), TrickInfo("butterfly", "Butterfly", "🦋"), TrickInfo("sleep", "Nap", "💤"),
+        TrickInfo("beg", "Beg", "🙏"), TrickInfo("sleep", "Nap", "💤"),
     ),
 )
 
@@ -207,7 +225,7 @@ val COSMO_INFO = CreatureInfo(
     ),
 )
 
-val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + NUTTY_INFO + BOLT_INFO + GLOOP_INFO + SNOWY_INFO + COSMO_INFO + LEO_INFO }
+val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + NUTTY_INFO + BOLT_INFO + GLOOP_INFO + SNOWY_INFO + COSMO_INFO }
 
 /** Creatures that can also live in a home-screen widget (the 2D friends). */
 val BUDDY_CREATURES: List<CreatureInfo> by lazy { CREATURES.filter { it.id != SNOWY_ID && it.id != COSMO_ID && it.id != LEO_ID } }
@@ -221,9 +239,9 @@ private val BASE_CREATURES = listOf(
             EnvInfo("Cloud Nursery", 1, c1 = 0xFFF5A8D8.toInt(), c2 = 0xFF8C7AE6.toInt()),
             EnvInfo("Battery Lab", 2, c1 = 0xFF4ADE80.toInt(), c2 = 0xFF1B2430.toInt()),
         ), listOf(EnvInfo("Candy Cosmos", -1, 0, 0xFF5BF09A.toInt(), 0xFFC9A6FF.toInt()))),
-        listOf(TrickInfo("hello", "Say hi", "👋"), TrickInfo("bubble", "Blow a bubble", "🫧"), TrickInfo("star", "Catch a star", "⭐"), TrickInfo("bird", "Bird visit", "🐦"), TrickInfo("party", "Party", "🎉"), TrickInfo("wobble", "Wobble", "🍮"), TrickInfo("giggle", "Giggle", "😆"), TrickInfo("stretch", "Big stretch", "🙆"),
+        listOf(TrickInfo("hello", "Say hi", "👋"), TrickInfo("bubble", "Blow a bubble", "🫧"), TrickInfo("star", "Catch a star", "⭐"), TrickInfo("party", "Party", "🎉"), TrickInfo("wobble", "Wobble", "🍮"), TrickInfo("giggle", "Giggle", "😆"), TrickInfo("stretch", "Big stretch", "🙆"),
             TrickInfo("shy", "Shy (Peachy)", "🙈"), TrickInfo("love", "Love (Peachy)", "💗"), TrickInfo("sleepy", "Sleepy (Peachy)", "💤"), TrickInfo("tumble", "Tumble (Peachy)", "🌀"), TrickInfo("notify", "Notification (Peachy)", "🔔")),
-        styles = listOf("Doodle", "Peachy"),
+        styles = listOf("Jelly Bean", "Peachy"),
     ),
     CreatureInfo(
         2, "Kalboob", "Golden pup. Will fetch anything.",
@@ -233,20 +251,8 @@ private val BASE_CREATURES = listOf(
             EnvInfo("Snow Day", 4, c1 = 0xFFDDEBFF.toInt(), c2 = 0xFF2E7D6B.toInt()),
             EnvInfo("Cozy Room", 5, c1 = 0xFFE0A070.toInt(), c2 = 0xFF8E3A50.toInt()),
         )),
-        listOf(TrickInfo("fetch", "Fetch", "🎾"), TrickInfo("paw", "Give paw", "🐾"), TrickInfo("belly", "Belly rub", "🫶"), TrickInfo("dig", "Dig", "🕳️"), TrickInfo("howl", "Howl", "🌕"), TrickInfo("butterfly", "Butterfly", "🦋"), TrickInfo("zoomies", "Zoomies", "💨"), TrickInfo("yawn", "Yawn", "🥱")),
-        styles = listOf("Doodle", "Blizzard"),
-    ),
-    CreatureInfo(
-        3, "Kitty", "Curious, aloof, a little dramatic.",
-        "Drag a finger: laser dot. Hold Kitty to make it purr.",
-        0xFF8FC7FF.toInt(), KITTY_COATS.map { CoatInfo(it.name, it.fur, it.eye) },
-        worlds(listOf(W_LIVING, W_BALCONY, P_LIVING, P_ROOFTOP), listOf(
-            EnvInfo("Windowsill", 6, c1 = 0xFF8FC7FF.toInt(), c2 = 0xFFE9EEF5.toInt()),
-            EnvInfo("Rooftop", 7, c1 = 0xFF1F2A44.toInt(), c2 = 0xFFFFC56B.toInt()),
-            EnvInfo("Box Fort", 8, c1 = 0xFFD9A066.toInt(), c2 = 0xFFF06292.toInt()),
-        )),
-        listOf(TrickInfo("pounce", "Pounce", "🎯"), TrickInfo("knock", "Knock the cup", "☕"), TrickInfo("cucumber", "Cucumber!", "🥒"), TrickInfo("box", "If it fits", "📦"), TrickInfo("zoomies", "Zoomies", "💨"), TrickInfo("purr", "Purr", "💜"), TrickInfo("groom", "Groom", "👅"), TrickInfo("loaf", "Loaf", "🍞"), TrickInfo("trill", "Trill", "🎶"), TrickInfo("stretch", "Stretch", "🙆")),
-        styles = listOf("Doodle", "Luna"),
+        listOf(TrickInfo("fetch", "Fetch", "🎾"), TrickInfo("paw", "Give paw", "🐾"), TrickInfo("belly", "Belly rub", "🫶"), TrickInfo("dig", "Dig", "🕳️"), TrickInfo("howl", "Howl", "🌕"), TrickInfo("zoomies", "Zoomies", "💨"), TrickInfo("yawn", "Yawn", "🥱"),
+            TrickInfo("scratch", "Scratch", "🦶"), TrickInfo("bow", "Play bow", "🙇"), TrickInfo("bark", "Bark", "🐶"), TrickInfo("sniff", "Sniff", "👃")),
     ),
 )
 
@@ -266,10 +272,25 @@ val KIWI_INFO = CreatureInfo(
         TrickInfo("squawk", "Squawk!", "📢"), TrickInfo("preen", "Preen", "✨"), TrickInfo("oneleg", "One leg", "🦩"),
         TrickInfo("stretch", "Wing stretch", "🙆"),
     ),
-    styles = listOf("Doodle", "Real 3D"),
+    styles = listOf("Sunny", "Lifelike"),
 )
 
-fun creatureInfo(id: Int): CreatureInfo? = if (id == SHADOW_ID) SHADOW_INFO else CREATURES.firstOrNull { it.id == id }
+fun creatureInfo(id: Int): CreatureInfo? = when (id) { SHADOW_ID -> SHADOW_INFO; STATUE_ID -> STATUE_INFO; else -> CREATURES.firstOrNull { it.id == id } }
+
+const val STATUE_ID = 14
+
+/** Pulsify Pharaohs: its own section — a 3D statue that flies in like a super wallpaper. */
+val STATUE_INFO = CreatureInfo(
+    STATUE_ID, "Pharaohs", "Gold, stone and gods in the dark. Every home page shows a new angle.",
+    "Turn the screen on: it zooms in. Unlock: the camera flies around it. Swipe your pages: a new angle each time. Play music: the gold icons around it light up.",
+    0xFFFFB36B.toInt(), listOf(CoatInfo("Pitch black", 0xFF000000.toInt(), 0xFFFFB36B.toInt())),
+    listOf(EnvInfo("Pitch Black", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF000000.toInt())),
+    listOf(
+        TrickInfo("wake", "Screen on", "🔆"), TrickInfo("unlock", "Unlock", "🔓"), TrickInfo("next", "Next page", "▶️"),
+        TrickInfo("prev", "Page back", "◀️"), TrickInfo("fly", "Fly in", "🚁"),
+    ),
+    styles = STATUE_LOOKS.map { it.name },
+)
 
 /** Pulsify Shadows: its own section — an evil grin in the dark, eyes and teeth only, true AMOLED black. */
 val SHADOW_INFO = CreatureInfo(

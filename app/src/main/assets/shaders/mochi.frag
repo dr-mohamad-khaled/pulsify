@@ -36,6 +36,7 @@ uniform vec4  uFx[6];      // x, y, t (0..1 life), kind: 1 heart, 2 sparkle, 3 b
 uniform vec4  uBird;       // x, y, flap phase, visible
 uniform float uBattIcon;   // neon battery icon above the head, 0..1
 uniform float uDim;
+uniform float uTilt;      // body roll about the feet (radians): carried, thrown, knocked over
 
 // ---------- SDF helpers ----------
 float sdEllipse(vec2 p, vec2 r) {
@@ -121,6 +122,11 @@ vec3 jellyShade(vec3 n, vec3 base, float ao, vec2 sp, float jarLight) {
 void main() {
     // Into character space; undo squash about the feet and add the jelly shear.
     vec2 p = (vUv - uPos) / uSize;
+    if (abs(uTilt) > 0.001) {
+        vec2 f = p - vec2(0.0, -0.55);
+        float c = cos(uTilt), s = sin(uTilt);
+        p = vec2(c * f.x + s * f.y, -s * f.x + c * f.y) + vec2(0.0, -0.55);
+    }
     float press = uPress;
     p /= (1.0 + press * 0.35);
     vec2 sp = p;

@@ -257,8 +257,9 @@ private fun subtitle(state: AppState): String {
     if (app.pulsify.engine.videoLoop(state.video) != null) return "Video loop"
     val info = app.pulsify.engine.creatureInfo(state.character) ?: return "Live sky"
     val env = info.envs.getOrNull(state.env)?.name ?: ""
-    val coat = info.coats.getOrNull(state.coat)?.name ?: ""
-    return "$coat in $env"
+    val look = if (app.pulsify.engine.coatMatters(info, state.style)) info.coats.getOrNull(state.coat)?.name ?: ""
+        else info.styles.getOrNull(state.style) ?: info.name
+    return "$look in $env"
 }
 
 @Composable
@@ -375,7 +376,7 @@ private fun LookPanel(state: AppState) {
         }
         if (info != null && info.id == 5 && state.style == 3) {
             AquariumPanel()
-        } else if (info != null) {
+        } else if (info != null && app.pulsify.engine.coatMatters(info, state.style)) {
             PanelTitle(when (info.id) { 4 -> "Species"; 5 -> "Fish"; 8 -> "Paint job"; 9 -> "How many"; else -> "Coat" }, info.coats.getOrNull(state.coat)?.name ?: "")
             OrbRow(info.coats.map { Color(it.base) to Color(it.rim) }, state.coat) { state.applyCoat(it) }
             Gap(10.dp)

@@ -14,7 +14,7 @@ class Prefs(context: Context) {
 
     /** 0 = Night Sky only, 1 = Mochi. */
     var character: Int
-        get() = sp.getInt(K_CHAR, 1)
+        get() = sp.getInt(K_CHAR, 1).let { if (it in app.pulsify.engine.RETIRED_CREATURES) 1 else it }
         set(v) = sp.edit().putInt(K_CHAR, v).apply()
 
     /** The first-run intro has been seen. */

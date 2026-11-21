@@ -109,6 +109,16 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
             }
         }
         item {
+            Shelf("Pharaohs", "3D statues that fly in like a super wallpaper.", Modifier.enter(4)) {
+                itemsIndexed(app.pulsify.engine.STATUE_LOOKS) { i, l ->
+                    PosterCard(
+                        "thumbs/statue_$i.jpg", l.name, "Unlock it. Swipe your pages. Play music.", Color(0xFFFFB36B),
+                        live = state.video < 0 && state.character == app.pulsify.engine.STATUE_ID && state.style == i,
+                    ) { state.applyCharacter(app.pulsify.engine.STATUE_ID); state.applyStyle(i); onOpenStudio() }
+                }
+            }
+        }
+        item {
             Shelf("Shadows", "Grins in the dark. Only the eyes and teeth light up.", Modifier.enter(4)) {
                 itemsIndexed(app.pulsify.engine.SHADOW_LOOKS) { i, l ->
                     PosterCard(
