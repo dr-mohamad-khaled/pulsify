@@ -26,7 +26,7 @@ import kotlin.math.sin
 import kotlin.math.tan
 
 /** One statue of the Pharaohs section: its files and the camera shots of each home-screen page. */
-class StatueLook(val name: String, val file: String, val env: Float, val lock: Shot, val pages: List<Shot>)
+class StatueLook(val name: String, val file: String, val env: Float, val lock: Shot, val pages: List<Shot>, val spin: Float = 0f)
 
 /** A camera shot around the statue: azimuth / elevation in degrees (0 = its face), distance, look-at height. */
 data class Shot(val az: Float, val el: Float, val d: Float, val y: Float = 0f, val roll: Float = 0f)
@@ -38,6 +38,22 @@ val STATUE_LOOKS = listOf(
         listOf(Shot(-62f, 3f, 3.9f), Shot(-18f, -6f, 3.0f, 0.08f), Shot(40f, 6f, 3.8f), Shot(90f, 2f, 4.1f), Shot(150f, 12f, 4.4f))),
     StatueLook("Anubis", "anu", 1.0f, Shot(0f, 4f, 5.6f),
         listOf(Shot(-32f, -10f, 4.3f), Shot(14f, 2f, 3.2f, 0.08f), Shot(-88f, 4f, 4.0f), Shot(60f, 12f, 4.4f), Shot(175f, 10f, 4.7f))),
+    StatueLook("Horus", "hor", 1.05f, Shot(0f, 4f, 5.6f),
+        listOf(Shot(-30f, -8f, 4.3f), Shot(16f, 2f, 3.2f, 0.1f), Shot(-85f, 4f, 4.0f), Shot(58f, 12f, 4.4f), Shot(170f, 10f, 4.7f))),
+    // a rigged bird that flies on the spot (STA2 file): the same drone camera circles it
+    StatueLook("Turquoise Motmot", "mot", 0.7f, Shot(0f, 10f, 3.7f, 0.02f),
+        listOf(Shot(-30f, 14f, 3.5f), Shot(22f, -6f, 2.9f, 0.03f), Shot(76f, 8f, 3.4f), Shot(-115f, 24f, 3.7f), Shot(160f, 16f, 3.8f))),
+    StatueLook("Owl of Ra", "owl", 1.0f, Shot(0f, 4f, 5.4f),
+        listOf(Shot(-30f, -8f, 4.2f), Shot(16f, 2f, 3.1f, 0.12f), Shot(-85f, 4f, 3.9f), Shot(58f, 12f, 4.3f), Shot(170f, 10f, 4.6f))),
+    StatueLook("Solar Queen", "sol", 1.0f, Shot(0f, 4f, 5.4f),
+        listOf(Shot(-30f, -8f, 4.2f), Shot(16f, 2f, 3.1f, 0.12f), Shot(-85f, 4f, 3.9f), Shot(58f, 12f, 4.3f), Shot(170f, 10f, 4.6f))),
+    StatueLook("Golden Bastet", "bas", 1.0f, Shot(0f, 4f, 5.0f),
+        listOf(Shot(-35f, -6f, 4.0f), Shot(16f, 2f, 2.9f, 0.14f), Shot(-90f, 4f, 3.8f), Shot(60f, 12f, 4.1f), Shot(170f, 10f, 4.4f))),
+    StatueLook("Temple Guardian", "ram", 1.0f, Shot(0f, 4f, 5.0f),
+        listOf(Shot(-30f, -8f, 4.0f), Shot(16f, 2f, 3.0f, 0.12f), Shot(-85f, 4f, 3.8f), Shot(58f, 12f, 4.2f), Shot(170f, 10f, 4.5f))),
+    // the moon turns slowly on its own while the drone circles it
+    StatueLook("Cratered Moon", "moon", 0.5f, Shot(0f, 4f, 5.6f),
+        listOf(Shot(-30f, -6f, 4.6f), Shot(18f, 4f, 3.6f), Shot(-80f, 10f, 4.4f), Shot(60f, 16f, 4.8f), Shot(170f, 8f, 5.0f)), spin = 5f),
 )
 
 /**
@@ -54,6 +70,7 @@ class StatueScene(private val context: Context) : Creature {
     override var bottomInset = 0f
 
     @Volatile var look: StatueLook = STATUE_LOOKS[0]
+    private val bird = StatueBird()
 
     private var w = 1; private var h = 1
     private var time = 0f
@@ -63,7 +80,6 @@ class StatueScene(private val context: Context) : Creature {
     private var flight: Flight? = null
     private var glintE = 0f
     private var page = 0
-    private var lastPageRound = Int.MIN_VALUE
     private var locked = false
     private var entered = ""
     private var tiltX = 0f; private var tiltY = 0f; private var tiltTX = 0f; private var tiltTY = 0f
@@ -71,7 +87,15 @@ class StatueScene(private val context: Context) : Creature {
 
     private class Flight(val keys: List<Shot>, val dur: Float, val ease: (Float) -> Float, val glint: Float) { var t = 0f }
 
-    override val busy: Boolean get() = flight != null || glyphVis > 0.01f || abs(tiltX - tiltTX) > 0.002f
+    // Between keyframed flights the camera is a critically damped spring towards the page's shot. Each
+    // swipe retargets it and adds its own lift and bank, so quick swipes stack instead of replacing each other.
+    private var tAz = 0f; private var tEl = 4f; private var tD = 5.6f; private var tY = 0f
+    private var vAz = 0f; private var vEl = 0f; private var vD = 0f; private var vY = 0f; private var vR = 0f
+    private var pAz = 0f; private var pEl = 0f; private var pD = 15f; private var pY = 0f; private var pR = 0f
+    private var lastDt = 1f / 60f
+
+    // A super wallpaper: always smooth (60 fps while it is on screen), the bird never stops flying.
+    override val busy: Boolean get() = true
 
     // ---------------------------------------------------------------- shots
     private fun current() = Shot(az, el, dist, ty, roll)
@@ -100,17 +124,7 @@ class StatueScene(private val context: Context) : Creature {
             Shot(s.az + dir * 10f, s.el + 16f, s.d * 1.12f, s.y + 0.15f, -dir * 4f),
             Shot(lerp(s.az, tz, .6f) + dir * 18f, P.el + 10f, (s.d + P.d) / 2f, (s.y + P.y) / 2f, -dir * 7f),
             P.copy(az = tz + dir * 6f, d = P.d * 0.93f, roll = -dir * 2f),
-            P.copy(az = tz)), 1.7f, inOutCubic, 1.4f)
-    }
-
-    /** Another home page: orbit to its angle with a lift and a bank. */
-    private fun shotPage(i: Int) {
-        val P = pageShot(i); val s = current(); val tz = near(s.az, P.az); val dir = if (tz - s.az >= 0f) 1f else -1f
-        val lift = min(1f, abs(tz - s.az) / 60f)
-        fly(listOf(s,
-            Shot(lerp(s.az, tz, .45f), lerp(s.el, P.el, .5f) + 9f * lift, lerp(s.d, P.d, .5f) + 0.55f * lift, lerp(s.y, P.y, .5f) + .06f, -dir * 6f * lift),
-            P.copy(az = tz + dir * 3f, roll = -dir * 1.2f),
-            P.copy(az = tz)), 1.15f, inOutCubic, 0.9f * lift)
+            P.copy(az = tz)), 1.5f, inOutCubic, 1.4f)
     }
 
     /** The statue enters the view: a spiral fly-in with a close pass by the face, then out to the whole statue. */
@@ -118,7 +132,7 @@ class StatueScene(private val context: Context) : Creature {
         val T = if (locked) look.lock else pageShot(page); val b = T.az
         fly(listOf(Shot(b + 235f, 38f, 10f, 1.1f, 10f), Shot(b + 150f, 22f, 5.2f, 0.8f, 12f),
             Shot(b + 70f, 8f, 2.4f, 0.45f, 6f), Shot(b + 22f, T.el + 4f, T.d * 0.82f, T.y + .05f, 2f), T.copy(az = b)),
-            3.4f, outCubic, 1.6f)
+            3.0f, outCubic, 1.6f)
     }
 
     // Catmull-Rom through the keys.
@@ -152,17 +166,45 @@ class StatueScene(private val context: Context) : Creature {
     override val swipeCooldownMs: Long get() = 120L
 
     override fun swiped(dir: Float, fast: Boolean) {
-        if (pagesKnown) return
+        if (locked) return
         page = (page + (if (dir > 0f) 1 else -1)).let { ((it % 5) + 5) % 5 }
-        shotPage(page)
+        pageMove(if (dir > 0f) 1f else -1f)
+    }
+
+    /** Swipe to [page]: take over any flight with its current motion, retarget the spring, kick it. */
+    private fun pageMove(dir: Float) {
+        if (flight != null) {
+            flight = null
+            val k = 1f / max(lastDt, 1f / 120f)
+            vAz = (az - pAz) * k; vEl = (el - pEl) * k; vD = (dist - pD) * k; vY = (ty - pY) * k; vR = (roll - pR) * k
+            tAz = az; tEl = el; tD = dist; tY = ty
+        }
+        val P = pageShot(page)
+        tAz = near(tAz, P.az); tEl = P.el; tD = P.d; tY = P.y
+        val lift = min(1f, abs(tAz - az) / 60f) * 0.6f + 0.4f
+        vR += -dir * 110f; vEl += 120f * lift; vD += 7f * lift
+        bird.kick(dir)
+    }
+
+    private fun stepSpring(dt: Float) {
+        val n = max(1, kotlin.math.ceil(dt * 240f).toInt()); val h = dt / n
+        val w = 6.2f; val wr = 5.2f
+        repeat(n) {
+            vAz += (w * w * (tAz - az) - 2f * w * vAz) * h; az += vAz * h
+            vEl += (w * w * (tEl - el) - 2f * w * vEl) * h; el += vEl * h
+            vD += (w * w * (tD - dist) - 2f * w * vD) * h; dist += vD * h
+            vY += (w * w * (tY - ty) - 2f * w * vY) * h; ty += vY * h
+            vR += (wr * wr * (0f - roll) - 2f * wr * vR) * h; roll += vR * h
+        }
+        glintE = min(1f, abs(vAz) / 140f) * 1.1f
     }
 
     override fun perform(trick: String): Boolean {
         when (trick) {
             "wake" -> { locked = true; shotWake() }
             "unlock" -> { if (!locked) { locked = true; az = look.lock.az; el = look.lock.el; dist = look.lock.d; ty = 0f }; greet() }
-            "next" -> { page = (page + 1) % 5; shotPage(page) }
-            "prev" -> { page = (page + 4) % 5; shotPage(page) }
+            "next" -> { if (locked) greet(); page = (page + 1) % 5; pageMove(1f) }
+            "prev" -> { if (locked) greet(); page = (page + 4) % 5; pageMove(-1f) }
             "fly" -> shotEntrance()
             else -> return false
         }
@@ -179,24 +221,25 @@ class StatueScene(private val context: Context) : Creature {
 
     // ---------------------------------------------------------------- update
     override fun update(dt: Float, input: SceneInput) {
-        time += dt
+        time += dt; lastDt = dt
         if (entered != look.file) {
             if (entered.isNotEmpty() || !locked) shotEntrance()
             entered = look.file
         }
         pagesKnown = input.pagesKnown
-        if (input.pagesKnown && !locked) {
-            val r = input.pagePos.roundToInt()
-            if (lastPageRound == Int.MIN_VALUE) { lastPageRound = r; page = ((r % 5) + 5) % 5 }
-            else if (r != lastPageRound) { lastPageRound = r; page = ((r % 5) + 5) % 5; shotPage(page) }
-        }
+        pAz = az; pEl = el; pD = dist; pY = ty; pR = roll
         flight?.let { f ->
             f.t += dt
             val u = min(1f, f.t / f.dur)
             sample(f.keys, f.ease(u))
             glintE = sin(PI.toFloat() * u) * f.glint
-            if (u >= 1f) flight = null
-        } ?: run { roll *= 0.02f.pow(dt); glintE = 0f }
+            if (u >= 1f) {
+                flight = null
+                tAz = az; tEl = el; tD = dist; tY = ty; vAz = 0f; vEl = 0f; vD = 0f; vY = 0f; vR = 0f
+            }
+        } ?: stepSpring(dt)
+        val music0 = input.audio.source != AudioFrame.Source.NONE
+        bird.update(dt, time, if (music0) input.audio.bass else 0f)
         tiltX += (tiltTX - tiltX) * min(1f, dt * 5f); tiltY += (tiltTY - tiltY) * min(1f, dt * 5f)
         // lights come up after the far "screen off" look
         val farK = ((dist - 8f) / 7f).coerceIn(0f, 1f)
@@ -218,7 +261,8 @@ class StatueScene(private val context: Context) : Creature {
 
     // ---------------------------------------------------------------- GL
     private var prog = 0; private var compProg = 0; private var quadVbo = 0
-    private var aN = 1; private var aT = 2; private var aU = 3
+    private var aN = 1; private var aT = 2; private var aU = 3; private var aJ = 4; private var aW = 5
+    private var stride = 20; private var skinned = false
     private var vbo = 0; private var ibo = 0; private var icount = 0; private var idxType = GLES20.GL_UNSIGNED_INT
     private var texC = 0; private var texN = 0; private var texMR = 0
     private var loaded = ""
@@ -230,7 +274,8 @@ class StatueScene(private val context: Context) : Creature {
     override fun onSurfaceCreated() {
         prog = Gl.program(VS, FS)
         aN = GLES20.glGetAttribLocation(prog, "aNrm"); aT = GLES20.glGetAttribLocation(prog, "aTan"); aU = GLES20.glGetAttribLocation(prog, "aUv")
-        for (n in listOf("uMVP", "uScale", "uCam", "uC", "uNm", "uMR", "uKeyDir", "uKeyCol", "uRimADir", "uRimACol", "uRimVDir", "uRimVCol",
+        aJ = GLES20.glGetAttribLocation(prog, "aJ"); aW = GLES20.glGetAttribLocation(prog, "aW")
+        for (n in listOf("uMVP", "uScale", "uSpin", "uSkin", "uB", "uCam", "uC", "uNm", "uMR", "uKeyDir", "uKeyCol", "uRimADir", "uRimACol", "uRimVDir", "uRimVCol",
             "uGlintDir", "uGlint", "uEnv", "uLight")) uni[n] = GLES20.glGetUniformLocation(prog, n)
         compProg = Gl.program(CVS, CFS)
         for (n in listOf("uTex", "uMode", "uAlpha")) cuni[n] = GLES20.glGetUniformLocation(compProg, n)
@@ -249,16 +294,27 @@ class StatueScene(private val context: Context) : Creature {
         freeModel()
         val bytes = context.assets.open("statues/${look.file}.sta").use { it.readBytes() }
         val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-        check(bytes[0] == 'S'.code.toByte() && bytes[3] == '1'.code.toByte()) { "bad statue file" }
+        check(bytes[0] == 'S'.code.toByte() && (bytes[3] == '1'.code.toByte() || bytes[3] == '2'.code.toByte())) { "bad statue file" }
+        skinned = bytes[3] == '2'.code.toByte()
         bb.position(4)
         val nv = bb.int; val ni = bb.int
         bb.float; bb.float; bb.float
         scaleXYZ[0] = bb.float; scaleXYZ[1] = bb.float; scaleXYZ[2] = bb.float
-        val vOff = 4 + 8 + 24
-        val vb = ByteBuffer.allocateDirect(nv * 20).order(ByteOrder.nativeOrder()); vb.put(bytes, vOff, nv * 20); vb.position(0)
-        val iOff = vOff + nv * 20
+        var vOff = 4 + 8 + 24
+        if (skinned) {
+            // the rig: parent and pivot (model units) of each bone
+            val nb = bb.int
+            check(nb in 1..StatueBird.MAX_BONES) { "rig has $nb bones" }
+            val par = IntArray(nb); val heads = FloatArray(nb * 3)
+            for (i in 0 until nb) { par[i] = bb.int; heads[i * 3] = bb.float; heads[i * 3 + 1] = bb.float; heads[i * 3 + 2] = bb.float }
+            bird.setRig(par, heads)
+            vOff += 4 + nb * 16
+        } else bird.clear()
+        stride = if (skinned) 28 else 20
+        val vb = ByteBuffer.allocateDirect(nv * stride).order(ByteOrder.nativeOrder()); vb.put(bytes, vOff, nv * stride); vb.position(0)
+        val iOff = vOff + nv * stride
         val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); vbo = ids[0]; ibo = ids[1]
-        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, nv * 20, vb, GLES20.GL_STATIC_DRAW)
+        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, nv * stride, vb, GLES20.GL_STATIC_DRAW)
         val ext = GLES20.glGetString(GLES20.GL_EXTENSIONS) ?: ""
         if (nv <= 65535 || !ext.contains("OES_element_index_uint")) {
             // 16-bit indices: always fine below 65 536 vertices (and the only choice without the extension)
@@ -299,7 +355,7 @@ class StatueScene(private val context: Context) : Creature {
         if (vbo != 0) GLES20.glDeleteBuffers(2, intArrayOf(vbo, ibo), 0)
         val ts = intArrayOf(texC, texN, texMR).filter { it != 0 }.toIntArray()
         if (ts.isNotEmpty()) GLES20.glDeleteTextures(ts.size, ts, 0)
-        vbo = 0; ibo = 0; texC = 0; texN = 0; texMR = 0; loaded = ""
+        vbo = 0; ibo = 0; texC = 0; texN = 0; texMR = 0; loaded = ""; skinned = false; bird.clear()
     }
 
     private fun ensureFbo(vw: Int, vh: Int) {
@@ -371,6 +427,12 @@ class StatueScene(private val context: Context) : Creature {
         GLES20.glUseProgram(prog)
         GLES20.glUniformMatrix4fv(u("uMVP"), 1, false, mvp, 0)
         GLES20.glUniform3f(u("uScale"), scaleXYZ[0], scaleXYZ[1], scaleXYZ[2])
+        GLES20.glUniform1f(u("uSpin"), (look.spin * time * D2R) % (2f * PI.toFloat()))
+        if (skinned && bird.bones > 0) {
+            bird.pose(a)
+            GLES20.glUniform1f(u("uSkin"), 1f)
+            GLES20.glUniform4fv(u("uB"), bird.bones * 3, bird.mats, 0)
+        } else GLES20.glUniform1f(u("uSkin"), 0f)
         GLES20.glUniform3f(u("uCam"), cx, cy, cz)
         // key light rides with the camera (up and to the left of it), rims from behind, glint sweeps on flights
         val ka = a - 0.55f
@@ -386,13 +448,23 @@ class StatueScene(private val context: Context) : Creature {
         GLES20.glUniform1f(u("uLight"), L)
         tex(0, texC, "uC"); tex(1, texN, "uNm"); tex(2, texMR, "uMR")
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
-        GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 3, GLES20.GL_SHORT, true, 20, 0)
-        GLES20.glEnableVertexAttribArray(aN); GLES20.glVertexAttribPointer(aN, 4, GLES20.GL_BYTE, true, 20, 8)
-        GLES20.glEnableVertexAttribArray(aT); GLES20.glVertexAttribPointer(aT, 4, GLES20.GL_BYTE, true, 20, 12)
-        GLES20.glEnableVertexAttribArray(aU); GLES20.glVertexAttribPointer(aU, 2, GLES20.GL_UNSIGNED_SHORT, true, 20, 16)
+        val st = stride
+        GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 3, GLES20.GL_SHORT, true, st, 0)
+        GLES20.glEnableVertexAttribArray(aN); GLES20.glVertexAttribPointer(aN, 4, GLES20.GL_BYTE, true, st, 8)
+        GLES20.glEnableVertexAttribArray(aT); GLES20.glVertexAttribPointer(aT, 4, GLES20.GL_BYTE, true, st, 12)
+        GLES20.glEnableVertexAttribArray(aU); GLES20.glVertexAttribPointer(aU, 2, GLES20.GL_UNSIGNED_SHORT, true, st, 16)
+        val skinAttrs = skinned && aJ >= 0 && aW >= 0
+        if (skinAttrs) {
+            GLES20.glEnableVertexAttribArray(aJ); GLES20.glVertexAttribPointer(aJ, 4, GLES20.GL_UNSIGNED_BYTE, false, st, 20)
+            GLES20.glEnableVertexAttribArray(aW); GLES20.glVertexAttribPointer(aW, 4, GLES20.GL_UNSIGNED_BYTE, true, st, 24)
+        } else {
+            if (aJ >= 0) GLES20.glVertexAttrib4f(aJ, 0f, 0f, 0f, 0f)
+            if (aW >= 0) GLES20.glVertexAttrib4f(aW, 1f, 0f, 0f, 0f)
+        }
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, ibo)
         GLES20.glDrawElements(GLES20.GL_TRIANGLES, icount, idxType, 0)
         for (i in intArrayOf(0, aN, aT, aU)) GLES20.glDisableVertexAttribArray(i)
+        if (skinAttrs) { GLES20.glDisableVertexAttribArray(aJ); GLES20.glDisableVertexAttribArray(aW) }
         GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
@@ -492,13 +564,24 @@ class StatueScene(private val context: Context) : Creature {
         private const val WAS = "M44 96 L50 84 L56 96 M50 84 L50 22 M50 22 L40 10 L62 6 L56 16 Z"
         private const val SUN = "O50 40 12 12 M38 44 C26 34 16 36 4 30 C14 44 24 48 38 50 M62 44 C74 34 84 36 96 30 C86 44 76 48 62 50 M10 40 L30 46 M90 40 L70 46"
 
+        // uSkin 1: a rigged model (the bird), 4 bones per vertex, 3 rows of vec4 per bone.
         private const val VS = """
-attribute vec3 aPos; attribute vec4 aNrm; attribute vec4 aTan; attribute vec2 aUv;
-uniform mat4 uMVP; uniform vec3 uScale;
+attribute vec3 aPos; attribute vec4 aNrm; attribute vec4 aTan; attribute vec2 aUv; attribute vec4 aJ; attribute vec4 aW;
+uniform mat4 uMVP; uniform vec3 uScale; uniform float uSpin; uniform float uSkin; uniform vec4 uB[72];
 varying vec3 vP; varying vec3 vN; varying vec4 vT; varying vec2 vUv;
+vec3 xf(int i, vec4 p) { return vec3(dot(uB[i * 3], p), dot(uB[i * 3 + 1], p), dot(uB[i * 3 + 2], p)); }
 void main() {
-  vec3 p = aPos * uScale;
-  vP = p; vN = aNrm.xyz; vT = vec4(aTan.xyz, aTan.w < 0.0 ? -1.0 : 1.0); vUv = aUv;
+  vec3 p = aPos * uScale; vec3 n = aNrm.xyz; vec3 t = aTan.xyz;
+  if (uSkin > 0.5) {
+    vec4 P = vec4(p, 1.0); vec4 N = vec4(n, 0.0); vec4 T = vec4(t, 0.0);
+    int j0 = int(aJ.x); int j1 = int(aJ.y); int j2 = int(aJ.z); int j3 = int(aJ.w);
+    p = aW.x * xf(j0, P) + aW.y * xf(j1, P) + aW.z * xf(j2, P) + aW.w * xf(j3, P);
+    n = aW.x * xf(j0, N) + aW.y * xf(j1, N) + aW.z * xf(j2, N) + aW.w * xf(j3, N);
+    t = aW.x * xf(j0, T) + aW.y * xf(j1, T) + aW.z * xf(j2, T) + aW.w * xf(j3, T);
+  }
+  float cs = cos(uSpin); float sn = sin(uSpin); mat2 sp = mat2(cs, -sn, sn, cs);
+  p.xz = sp * p.xz; n.xz = sp * n.xz; t.xz = sp * t.xz;
+  vP = p; vN = n; vT = vec4(t, aTan.w < 0.0 ? -1.0 : 1.0); vUv = aUv;
   gl_Position = uMVP * vec4(p, 1.0);
 }"""
 

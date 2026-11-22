@@ -118,6 +118,8 @@ class GlLoop(
     private var lag = 0f; private var lagV = 0f
     private var swipeTravel = 0f; private var swipeMax = 0f; private var swipeDir = 0f; private var settle = 0f
     private var lastSwipeReact = 0L
+    /** Last whole page the camera scenes were told about (they answer each page crossing at once). */
+    private var crossPage = Int.MIN_VALUE
 
     /** Off in the friends playground, where only the widget creatures are shown. */
     @Volatile var showMainCreature = true
@@ -342,6 +344,22 @@ class GlLoop(
         val target = (-pageVel * 0.045f).coerceIn(-0.16f, 0.16f)
         lagV += ((target - lag) * 140f - lagV * 11f) * dt
         lag += lagV * dt
+        // Camera scenes (the 3D statues and the bird) react the moment the pages cross half way, once per
+        // page, so two quick swipes are two moves and nothing waits for the pages to settle.
+        if (c.swipeCooldownMs < 1500L) {
+            val r = kotlin.math.floor(p + 0.5f).toInt()
+            if (crossPage == Int.MIN_VALUE) crossPage = r
+            if (r != crossPage) {
+                val step = if (r > crossPage) 1f else -1f
+                val n = kotlin.math.abs(r - crossPage).coerceAtMost(3)
+                crossPage = r
+                lastSwipeReact = System.currentTimeMillis()
+                repeat(n) { try { c.swiped(step, true) } catch (_: Throwable) {} }
+            }
+            swipeTravel = 0f; swipeMax = 0f
+            if (abs(lag) < 0.0005f && abs(lagV) < 0.001f) { lag = 0f; lagV = 0f }
+            return
+        }
         if (abs(pageVel) > 0.08f) {
             swipeTravel += abs(pageVel) * dt; swipeMax = max(swipeMax, abs(pageVel)); swipeDir = sign(pageVel); settle = 0f
         } else {
