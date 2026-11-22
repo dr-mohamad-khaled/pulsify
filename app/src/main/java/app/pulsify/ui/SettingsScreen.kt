@@ -42,6 +42,8 @@ import app.pulsify.engine.SkyScene
 @Composable
 fun SettingsScreen(state: AppState, onBack: () -> Unit) {
     val c = LocalPulse.current
+    var legal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<LegalDoc?>(null) }
+    legal?.let { d -> LegalPage(d) { legal = null }; return }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) state.applyMusicReact(true)
     }
@@ -126,6 +128,13 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
         GhostButton(if (copied) "Diagnostics copied" else "Copy diagnostics for a bug report") {
             clipboard.setText(androidx.compose.ui.text.AnnotatedString(app.pulsify.core.CrashLog.diagnostics()))
             copied = true
+        }
+        Gap(20.dp)
+        MicroLabel("Legal")
+        Gap(8.dp)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GhostButton("Privacy Policy", Modifier.weight(1f)) { legal = LegalDoc.PRIVACY }
+            GhostButton("Terms of Service", Modifier.weight(1f)) { legal = LegalDoc.TERMS }
         }
         Gap(20.dp)
         Text("Pulsify ${app.pulsify.BuildConfig.VERSION_NAME}", style = T.small, color = c.faint)

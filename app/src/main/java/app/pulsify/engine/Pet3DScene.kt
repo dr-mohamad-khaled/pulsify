@@ -147,7 +147,7 @@ val PET_RINGNECK = bird("ringneck")
  */
 class Pet3DScene(private val context: Context) : Creature {
     override var listener: SceneListener? = null
-    @Volatile var species: PetSpecies = PET_LUNA
+    @Volatile var species: PetSpecies = PET_RINGNECK
         set(v) { if (v !== field) { field = v; laidOut = false } }
     private var laidOut = false
     var viewLag = 0f
@@ -718,8 +718,6 @@ class Pet3DScene(private val context: Context) : Creature {
 fun petSpeciesFor(character: Int, style: Int, coat: Int = 0): PetSpecies? = when {
     style <= 0 -> null
     character == 4 -> when (coat) { 0 -> PET_RINGNECK; 2 -> PET_COCKATIEL; else -> PET_BUDGIE }
-    character == 7 -> PET_NUTMEG
-    character == 6 -> PET_REAPER
     else -> null
 }
 const val SNOWY_ID = 10

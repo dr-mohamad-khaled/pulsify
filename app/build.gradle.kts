@@ -13,8 +13,8 @@ android {
         applicationId = "app.pulsify.v3"
         minSdk = 26
         targetSdk = 35
-        versionCode = 610
-        versionName = "6.1.0"
+        versionCode = 620
+        versionName = "6.2.0"
     }
 
     // A fixed test key, so every build from GitHub installs as an update over the last one.
@@ -60,4 +60,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation(bom)
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

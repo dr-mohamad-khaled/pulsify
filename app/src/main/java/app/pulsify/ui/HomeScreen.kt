@@ -92,8 +92,6 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
         }
         item {
             Hero(state, onOpenStudio, onLoop = { loop = it }, loop = loop, modifier = Modifier.padding(horizontal = 14.dp).enter(2))
-            Gap(22.dp)
-            FriendsTeaser(onFriends, Modifier.padding(horizontal = 14.dp).enter(3))
             Gap(36.dp)
         }
         item {
@@ -333,7 +331,7 @@ private fun moodLine(character: Int): String {
         d.batteryLevel < 0.15f -> "Low battery. Snowy is a sleepy little puff."
         else -> when (DeviceState.moodNow()) {
             Mood.NIGHT -> "Snowy is asleep. Tiny duck snores."
-            else -> "Snowy is quacking at things. Tap a widget and watch it hop up."
+            else -> "Snowy is quacking at things. Tap it and watch it quack back."
         }
     }
     if (character == 9) return when {

@@ -136,7 +136,7 @@ class Pet3D(private val context: Context) {
         }
         tex = texture("pets/$name.jpg")
         eyeTex = if (eyeMode == 1 || eyeMode == 3) texture("pets/${name}_eyes.png", straightAlpha = eyeMode == 3) else 0
-        nrmTex = if (hasAsset("pets/${name}_n.jpg")) texture("pets/${name}_n.jpg", true) else 0
+        nrmTex = if (hasAsset("pets/${name}_n.jpg")) texture("pets/${name}_n.jpg", true, maxSide = 1024) else 0
         loaded = name
         // rest pose until the scene poses it
         for (b in 0 until MAX_BONES) { val o = b * 12; java.util.Arrays.fill(pose, o, o + 12, 0f); pose[o] = 1f; pose[o + 5] = 1f; pose[o + 10] = 1f }
@@ -144,8 +144,12 @@ class Pet3D(private val context: Context) {
 
     private fun hasAsset(p: String) = try { context.assets.open(p).close(); true } catch (e: Exception) { false }
 
-    private fun texture(path: String, straightAlpha: Boolean = false): Int {
-        val opts = BitmapFactory.Options().apply { inPremultiplied = !straightAlpha }
+    /** [maxSide]: power-of-two cap; normal maps read fine at half size and save ~16 MB each. */
+    private fun texture(path: String, straightAlpha: Boolean = false, maxSide: Int = 4096): Int {
+        val b = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.assets.open(path).use { BitmapFactory.decodeStream(it, null, b) }
+        var ss = 1; while (max(b.outWidth, b.outHeight) / ss > maxSide) ss *= 2
+        val opts = BitmapFactory.Options().apply { inPremultiplied = !straightAlpha; inSampleSize = ss }
         val bmp = context.assets.open(path).use { BitmapFactory.decodeStream(it, null, opts) }!!
         val t = IntArray(1); GLES20.glGenTextures(1, t, 0)
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, t[0])

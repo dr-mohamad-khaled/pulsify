@@ -183,8 +183,17 @@ class WorldScene(private val context: Context) {
         dirty = true; strip = 0
     }
 
+    /** Screen height the pictures are fitted to (0 = full size). */
+    private var fitH = 0
+    /** Decodes a world picture no taller than needed for this screen (zoom included), so a
+     *  1536x2752 painting on a 720p phone costs ~7 MB of texture instead of ~17 MB. */
     private fun decode(path: String): android.graphics.Bitmap? = try {
-        context.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }) }
+        val full = context.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }) }
+        val want = (fitH * 1.05f).toInt()
+        if (full != null && want > 0 && full.height > want * 1.08f) {
+            val tw = (full.width * want / full.height.toFloat()).toInt().coerceAtLeast(1)
+            android.graphics.Bitmap.createScaledBitmap(full, tw, want, true).also { if (it !== full) full.recycle() }
+        } else full
     } catch (_: java.io.IOException) { null }
 
     private fun upload(b: android.graphics.Bitmap): Int {
@@ -232,6 +241,7 @@ class WorldScene(private val context: Context) {
     }
 
     private fun drawWorld(input: SceneInput, rw: Int, rh: Int) {
+        fitH = (max(rh.toFloat(), rw * imgH / imgW.toFloat()) / min(zoom, 1f)).toInt()
         if (phaseMode) {
             val (pa, pb, k) = phasePair(input.hour)
             val need = if (k > 0.001f) setOf(pa, pb) else setOf(pa)

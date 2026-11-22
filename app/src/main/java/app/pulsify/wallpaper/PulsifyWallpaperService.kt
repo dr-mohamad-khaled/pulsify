@@ -78,12 +78,7 @@ class PulsifyWallpaperService : WallpaperService() {
             setOffsetNotificationsEnabled(true)
             loop.batterySaver = Pulse.settings.batterySaver
             Pulse.addSettingsListener(settingsListener)
-            if (!isPreview) {
-                Buddies.pokes.clear()
-                loop.buddyFeed = feed
-                Buddies.wallpaperLive = true
-                main.postDelayed({ BuddyWidgetProvider.refresh(applicationContext) }, 600)
-            }
+            // Widgets (home-screen friends) are gone from the app: no buddy feed.
             val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
             if (Build.VERSION.SDK_INT >= 33) {
                 registerReceiver(unlockReceiver, filter, Context.RECEIVER_EXPORTED)

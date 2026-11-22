@@ -179,7 +179,7 @@ val GLOOP_INFO = CreatureInfo(
 
 val SNOWY_INFO = CreatureInfo(
     SNOWY_ID, "Snowy", "Fluffy duckling. Quacks at everything, dreams of flying.",
-    "Tap: quack-poke. Hold: cuddles. Rub: giggles. Drag to carry. Tap a widget and it hops on top.",
+    "Tap: quack-poke. Hold: cuddles. Drag to carry, fling to throw. Play music and it dances.",
     0xFFFFB45C.toInt(), listOf(CoatInfo("Snow white", 0xFFF4F1EA.toInt(), 0xFFFF9A2E.toInt())),
     worlds(listOf(W_POND, W_FARM, P_POND, P_BLOSSOM), listOf(
         EnvInfo("Snow Day", 4, c1 = 0xFFDDEBFF.toInt(), c2 = 0xFF2E7D6B.toInt()),
@@ -254,7 +254,7 @@ private val BASE_CREATURES = listOf(
 
 val KIWI_INFO = CreatureInfo(
     4, "Kiwi", "Talks, whistles, headbangs. Teach it words.",
-    "Drag: it steps to your finger. Tap it: squawk. Hold the sky: a seed. Tap a rhythm: it copies you.",
+    "Tap it: squawk. Drag it off the branch and let go: it flies a lap and lands. Swipe your pages: it takes off.",
     0xFF7BE08A.toInt(), KIWI_SPECIES.map { CoatInfo(it.name, it.body, it.face) },
     worlds(listOf(W_TERRACE, W_GREENHOUSE, P_RAINFOREST, P_BEACH), listOf(
         EnvInfo("Rainforest", 9, c1 = 0xFF2E7D4F.toInt(), c2 = 0xFFB8F27A.toInt()),
