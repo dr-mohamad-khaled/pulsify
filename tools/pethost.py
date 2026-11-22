@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from petcheck import load
 
 assets, model, clips, out = sys.argv[1:5]
-S = 360
+S = int(os.environ.get('PET_S', 360))
 
 # ---------- EGL context ----------
 dpy = EGL.eglGetDisplay(EGL.EGL_DEFAULT_DISPLAY)
@@ -45,7 +45,10 @@ A = lambda n: gl.glGetAttribLocation(prog, n)
 
 raw = open(os.path.join(assets, f'pets/{model}.pet'), 'rb').read()
 nv, ni, nb, nc, height, fps, eye_mode = struct.unpack_from('<IIIIffI', raw, 4)
-ex = 4 if raw[:4] == b'PET2' else 0
+ver = raw[3] - 48
+ex = (4 if ver >= 2 else 0) + (4 if ver >= 3 else 0)
+flags = struct.unpack_from('<I', raw, 36)[0] if ver >= 3 else 0
+IB = 4 if flags & 1 else 2
 fur = struct.unpack_from('<3f', raw, 32 + ex); lash = struct.unpack_from('<3f', raw, 44 + ex)
 vo = 56 + ex
 iris = struct.unpack_from('<4f', raw, vo) if eye_mode == 3 else (0, 0, 0, 0)
@@ -53,7 +56,7 @@ if eye_mode == 3: vo += 16
 vbo = gl.glGenBuffers(1); gl.glBindBuffer(gl.GL_ARRAY_BUFFER, vbo)
 gl.glBufferData(gl.GL_ARRAY_BUFFER, nv * 40, raw[vo:vo + nv * 40], gl.GL_STATIC_DRAW)
 ibo = gl.glGenBuffers(1); gl.glBindBuffer(gl.GL_ELEMENT_ARRAY_BUFFER, ibo)
-gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, ni * 2, raw[vo + nv * 40: vo + nv * 40 + ni * 2], gl.GL_STATIC_DRAW)
+gl.glBufferData(gl.GL_ELEMENT_ARRAY_BUFFER, ni * IB, raw[vo + nv * 40: vo + nv * 40 + ni * IB], gl.GL_STATIC_DRAW)
 P = load(os.path.join(assets, f'pets/{model}.pet'))
 
 def tex(path):
@@ -81,7 +84,7 @@ def model_m(yaw):
     conv = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, -1, 0, 0], [0, 0, 0, 1]], np.float32)
     return Ry @ conv
 
-gl.glEnable(gl.GL_DEPTH_TEST); gl.glClearColor(0.07, 0.07, 0.1, 1)
+gl.glEnable(gl.GL_DEPTH_TEST); gl.glClearColor(0, 0, 0, 1)
 def attr(name, n, typ, norm, off):
     a = A(name)
     if a < 0: return
@@ -104,13 +107,13 @@ for r, nm in enumerate(names):
     m, c, loop = P['clips'][nm]
     for i, f in enumerate(np.linspace(0, len(m) - 1, 4).astype(int)):
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-        gl.glUniformMatrix4fv(U('uModel'), 1, True, model_m(0.35))
+        gl.glUniformMatrix4fv(U('uModel'), 1, True, model_m(float(os.environ.get('PET_YAW', 0.35))))
         gl.glUniform4fv(ub, nb * 3, m[f].reshape(-1).astype(np.float32))
         tilt = c[f][8] if len(c[f]) > 8 else 0.0
         gl.glUniform4f(U('uEyeL'), c[f][0], c[f][2], c[f][3], tilt); gl.glUniform4f(U('uEyeR'), c[f][1], c[f][4], c[f][5], tilt)
         gl.glUniform2f(U('uMood'), c[f][9] if len(c[f]) > 9 else 0.0, c[f][10] if len(c[f]) > 10 and c[f][10] > 0.05 else 1.0)
         gl.glUniform2f(U('uFace'), c[f][6], c[f][7])
-        gl.glDrawElements(gl.GL_TRIANGLES, ni, gl.GL_UNSIGNED_SHORT, None)
+        gl.glDrawElements(gl.GL_TRIANGLES, ni, gl.GL_UNSIGNED_INT if IB == 4 else gl.GL_UNSIGNED_SHORT, None)
         buf = (ctypes.c_ubyte * (S * S * 4))()
         gl.glReadPixels(0, 0, S, S, gl.GL_RGBA, gl.GL_UNSIGNED_BYTE, buf)
         im = Image.frombytes('RGBA', (S, S), bytes(buf)).convert('RGB').transpose(Image.FLIP_TOP_BOTTOM)

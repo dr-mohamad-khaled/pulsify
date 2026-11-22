@@ -4,15 +4,18 @@ from PIL import Image, ImageDraw
 
 def load(path):
     b = open(path, 'rb').read()
-    assert b[:4] in (b'PET1', b'PET2')
+    assert b[:4] in (b'PET1', b'PET2', b'PET3')
     nv, ni, nb, nc, height, fps, eye_mode = struct.unpack_from('<IIIIffI', b, 4)
-    nctl = struct.unpack_from('<I', b, 32)[0] if b[:4] == b'PET2' else 8
-    o = 4 + 28 + (4 if b[:4] == b'PET2' else 0) + 24 + (16 if eye_mode == 3 else 0)
+    v = b[3] - 48
+    nctl = struct.unpack_from('<I', b, 32)[0] if v >= 2 else 8
+    flags = struct.unpack_from('<I', b, 36)[0] if v >= 3 else 0
+    ib = 4 if flags & 1 else 2
+    o = 4 + 28 + (4 if v >= 2 else 0) + (4 if v >= 3 else 0) + 24 + (16 if eye_mode == 3 else 0)
     V = np.frombuffer(b, np.uint8, nv * 40, o).reshape(nv, 40); o += nv * 40
     pos = V[:, 0:12].copy().view(np.float32).reshape(nv, 3)
     bones = V[:, 24:28].astype(int); w = V[:, 28:32].astype(np.float32) / 255
     col = V[:, 32:36]; eid = None
-    o += ni * 2
+    o += ni * ib
     clips = {}
     for _ in range(nc):
         L = b[o]; o += 1; name = b[o:o + L].decode(); o += L
