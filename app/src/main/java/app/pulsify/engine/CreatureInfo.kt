@@ -64,8 +64,8 @@ fun worlds(photo: List<EnvInfo>, old: List<EnvInfo>, keep: List<EnvInfo> = empty
     return ready + (if (ready.size < 2) old.filter { o -> ready.none { it.name == o.name } } else emptyList()) + keep
 }
 
-/** Creatures taken out of the app for now (Kitty, Leo). A saved pick of one falls back to Mochi. */
-val RETIRED_CREATURES = setOf(3, 12)
+/** Creatures taken out of the app (Kitty, Leo, Kalboob, Nutty). A saved pick of one falls back to Mochi. */
+val RETIRED_CREATURES = setOf(2, 3, 7, 12)
 
 /**
  * Does the coat picker change anything for this creature in this style? Only the looks drawn from
@@ -74,10 +74,9 @@ val RETIRED_CREATURES = setOf(3, 12)
 fun coatMatters(info: CreatureInfo, style: Int): Boolean {
     if (info.coats.size <= 1) return false
     return when (info.id) {
-        1, 2, 5, 6, 7 -> style == 0      // Jelly Bean, the pup, Lantern, Pocket Devil, Acorn
-        4 -> true                        // Kiwi: species in both looks
+        1, 5 -> style == 0               // Jelly Bean, Lantern
+        4 -> style == 1                  // Kiwi: species in the Lifelike look (the painted ringneck is one bird)
         9 -> true                        // Gloop Gang: how many
-        SNOWY_ID -> true
         else -> false
     }
 }
@@ -124,12 +123,9 @@ val GROMBLE_INFO = CreatureInfo(
         EnvInfo("Evil HQ", 17, c1 = 0xFF5C3D8C.toInt(), c2 = 0xFF99FF59.toInt()),
     )),
     listOf(
-        TrickInfo("laugh", "Evil laugh", "😈"), TrickInfo("plan", "Evil plan", "📜"), TrickInfo("fire", "Fireball", "🔥"),
-        TrickInfo("fly", "Fly", "🦇"), TrickInfo("boo", "BOO!", "👻"), TrickInfo("cape", "Cape swish", "🧛"),
-        TrickInfo("attack", "Attack!", "💥"), TrickInfo("pet", "Pet him", "🫶"),
-        TrickInfo("notify", "Knock (3D)", "🔔"), TrickInfo("world", "Next world (3D)", "🌋"), TrickInfo("walk", "Walk (3D)", "🚶"),
+        TrickInfo("notify", "Knock", ""), TrickInfo("world", "Next world", ""), TrickInfo("walk", "Walk", ""),
     ),
-    styles = listOf("Pocket Devil", "Reaper", "Mischief"),
+    styles = listOf("Reaper", "Mischief"),
 )
 
 val NUTTY_INFO = CreatureInfo(
@@ -184,14 +180,14 @@ val GLOOP_INFO = CreatureInfo(
 val SNOWY_INFO = CreatureInfo(
     SNOWY_ID, "Snowy", "Fluffy duckling. Quacks at everything, dreams of flying.",
     "Tap: quack-poke. Hold: cuddles. Rub: giggles. Drag to carry. Tap a widget and it hops on top.",
-    0xFFFFB45C.toInt(), DUCK_COATS.map { CoatInfo(it.name, it.fluff or 0xFF000000.toInt(), it.beak or 0xFF000000.toInt()) },
+    0xFFFFB45C.toInt(), listOf(CoatInfo("Snow white", 0xFFF4F1EA.toInt(), 0xFFFF9A2E.toInt())),
     worlds(listOf(W_POND, W_FARM, P_POND, P_BLOSSOM), listOf(
         EnvInfo("Snow Day", 4, c1 = 0xFFDDEBFF.toInt(), c2 = 0xFF2E7D6B.toInt()),
         EnvInfo("Blossom Garden", 11, c1 = 0xFFFFB7D5.toInt(), c2 = 0xFF8C6CE6.toInt()),
     ), listOf(EnvInfo("Plain Colour", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF111111.toInt()))),
     listOf(
         TrickInfo("quack", "Quack", "🦆"), TrickInfo("flap", "Flap", "🪽"), TrickInfo("fly", "Try to fly", "✈️"),
-        TrickInfo("preen", "Preen", "✨"), TrickInfo("crumbs", "Bread crumbs", "🍞"), TrickInfo("splash", "Puddle", "💦"),
+        TrickInfo("crumbs", "Bread crumbs", "🍞"), TrickInfo("splash", "Puddle", "💦"),
         TrickInfo("waddle", "Waddle", "🐾"), TrickInfo("sleep", "Nap", "💤"),
     ),
 )
@@ -220,15 +216,15 @@ val COSMO_INFO = CreatureInfo(
     0xFF9DB8FF.toInt(), listOf(CoatInfo("Star suit", 0xFFF2F0F7.toInt(), 0xFFFFB36B.toInt())),
     listOf(EnvInfo("Deep Space", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF0A0614.toInt())),
     listOf(
-        TrickInfo("faster", "Spin him", "🌀"), TrickInfo("wave", "Wave", "👋"), TrickInfo("look", "Look around", "👀"),
+        TrickInfo("faster", "Spin him", "🌀"), TrickInfo("wave", "Wave", "👋"),
         TrickInfo("reach", "Reach a star", "✨"), TrickInfo("thumbs", "Thumbs up", "👍"), TrickInfo("stretch", "Stretch", "🙆"),
     ),
 )
 
-val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + NUTTY_INFO + BOLT_INFO + GLOOP_INFO + SNOWY_INFO + COSMO_INFO }
+val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES.filter { it.id !in RETIRED_CREATURES } + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + BOLT_INFO + GLOOP_INFO + SNOWY_INFO + COSMO_INFO }
 
 /** Creatures that can also live in a home-screen widget (the 2D friends). */
-val BUDDY_CREATURES: List<CreatureInfo> by lazy { CREATURES.filter { it.id != SNOWY_ID && it.id != COSMO_ID && it.id != LEO_ID } }
+val BUDDY_CREATURES: List<CreatureInfo> by lazy { CREATURES.filter { it.id != SNOWY_ID && it.id != COSMO_ID && it.id != LEO_ID && it.id != 6 } }
 
 private val BASE_CREATURES = listOf(
     CreatureInfo(
@@ -266,13 +262,12 @@ val KIWI_INFO = CreatureInfo(
         EnvInfo("Blossom Garden", 11, c1 = 0xFFFFB7D5.toInt(), c2 = 0xFF8C6CE6.toInt()),
     )),
     listOf(
-        TrickInfo("kiss", "Kiss the screen", "💋"),
-        TrickInfo("talk", "Say something", "💬"), TrickInfo("whistle", "Whistle", "🎵"), TrickInfo("dance", "Headbang", "🤘"),
-        TrickInfo("fly", "Fly a lap", "🪽"), TrickInfo("hang", "Upside-down", "🙃"), TrickInfo("seed", "Give a seed", "🌻"),
-        TrickInfo("squawk", "Squawk!", "📢"), TrickInfo("preen", "Preen", "✨"), TrickInfo("oneleg", "One leg", "🦩"),
-        TrickInfo("stretch", "Wing stretch", "🙆"),
+        TrickInfo("talk", "Say something", ""), TrickInfo("whistle", "Whistle", ""), TrickInfo("squawk", "Squawk!", ""),
+        TrickInfo("fly", "Fly a lap", ""), TrickInfo("hang", "Upside-down", ""), TrickInfo("sidestep", "Side step", ""),
+        TrickInfo("workout", "Flap", ""), TrickInfo("shakeoff", "Shake off", ""), TrickInfo("curious", "Curious", ""),
+        TrickInfo("oneleg", "One leg", ""), TrickInfo("puffup", "Puff up", ""), TrickInfo("stretch", "Wing stretch", ""),
     ),
-    styles = listOf("Sunny", "Lifelike"),
+    styles = listOf("Ringneck", "Lifelike"),
 )
 
 fun creatureInfo(id: Int): CreatureInfo? = when (id) { SHADOW_ID -> SHADOW_INFO; STATUE_ID -> STATUE_INFO; else -> CREATURES.firstOrNull { it.id == id } }

@@ -13,8 +13,8 @@ android {
         applicationId = "app.pulsify.v3"
         minSdk = 26
         targetSdk = 35
-        versionCode = 600
-        versionName = "6.0.0"
+        versionCode = 610
+        versionName = "6.1.0"
     }
 
     // A fixed test key, so every build from GitHub installs as an update over the last one.
@@ -42,7 +42,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
     androidResources { noCompress += listOf("mp4") }
-    testOptions { unitTests.isIncludeAndroidResources = false }
+    testOptions { unitTests.isIncludeAndroidResources = true }
 }
 
 dependencies {

@@ -60,8 +60,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyRow
-import app.pulsify.core.COMING
-import app.pulsify.core.ComingSoon
 import app.pulsify.core.DISCOVERIES
 import app.pulsify.core.DeviceState
 import app.pulsify.core.Kind
@@ -144,25 +142,6 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                         if (v.id >= 2) "thumbs/sky_${v.id}.jpg" else null, v.name, v.tagline, Color(v.accent1),
                         live = state.video < 0 && state.character == 0 && state.variant == v.id, sky = v.id, sky2 = Color(v.accent2),
                     ) { state.applyCharacter(0); state.applyVariant(v.id); onOpenStudio() }
-                }
-            }
-        }
-        item {
-            Column(Modifier.padding(horizontal = 22.dp).enter(6)) {
-                Text("Being made", style = T.title, color = c.text)
-                Gap(4.dp)
-                Text("Hand-built one at a time.", style = T.small, color = c.sub)
-                Gap(14.dp)
-                COMING.forEach { cs ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(42.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Color(cs.c1), Color(cs.c2)))))
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(cs.name, style = T.bodyStrong, color = c.text)
-                            Text(cs.line, style = T.small, color = c.sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Text(cs.kind.label.dropLast(1), style = T.micro, color = c.faint)
-                    }
                 }
             }
         }
@@ -302,8 +281,6 @@ private fun PosterCard(asset: String?, name: String, line: String, tint: Color, 
                 Text("Yours", style = T.micro, color = Color.White)
             }
         }
-        Gap(8.dp)
-        Text(line, style = T.small, color = c.sub, maxLines = 2, minLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
     }
 }
 

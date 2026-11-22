@@ -148,6 +148,9 @@ class StatueScene(private val context: Context) : Creature {
         if (locked) { locked = false; shotUnlock() }
     }
 
+    // every swipe flies the drone to the next angle, even two quick swipes in a row
+    override val swipeCooldownMs: Long get() = 120L
+
     override fun swiped(dir: Float, fast: Boolean) {
         if (pagesKnown) return
         page = (page + (if (dir > 0f) 1 else -1)).let { ((it % 5) + 5) % 5 }

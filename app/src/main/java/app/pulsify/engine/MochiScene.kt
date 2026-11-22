@@ -315,7 +315,7 @@ class MochiScene(private val context: Context) : Creature {
     private fun lookAtUv(ux: Float, uy: Float) {
         val cx = (ux - bodyX) / size; val cy = (uy - bodyY - 0.15f * size) / size
         lookTX = (cx / 0.8f).coerceIn(-1f, 1f)
-        lookTY = (cy / 0.8f).coerceIn(-1f, 1f)
+        lookTY = (cy / 0.8f).coerceIn(-.6f, .6f)
         nextLookWander = 4f + Random.nextFloat() * 2f
     }
 
@@ -604,7 +604,7 @@ class MochiScene(private val context: Context) : Creature {
             Act.STAR -> {
                 // The star falls toward the mouth; Mochi watches, opens wide, then munches.
                 val sx = fx[16]; val syy = fx[17]
-                lookTX = (sx / 0.8f).coerceIn(-1f, 1f); lookTY = ((syy - 0.15f) / 0.8f).coerceIn(-1f, 1f)
+                lookTX = (sx / 0.8f).coerceIn(-1f, 1f); lookTY = ((syy - 0.15f) / 0.8f).coerceIn(-.6f, .6f)
                 fxVel[8] += (-sx * 4f - fxVel[8]) * dt * 2f
                 fx[16] += fxVel[8] * dt; fx[17] += fxVel[9] * dt
                 if (syy > 0.1f) mTarget = 1f
@@ -725,10 +725,13 @@ class MochiScene(private val context: Context) : Creature {
 
         val bx = bodyX; val by = bodyY
         // Bounding quad: Mochi, its effects above, and the jar wherever it is.
-        var minX = bx - 0.62f * size; var maxX = bx + 0.62f * size
-        var minY = by - 0.72f * size; var maxY = by + 1.0f * size
+        // Generous while it stretches, squashes, shears or tumbles (carried, thrown, landing hard):
+        // a tight box cut the body off.
+        val st = (max(sy, 1f / sy) + abs(shear) * 1.5f) * (if (grabbed || flying || knocked > 0f || abs(tilt) > .01f) 1.35f else 1.1f)
+        var minX = bx - 0.62f * size * st; var maxX = bx + 0.62f * size * st
+        var minY = by - 0.72f * size * st; var maxY = by + 1.0f * size * st
         if (act == Act.STAR || act == Act.BIRD) { maxY = by + 1.9f * size; maxX = bx + 1.5f * size }
-        if (abs(tilt) > 0.01f) { minX = min(minX, bx - 1.25f * size); maxX = max(maxX, bx + 1.25f * size); minY = min(minY, by - 0.75f * size) }
+        if (abs(tilt) > 0.01f) { minX = min(minX, bx - 1.35f * size * st); maxX = max(maxX, bx + 1.35f * size * st); minY = min(minY, by - 1.1f * size * st); maxY = max(maxY, by + 1.35f * size * st) }
         if (jar == Jar.DRAG || jar == Jar.LOOSE) {
             minX = min(minX, jarX - 0.3f * size); maxX = max(maxX, jarX + 0.3f * size)
             minY = min(minY, jarY - 0.35f * size); maxY = max(maxY, jarY + 0.4f * size)

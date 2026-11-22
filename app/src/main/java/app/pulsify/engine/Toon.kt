@@ -20,6 +20,7 @@ import java.nio.ByteOrder
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
@@ -165,7 +166,10 @@ internal class Rig {
     var headX = 0f; var headY = 0f; var headTilt = 0f; var mouth = 0f; var tongue = 0f
     var ear = 0f; var earR = 0f; var wag = 0f; var wagAmp = .4f; var pawLift = 0f; var step = 0f
     var wing = 0f; var wingLift = 0f; var flapPh = 0f; var tailSw = 0f; var tailFlick = 0f; var nibble = 0f; var acorn = true
-    fun base() { headX = 0f; headY = 0f; headTilt = 0f; mouth = 0f; tongue = 0f; happy = 0f; ear = 0f; earR = 0f; wagAmp = .4f; pawLift = 0f; step = 0f
+    // painted puppets
+    var yaw = 0f; var pitch = 0f; var back = 0f; var wingKick = 0f; var wingS = 0f; var tuftV = 0f; var smile = 0f; var lean = 0f; var puff = 0f
+    var airMix = 0f; var walking = false; var walkPh = 0f; var face = 1f; var flapHere = false; var flying = false; var carried = false; var oneLeg = 0f; var tiltSnap = 0f
+    fun base() { smile = 0f; puff = 0f; flapHere = false; oneLeg = 0f; headX = 0f; headY = 0f; headTilt = 0f; mouth = 0f; tongue = 0f; happy = 0f; ear = 0f; earR = 0f; wagAmp = .4f; pawLift = 0f; step = 0f
         wing = 0f; wingLift = 0f; tailSw = 0f; tailFlick = 0f; nibble = 0f; acorn = true; sleep = false }
 }
 
@@ -182,7 +186,11 @@ private class Particle(var x: Float, var y: Float, var vx: Float, var vy: Float,
  * carried by the finger, thrown (birds fly off and land), falls over on a hard landing and gets up,
  * walks for real, dances only while music plays, idle tricks at least three times a minute.
  */
-internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -> Int) : Creature {
+internal class ToonScene(private val kind: ToonKind, private val ctx: android.content.Context? = null, private val coatOf: (Int) -> Int) : Creature {
+    private val puppet = kind as? PuppetKind
+    private val art = puppet?.let { PuppetArt(it.dir) }
+    private val pgl = PuppetGl()
+    private val isBird get() = kind.perch
     override var listener: SceneListener? = null
     override var bottomInset = 0f
         set(v) { field = v.coerceIn(0f, .8f); layout() }
@@ -200,6 +208,7 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
     private var x = 0f; private var y = 0f; private var vx = 0f; private var vy = 0f
     private var carried = false; private var flying = false; private var knocked = 0f; private var landHard = false
     private var tilt = 0f; private var tiltV = 0f; private var sy = 1f; private var syV = 0f
+    private var yawV = 0f; private var pitchV = 0f; private var backV = 0f; private var leanV = 0f; private var leanT = 0f; private var wingT = 0f; private var wingSV = 0f; private var flyT = 0f; private var battery = 1f
     private var ltx = 0f; private var lty = 0f; private var lookHold = 0f; private var nextBlink = 2f
     private var act: String? = null; private var actT = 0f; private var nextAct = 5f
     private var face = 1f; private var walkTo = Float.NaN; private var walkBack = false; private var walkPh = 0f
@@ -238,7 +247,7 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
     private fun toX(nx: Float) = (nx * w - cx0) / U
     private fun toY(ny: Float) = (floorY - ny * h) / U
     private fun onBody(nx: Float, ny: Float): Boolean { val cx = toX(nx); val cy = toY(ny); return abs(cx - x) < .55f && cy > y - .1f && cy < y + kind.height + .15f }
-    private fun lookAt(nx: Float, ny: Float) { ltx = clampf((toX(nx) - x) / 1.4f, -1f, 1f); lty = clampf(-(toY(ny) - (y + kind.height * .8f)) / 1.6f, -1f, 1f); lookHold = 4f }
+    private fun lookAt(nx: Float, ny: Float) { ltx = clampf((toX(nx) - x) / 1.4f, -1f, 1f); lty = clampf(-(toY(ny) - (y + kind.height * .8f)) / 1.6f, -.7f, .7f); lookHold = 4f }
 
     override fun touchDown(nx: Float, ny: Float): Boolean {
         down = true; moved = false; downAt = time; fx = nx; fy = ny; dnx = nx; dny = ny; lastT = time; sinceTouch = 0f; holdT = 0f
@@ -290,10 +299,10 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
         return body
     }
     override fun longPressAt(nx: Float, ny: Float): Boolean { lookAt(nx, ny); sinceTouch = 0f; return if (onBody(nx, ny)) { startAct("Pet"); true } else false }
-    override fun greet() { if (!carried && knocked <= 0f) startAct(if (kind is BirdKind) "Squawk" else "Giggle") }
+    override fun greet() { if (!carried && knocked <= 0f) startAct(if (isBird) "Squawk" else "Giggle") }
     override fun swiped(dir: Float, fast: Boolean) {
         if (carried || knocked > 0f) return
-        if (kind is BirdKind) { act = "Fly a lap"; actT = 0f; flying = true; vx = dir * 4.5f; vy = 6f; return }
+        if (isBird) { act = "Fly a lap"; actT = 0f; flying = true; flyT = 0f; vx = dir * 4.5f; vy = 6f; return }
         ltx = dir; lty = 0f; lookHold = 1.5f
         if (y <= 0f) { vy = if (fast) 3.6f else 2.4f; syV -= 4f }
         if (fast) startAct("Giggle")
@@ -302,8 +311,8 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
     override fun perform(trick: String): Boolean {
         sinceTouch = 0f
         if (trick.startsWith("say:")) { speak(trick.removePrefix("say:").take(40)); return true }
-        val a = (if (kind is BirdKind && trick == "fly") "Fly a lap" else TRICKS[trick]) ?: return false
-        if (a == "Talk") { speak(pickWord()); startAct("Squawk"); return true }
+        val a = (if (isBird && trick == "fly") "Fly a lap" else TRICKS[trick]) ?: return false
+        if (a == "Talk") { if (kind is ParrotArtKind) startAct("Talk") else { speak(pickWord()); startAct("Squawk") }; return true }
         startAct(a); return true
     }
     private fun pickWord(): String { val ws = words.split(',').map { it.trim() }.filter { it.isNotEmpty() }; return if (ws.isNotEmpty() && Random.nextFloat() < .7f) ws.random() else listOf("hello!", "pretty bird", "hehe", "I love you", "seed?").random() }
@@ -312,6 +321,7 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
     private fun startAct(a: String) {
         act = a; actT = 0f
         if (a == "Zoomies" || a == "Waddle") { walkTo = (if (Random.nextBoolean()) -1f else 1f) * (halfW - .1f); walkBack = false }
+        if (a == "Side step") { walkTo = (if (Random.nextBoolean()) -1f else 1f) * .3f; walkBack = false }
     }
     private fun puff(px: Float, py: Float, k: Int, n: Int = 1) { repeat(n) { if (parts.size < 40) parts.add(Particle(px, py, (Random.nextFloat() - .5f) * .6f, .4f + Random.nextFloat() * .6f, k, 1f + Random.nextFloat() * .6f)) } }
 
@@ -320,7 +330,7 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
         time += dt; sinceTouch += dt; r.t = time
         words = input.kiwiWords
         coat = coatOf(input.coat)
-        charging = input.charging
+        charging = input.charging; battery = input.battery
         r.base()
         val a = input.audio; val musicOn = a.source != AudioFrame.Source.NONE
         musicFor = if (musicOn) musicFor + dt else 0f
@@ -338,13 +348,16 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
             val nx = x + (tx - x) * min(1f, dt * 18f); val ny = y + (ty - y) * min(1f, dt * 18f)
             vx = (nx - x) / max(dt, 1e-3f); vy = (ny - y) / max(dt, 1e-3f); x = nx; y = ny
             tiltV += (clampf(-fvx * .06f, -.7f, .7f) - tilt) * 40f * dt - tiltV * 6f * dt
-        } else if (flying && kind is BirdKind) {
-            r.flapPh += dt * 22f
-            vx += ((0f - x) * 2.2f - vx * 1.4f) * dt; vy += ((0f - y) * 2.2f - vy * 1.6f) * dt + (if (y < .3f && abs(x) > .35f) 3f else 0f) * dt
-            if (abs(x) < .35f && y < .5f) { x += (0f - x) * min(1f, dt * 4f); y += (0f - y) * min(1f, dt * 4f) }   // glide onto the perch
+        } else if (flying && isBird) {
+            flyT += dt; val back = flyT > 1.4f; val near = abs(x) < .35f && abs(vx) < 1.6f
+            val ty = if (back) (if (near) 0f else 1f) else max(1.3f, min(top, y))
+            vx += ((if (back) (0f - x) * 3.2f else 0f) - vx * (if (back) 2.4f else .5f)) * dt
+            vy += ((ty - y) * (if (back && near) 2.6f else 3.4f) - vy * (if (back && near) 2.6f else 2f)) * dt
+            if (back && near && y < .6f) vy = max(vy, -1.1f)
+            r.flapPh += dt * (if (back && near && y < .5f) 13f else 24f)
             x = clampf(x + vx * dt, -hw, hw); y = clampf(y + vy * dt, 0f, top)
             tiltV += (clampf(-vx * .08f, -.5f, .5f) - tilt) * 30f * dt - tiltV * 6f * dt
-            if (hypot(x, y) < .04f) { flying = false; x = 0f; y = 0f; syV -= 3f; vx = 0f; vy = 0f }
+            if (back && y < .035f && abs(x) < .07f) { flying = false; flyT = 0f; x = 0f; y = 0f; syV -= 3.5f; vx = 0f; vy = 0f; r.wingKick = .8f }
         } else {
             if (flying) {
                 if (x + vx * dt > hw || x + vx * dt < -hw) { vx *= -.6f; tiltV += vx * 3f; syV -= 3f }
@@ -363,49 +376,75 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
                 }
             } else if (!flying && knocked <= 0f) {
                 if (!walkTo.isNaN()) {
-                    val d = walkTo - x; val v = clampf(d * 3f, -2.6f, 2.6f) * (if (act == "Zoomies") 1.6f else .7f)
+                    val d = walkTo - x; val v = clampf(d * 3f, -2.6f, 2.6f) * (if (act == "Zoomies") 1.6f else if (act == "Side step") .32f else .7f)
                     x += v * dt; if (d != 0f) face = sign(d); walkPh += abs(v) * dt * 9f
-                    if (abs(d) < .03f) { if (act == "Zoomies" || act == "Waddle") { if (walkBack) { walkTo = Float.NaN; walkBack = false; act = null } else { walkTo = 0f; walkBack = true } } else walkTo = Float.NaN }
+                    if (abs(d) < .03f) { if (act == "Zoomies" || act == "Waddle" || act == "Side step") { if (walkBack) { walkTo = Float.NaN; walkBack = false; act = null } else { walkTo = 0f; walkBack = true } } else walkTo = Float.NaN }
                 } else if (abs(x) > .02f) x += (0f - x) * min(1f, dt * .8f)
             }
         }
+        if (!flying) flyT = 0f
         if (knocked > 0f) {
             flying = false; vx *= max(0f, 1f - dt * 6f); val side = if (tilt >= 0f) 1f else -1f; knocked -= dt
-            if (knocked > 0f) tiltV += ((side * 1.45f - tilt) * 70f - tiltV * 10f) * dt
+            if (kind is DuckArtKind) { tiltV += (-tilt * 90f - tiltV * 9f) * dt; if (knocked <= 0f) { landHard = false; vy = 2.4f; syV -= 3f; startAct("Shake") } }
+            else if (knocked > 0f) tiltV += ((side * 1.45f - tilt) * 70f - tiltV * 10f) * dt
             else { landHard = false; vy = 3.2f; syV -= 3f; tiltV -= side * 4f; startAct("Shake") }
-        } else if (!carried && !(flying && kind is BirdKind) && act != "Upside down" && act != "Spin" && act != "Belly rub") tiltV += (-tilt * 90f - tiltV * 9f) * dt
+        } else if (!carried && !(flying && isBird) && act != "Upside down" && act != "Spin" && act != "Belly rub") tiltV += (-tilt * 90f - tiltV * 9f) * dt
         tilt = clampf(tilt + tiltV * dt, -1.7f, 1.7f)
+        run { val tb = if (kind is DuckArtKind && knocked > 0f) 1f else 0f
+            backV += ((tb - r.back) * (if (tb > 0f) 55f else 38f) - backV * (if (tb > 0f) 6f else 7f)) * dt; r.back = clampf(r.back + backV * dt, -.15f, 1.15f) }
         val breath = 1f + .015f * sin(time * 2.4f)
         syV += ((breath - sy) * 180f - syV * 9f) * dt; sy = clampf(sy + syV * dt, .75f, 1.25f)
         // ---- idle acts (at least 3 a minute); night nap
         actT += dt
         val night = input.mood == Mood.NIGHT && sinceTouch > 12f && !musicOn
-        if (act == null && !carried && !flying && knocked <= 0f && !dancing && sinceTouch > 3f) {
+        if (act == null && !carried && !flying && knocked <= 0f && !dancing && !charging && sinceTouch > 3f) {
             nextAct -= dt
             if (nextAct <= 0f) { startAct(if (night) "Nap" else kind.idle.random()); nextAct = TRICK_GAP_MIN + Random.nextFloat() * TRICK_GAP_RANGE }
         }
         if (down && onBodyDown && !carried && !moved) { holdT += dt; if (holdT > .6f && act != "Pet") startAct("Pet") }
         pose(dt, dancing, musicOn, a)
         if (!walkTo.isNaN()) { r.step = sin(walkPh); r.headY += abs(sin(walkPh)) * -.03f; if (kind is PupKind) r.wagAmp = 1f }
-        if (charging && act == null && !dancing) { r.happy = .5f; if (kind is SquirrelKind || kind is PupKind) r.nibble = abs(sin(time * 9f)) * .5f }
+        // painted puppets: the head turns toward what it looks at, wings breathe and flick, lean / hang
+        r.walking = !walkTo.isNaN(); r.walkPh = walkPh; r.face = face; r.flying = flying; r.carried = carried; r.tiltSnap = tilt
+        if (puppet != null) {
+            val ta = if (isBird && flying && flyT > 1.4f && abs(x) < .35f && y < .45f) clampf((y - .05f) / .4f, 0f, 1f) else if (flying || carried || y > .06f) 1f else 0f
+            r.airMix += (ta - r.airMix) * min(1f, dt * (if (ta > 0f) 12f else 7f))
+            wingT -= dt; if (wingT <= 0f) { r.wingKick = if (Random.nextBoolean()) .4f else .7f; wingT = 1.3f + Random.nextFloat() * 2.5f }
+            r.wingKick *= exp(-dt * 5f)
+            wingSV += ((-vx * .05f - r.wingS) * 40f - wingSV * 5f) * dt; r.wingS += wingSV * dt
+            r.tuftV = r.tuftV * exp(-dt * 4f) - tiltV * .004f
+            if (kind is ParrotArtKind && act == null) r.tailSw = sin(time * 1.1f) * .15f
+            val wy = if (r.walking && kind is DuckArtKind) face * .55f else 0f
+            val tyaw = clampf(r.lx * .55f + wy, -.6f, .6f); val tp = clampf(r.ly * .35f, -.35f, .35f)
+            yawV += ((tyaw - r.yaw) * 60f - yawV * 11f) * dt; r.yaw += yawV * dt
+            pitchV += ((tp - r.pitch) * 60f - pitchV * 11f) * dt; r.pitch += pitchV * dt
+            val big = abs(leanT) > 1f
+            leanV += ((leanT - r.lean) * (if (big) 22f else 45f) - leanV * (if (big) 6f else 8f)) * dt; r.lean += leanV * dt
+            if (isBird) { r.wing = max(r.wing, if (carried || flying) 1f else 0f) } else if (carried || flying) r.wing = 1f
+        }
         // particles
         val it = parts.iterator()
-        while (it.hasNext()) { val p = it.next(); p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.kind >= DIRT) p.vy -= 6f * dt; if (p.life > p.max) it.remove() }
+        while (it.hasNext()) { val p = it.next(); p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; if (p.kind == FEATHER) { p.vy -= .9f * dt; p.vx *= 1 - dt * 2f } else if (p.kind >= DIRT) p.vy -= 6f * dt; if (p.life > p.max) it.remove() }
         if (sayT > 0f) sayT -= dt
     }
     private var coat = 0
+    private var tiltSide = 1f
     private var charging = false
 
     private fun pose(dt: Float, dancing: Boolean, musicOn: Boolean, au: AudioFrame) {
         val A = act; val T = actT
+        leanT = 0f
         r.wag += dt * (6f + (if (dancing) au.beat * 4f else 0f) + (if (A == "Pet") 8f else 0f))
-        if (kind is BirdKind) { r.wing = if (carried || flying) 1f else 0f; if (carried) r.flapPh += dt * 28f }
+        if (isBird) { r.wing = if (carried || flying) 1f else 0f; if (carried) r.flapPh += dt * 28f }
         if (carried) { r.mouth = .6f; ltx = 0f; lty = -.3f }
         if (knocked > 0f) { r.happy = 0f; r.blink = min(r.blink, .35f); ltx = sin(time * 7f) * .8f; lty = cos(time * 7f) * .5f; if (Random.nextFloat() < dt * 3f) puff(x + (Random.nextFloat() - .5f) * .4f, kind.height * .9f, STAR) }
         if (dancing) {
             val b = sin(time * PI.toFloat() * 2f * max(1f, au.bpm / 60f).coerceAtMost(2.5f))
-            r.headTilt += b * .12f; r.headY += abs(b) * -.04f; syV -= au.beat * 1.2f; r.happy = .8f
-            when (kind) { is BirdKind -> { r.headY += b * .06f; r.wingLift = .3f + .3f * b }; is PupKind -> r.wagAmp = 1f; is SquirrelKind -> r.tailFlick = b; is DuckKind -> r.wing = .3f + .3f * abs(b) }
+            // dancing: eyes open and smiling (never shut)
+            r.headTilt += b * .12f; r.headY += abs(b) * -.04f; syV -= au.beat * 1.2f; r.happy = 0f; r.smile = 1f
+            if (isBird) { r.headY += b * .06f; r.wingLift = .3f + .3f * b; r.tailSw = b * .5f }
+            if (kind is ParrotArtKind) r.mouth = max(r.mouth, .8f * au.beat * au.beat)
+            when (kind) { is PupKind -> { r.wagAmp = 1f; r.mouth = max(r.mouth, .35f); r.tongue = .5f }; is SquirrelKind -> r.tailFlick = b; is DuckKind, is DuckArtKind -> r.wing = .3f + .3f * abs(b); else -> {} }
         }
         if (musicOn && musicFor in 0.001f..3f) { r.headY -= .03f; r.mouth = .3f }
         fun done(at: Float) { if (T > at) act = null }
@@ -440,8 +479,18 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
             "Fly a lap" -> { if (T < dt * 1.5f && !flying) { flying = true; vx = (if (Random.nextBoolean()) -1f else 1f) * 4.5f; vy = 6f }; if (!flying && T > .3f) act = null }
             "Head bob" -> { r.headY = abs(sin(T * 9f)) * -.07f; done(1.6f) }
             "Wing stretch" -> { r.wing = .75f * winf(T, 0f, .4f, 1.4f, 1.8f); r.flapPh = -1.2f; done(1.9f) }
-            "One leg" -> { r.blink = min(r.blink, .5f); r.step = .6f; done(2.5f) }
-            "Upside down" -> { tilt = PI.toFloat() * winf(T, 0f, .6f, 2.4f, 3f); tiltV = 0f; r.happy = winf(T, .6f, .8f, 2.2f, 2.4f); if (T > 3.1f) { act = null; tilt = 0f } }
+            "One leg" -> { r.blink = min(r.blink, .5f); r.step = .6f; r.oneLeg = winf(T, 0f, .3f, 2.2f, 2.5f); done(2.5f) }
+            // painted parrot
+            "Talk" -> { val ph = T % 1.6f; val syl = if (ph < 1f && (ph * 6f) % 1f < .55f) 1f else 0f; r.mouth = syl; r.headY = -.02f * syl; r.headTilt = sin(T * 2.5f) * .18f
+                if (T < dt * 1.5f) speak(pickWord()); done(2.4f) }
+            "Hang upside down" -> { leanT = PI.toFloat() * winf(T, 0f, .7f, 2.8f, 3.5f); r.happy = if (winf(T, .8f, 1f, 2.4f, 2.6f) > .5f) 1f else 0f; ltx = 0f; lty = 0f; done(3.6f) }
+            "Side step" -> { leanT = sin(walkPh) * .06f; if (walkTo.isNaN() && T > .3f) act = null; done(6f) }
+            "Flap workout" -> { r.wing = winf(T, 0f, .25f, 1.8f, 2.2f); r.flapHere = true; r.flapPh += dt * 20f; r.headY = sin(r.flapPh) * .012f; r.mouth = .15f; done(2.3f) }
+            "Shake off" -> { val e = winf(T, .15f, .3f, .9f, 1.1f); r.puff = max(r.puff, winf(T, 0f, .15f, 1.1f, 1.4f) * .9f); leanT = sin(T * 42f) * .07f * e; r.headTilt = sin(T * 42f + 1f) * .3f * e; r.blink = min(r.blink, 1 - e * .8f)
+                if (e > .5f && Random.nextFloat() < dt * 10f) puff(x + (Random.nextFloat() - .5f) * .5f, .6f + Random.nextFloat() * .6f, FEATHER); done(1.5f) }
+            "Curious tilt" -> { if (T < dt * 1.5f) tiltSide = if (Random.nextBoolean()) -1f else 1f; val e = winf(T, 0f, .35f, 1.7f, 2.1f); r.headTilt = tiltSide * 1.25f * e; ltx = 0f; lty = 0f; if (T > .9f && T < 1f) r.blink = 0f; done(2.2f) }
+            "Puff up" -> { r.puff = winf(T, 0f, .25f, 1.3f, 1.7f); r.happy = if (r.puff > .5f) 1f else 0f; r.headY = r.puff * .02f; done(1.8f) }
+            "Upside down" -> { if (kind is ParrotArtKind) { act = "Hang upside down"; actT = 0f; return }; tilt = PI.toFloat() * winf(T, 0f, .6f, 2.4f, 3f); tiltV = 0f; r.happy = winf(T, .6f, .8f, 2.2f, 2.4f); if (T > 3.1f) { act = null; tilt = 0f } }
             // squirrel
             "Nibble" -> { r.nibble = abs(sin(T * 24f)) * winf(T, 0f, .1f, 1.8f, 2f); r.mouth = r.nibble * .3f; r.blink = min(r.blink, .7f); if (Random.nextFloat() < dt * 6f) puff(x, .45f, CRUMB); done(2.1f) }
             "Tail flick" -> { r.tailFlick = sin(T * 16f) * winf(T, 0f, .1f, 1f, 1.2f); done(1.3f) }
@@ -467,13 +516,14 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
         val fb = ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder()).asFloatBuffer().put(qd); fb.position(0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, 32, fb, GLES20.GL_STATIC_DRAW); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         tex = 0; perchTex = 0; perchDirty = true
+        pgl.forget(); art?.forget()
     }
 
     override fun draw(input: SceneInput) {
         if (prog == 0) return
         // box around the creature, in creature units (wider for the perch + speech bubble)
         val bx0 = x - 1.45f; val bx1 = x + 1.45f
-        val by0 = -(y + kind.height + (if (kind is BirdKind) 1.0f else .55f)); val by1 = -(y - .4f)
+        val by0 = -(y + kind.height + (if (isBird) 1.0f else .6f)); val by1 = -(y - (puppet?.below ?: .4f))
         val wPx = (bx1 - bx0) * U; val hPx = (by1 - by0) * U
         val k = min(1f, 620f / max(wPx, hPx))
         val bw = max(8, (wPx * k).roundToInt()); val bh = max(8, (hPx * k).roundToInt())
@@ -492,9 +542,21 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
         GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glUniform1i(uTex, 0)
-        if (kind.perch) { ensurePerch(); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, perchTex); rect(cx0 - 1.75f * U, floorY - .35f * U, cx0 + 1.75f * U, floorY + .2f * U) }
+        if (kind.perch && puppet == null) { ensurePerch(); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, perchTex); rect(cx0 - 1.75f * U, floorY - .35f * U, cx0 + 1.75f * U, floorY + .2f * U) }
         GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex); rect(q[0], q[1], q[2], q[3])
         GLES20.glDisableVertexAttribArray(0); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0); GLES20.glDisable(GLES20.GL_BLEND)
+        if (puppet != null && art != null && ctx != null) drawPuppet(puppet, art, ctx)
+    }
+    /** The painted puppet, straight to the screen: same place, tilt and squash as the Canvas creatures. */
+    private fun drawPuppet(pk: PuppetKind, a: PuppetArt, c: android.content.Context) {
+        if (!pgl.ready) pgl.init()
+        if (!a.loaded) a.load(c, U * pk.k)
+        if (!a.loaded) return
+        val lift = .4f * abs(sin(tilt)) * (if (carried) 0f else 1f) * (if (isBird && knocked <= 0f) 0f else 1f)
+        pgl.identity(); pgl.translate(cx0, floorY); pgl.scale(U, U); pgl.scale(pk.k, pk.k); pgl.snapshot(pgl.worldBase)
+        pgl.identity(); pgl.translate(cx0, floorY); pgl.scale(U, U); pgl.translate(x, -y - lift); pgl.rotate(tilt)
+        pgl.scale(1f / sqrt(sy), sy); pgl.scale(pk.k, pk.k); pgl.snapshot(pgl.creatureBase)
+        pgl.begin(w, h); pk.drawGl(pgl, r, a); pgl.end()
     }
     private fun rect(l: Float, t: Float, rr: Float, bt: Float) {
         GLES20.glUniform4f(uRect, l / w * 2f - 1f, 1f - t / h * 2f, rr / w * 2f - 1f, 1f - bt / h * 2f)
@@ -527,10 +589,10 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
         cv.save(); cv.translate(x, -y)
         val lift = .4f * abs(sin(tilt)) * (if (carried) 0f else 1f) * (if (kind is BirdKind && knocked <= 0f) 0f else 1f)
         cv.translate(0f, -lift); cv.rotate(tilt * 57.29578f)
-        cv.scale(1f / sqrt(sy) * (if (face < 0f && !walkTo.isNaN()) -1f else 1f), sy)
+        cv.scale(1f / sqrt(sy) * (if (face < 0f && !walkTo.isNaN() && puppet == null) -1f else 1f), sy)
         kind.draw(ink, r, coat)
         cv.restore()
-        if (charging) { cv.save(); cv.translate(x + .75f, -.08f); kind.chargeProp(ink, time); chargeIcon(); cv.restore() }
+        if (charging) chargeBadge()
         for (p in parts) {
             val al = max(0f, 1 - p.life / p.max); cv.save(); cv.translate(p.x, -p.y)
             when (p.kind) {
@@ -538,19 +600,30 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
                 NOTE, BANG, ZZ -> { cv.scale(1f / ink.ups, 1f / ink.ups); ink.tp.textSize = .22f * ink.ups; ink.tp.color = if (p.kind == ZZ) 0xFFCDB4FF.toInt() else 0xFFFFB36B.toInt(); ink.tp.alpha = (al * 255).toInt(); cv.drawText(if (p.kind == NOTE) "♪" else if (p.kind == BANG) "!" else "z", 0f, 0f, ink.tp) }
                 DIRT -> ink.fill(ink.ell(0f, 0f, .03f, .025f), 0x6E4A2E, al)
                 DROP -> ink.fill(ink.ell(0f, 0f, .025f, .035f), 0x8FD3FF, al)
+                FEATHER -> { cv.rotate(sin(p.life * 7f) * 34f); ink.fill(ink.ell(0f, 0f, .035f, .012f), 0x8FD14F, al) }
                 else -> ink.fill(ink.ell(0f, 0f, .015f, .012f), 0xD9A066, al)
             }
             cv.restore()
         }
         if (sayT > 0f && say.isNotEmpty()) bubble()
     }
-    private fun chargeIcon() {
-        val pulse = .6f + .4f * sin(time * 3f)
-        ink.cv.save(); ink.cv.translate(0f, -.35f)
-        val bt = ink.p(); bt.addRoundRect(RectF(-.1f, -.05f, .1f, .05f), .02f, .02f, Path.Direction.CW); ink.line(bt, 0x4ADE80, .015f, pulse)
-        val f = ink.p(); f.addRect(-.085f, -.035f, -.085f + .17f * 1f, .035f, Path.Direction.CW); ink.fill(f, 0x4ADE80, .35f * pulse)
-        val cap = ink.p(); cap.addRect(.1f, -.02f, .115f, .02f, Path.Direction.CW); ink.fill(cap, 0x4ADE80, pulse)
-        ink.cv.restore()
+    /** Charging: a battery badge above the creature with the charge level. */
+    private fun chargeBadge() {
+        val cv = ink.cv; val bob = sin(time * 2f) * .02f
+        cv.save(); cv.translate(x, -(y + kind.height + .38f) + bob)
+        val bw = .62f; val bh = .24f
+        val body = ink.p(); body.addRoundRect(RectF(-bw / 2, -bh / 2, bw / 2, bh / 2), .07f, .07f, Path.Direction.CW)
+        ink.fill(body, 0x1A2E2B, .92f); ink.line(body, 0x4ADE80, .018f)
+        val cap = ink.p(); cap.addRoundRect(RectF(bw / 2 + .012f, -.045f, bw / 2 + .047f, .045f), .012f, .012f, Path.Direction.CW); ink.fill(cap, 0x4ADE80)
+        val lvl = battery.coerceIn(0f, 1f)
+        val fillP = ink.p(); fillP.addRoundRect(RectF(-bw / 2 + .03f, -bh / 2 + .03f, -bw / 2 + .03f + (bw - .06f) * lvl, bh / 2 - .03f), .045f, .045f, Path.Direction.CW)
+        ink.fill(fillP, 0x4ADE80, .32f + .1f * sin(time * 3f))
+        val bolt = ink.p(); cv.save(); cv.translate(-bw / 2 + .1f, 0f)
+        bolt.moveTo(.014f, -.075f); bolt.lineTo(-.045f, .012f); bolt.lineTo(-.003f, .012f); bolt.lineTo(-.016f, .075f); bolt.lineTo(.046f, -.014f); bolt.lineTo(.004f, -.014f); bolt.close()
+        ink.fill(bolt, 0xEFFFF4); cv.restore()
+        ink.tp.textSize = .135f * ink.ups; ink.tp.color = 0xFFFFFFFF.toInt(); ink.tp.alpha = 255
+        cv.save(); cv.scale(1f / ink.ups, 1f / ink.ups); cv.drawText("${(lvl * 100).roundToInt()}%", .04f * ink.ups, .05f * ink.ups, ink.tp); cv.restore()
+        cv.restore()
     }
     private fun bubble() {
         val cv = ink.cv; val a = clampf(sayT / .3f, 0f, 1f)
@@ -563,6 +636,18 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
         cv.save(); cv.scale(1f / ink.ups, 1f / ink.ups); cv.drawText(say, bx * ink.ups, (by + .02f) * ink.ups, ink.tp); cv.restore()
     }
 
+    /** Tests: the Canvas layer (shadow, particles, bubble, badge) at its place on a full-screen canvas. */
+    internal fun debugOverlay(c: Canvas) { c.save(); c.translate(cx0, floorY); c.scale(U, U); ink.begin(c); ink.ups = U; drawCreature(); c.restore() }
+    /** Tests: the painted puppet through any [PuppetGl] (the Canvas twin), with bitmaps instead of textures. */
+    internal fun debugPuppet(g: PuppetGl, width: Int, height: Int) {
+        val pk = puppet ?: return; val a = art ?: return
+        if (!a.loaded) a.loadBitmaps(ctx!!)
+        val lift = .4f * abs(sin(tilt)) * (if (carried) 0f else 1f) * (if (isBird && knocked <= 0f) 0f else 1f)
+        g.identity(); g.translate(cx0, floorY); g.scale(U, U); g.scale(pk.k, pk.k); g.snapshot(g.worldBase)
+        g.identity(); g.translate(cx0, floorY); g.scale(U, U); g.translate(x, -y - lift); g.rotate(tilt)
+        g.scale(1f / sqrt(sy), sy); g.scale(pk.k, pk.k); g.snapshot(g.creatureBase)
+        g.begin(width, height); pk.drawGl(g, r, a); g.end()
+    }
     /** Tests: draws the creature (no GL) into [c], already scaled to creature units with the floor at 0. */
     internal fun debugDraw(c: android.graphics.Canvas, pxPerUnit: Float) { ink.begin(c); ink.ups = pxPerUnit; drawCreature() }
     internal val debugState get() = "x=%.2f y=%.2f tilt=%.2f carried=%b flying=%b knocked=%.2f act=%s".format(x, y, tilt, carried, flying, knocked, act)
@@ -571,16 +656,18 @@ internal class ToonScene(private val kind: ToonKind, private val coatOf: (Int) -
         if (prog != 0) GLES20.glDeleteProgram(prog); if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0)
         val ts = intArrayOf(tex, perchTex).filter { it != 0 }.toIntArray(); if (ts.isNotEmpty()) GLES20.glDeleteTextures(ts.size, ts, 0)
         bmp?.recycle(); bmp = null; bcv = null; prog = 0; vbo = 0; tex = 0; perchTex = 0
+        pgl.release(); art?.release()
     }
 
     companion object {
-        const val STAR = 0; const val NOTE = 1; const val BANG = 2; const val ZZ = 3; const val DIRT = 4; const val DROP = 5; const val CRUMB = 6
+        const val STAR = 0; const val NOTE = 1; const val BANG = 2; const val ZZ = 3; const val DIRT = 4; const val DROP = 5; const val CRUMB = 6; const val FEATHER = 7
         /** Studio trick ids -> act names. */
         val TRICKS = mapOf(
             "fetch" to "Fetch", "paw" to "Give paw", "belly" to "Belly rub", "dig" to "Dig", "howl" to "Howl", "zoomies" to "Zoomies", "yawn" to "Yawn",
             "scratch" to "Scratch", "bow" to "Play bow", "bark" to "Bark", "sniff" to "Sniff",
             "quack" to "Quack", "flap" to "Flap", "fly" to "Try to fly", "preen" to "Preen", "crumbs" to "Bread crumbs", "splash" to "Splash", "waddle" to "Waddle", "sleep" to "Nap",
-            "whistle" to "Whistle", "squawk" to "Squawk", "lap" to "Fly a lap", "dance" to "Head bob", "stretch" to "Wing stretch", "oneleg" to "One leg", "hang" to "Upside down", "talk" to "Talk",
+            "whistle" to "Whistle", "squawk" to "Squawk", "lap" to "Fly a lap", "dance" to "Head bob", "stretch" to "Wing stretch", "oneleg" to "One leg", "hang" to "Hang upside down", "talk" to "Talk",
+            "sidestep" to "Side step", "workout" to "Flap workout", "shakeoff" to "Shake off", "curious" to "Curious tilt", "puffup" to "Puff up",
             "nibble" to "Nibble", "stash" to "Bury a nut", "lookout" to "Lookout", "flick" to "Tail flick", "catch" to "Catch!", "spin" to "Spin", "drum" to "Drum solo", "feed" to "Nibble", "zoom" to "Zoomies",
         )
         private const val VS = "attribute vec2 aPos; uniform vec4 uRect; varying vec2 vUv; void main(){ vUv = aPos; gl_Position = vec4(mix(uRect.xy, uRect.zw, aPos), 0.0, 1.0); }"

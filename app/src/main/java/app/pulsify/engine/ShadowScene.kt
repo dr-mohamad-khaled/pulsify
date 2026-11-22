@@ -44,7 +44,7 @@ class ShadowLook(
 
 private fun c(h: Long) = h.toInt()
 val SHADOW_LOOKS = listOf(
-    ShadowLook("neon", "Neon Grin", intArrayOf(c(0xFFFFD6F7), c(0xFFFF3FD2), c(0xFF8A0068)), c(0xFFFF2E7E), "hot", .15f, "block", c(0xFF9FF8FF), c(0xFF00D9FF), c(0xFF021626), c(0xFF00E5FF), "scribble"),
+    ShadowLook("neon", "Neon Grin", intArrayOf(c(0xFFFFD6F7), c(0xFFFF3FD2), c(0xFF8A0068)), c(0xFFFF2E7E), "hot", .15f, "block", c(0xFF9FF8FF), c(0xFF00D9FF), c(0xFF021626), c(0xFF00E5FF), "none"),
     ShadowLook("inferno", "Inferno", intArrayOf(c(0xFFFFF6C2), c(0xFFFFB02E), c(0xFFC83A00)), c(0xFFFF8A1F), "round", .3f, "jag", c(0xFFEDE6D8), c(0xFF9C9286), c(0xFF080403), c(0xFFFF6A00), "flames"),
     ShadowLook("crimson", "Crimson", intArrayOf(c(0xFFFFC7BD), c(0xFFFF2A1F), c(0xFF4A0000)), c(0xFFFF4433), "slit", .22f, "fangs", c(0xFFFF6A55), c(0xFFB3140A), c(0xFF2A0000), c(0xFFFF2A1F), "embers", "demon", c(0xFFFF2A1F), veins = true),
     ShadowLook("fiend", "Fiend", intArrayOf(c(0xFF3A0000), c(0xFFE00000), c(0xFF5C0000)), c(0xFFFF1A1A), "rings", .05f, "jag", c(0xFFFFFFFF), c(0xFFD9D9D9), c(0xFF000000), c(0xFFFF1A1A), "brows"),
@@ -279,7 +279,12 @@ class ShadowScene : Creature {
     private fun drawEye(cv: Canvas, side: Float) {
         val L = look; val open = if (side < 0) openL.x else openR.x
         val g = eyeGeom(side, open, clamp(squint.x, 0f, 1f), wide.x, clamp(angry.x + rage * .6f, 0f, 1.4f), L.lid)
-        val ix = g.mx + clamp(lx.x, -1f, 1f) * g.w * .28f; val iy = g.my + clamp(ly.x, -1f, 1f) * g.h * .35f - g.h * .1f
+        // Keep the pupil inside the open part of the eye, however far away the touch is (it used to slide under the lid).
+        val ix = g.mx + clamp(lx.x, -1f, 1f) * g.w * .24f
+        val topY = g.my - g.h * g.k * (L.lid + .1f); val botY = g.my + g.h * g.k * (1 - L.lid) * (1 - 2 * clamp(squint.x, 0f, 1f))
+        val pr = g.w * .08f * (1 - .5f * abs(clamp(lx.x, -1f, 1f)))
+        val iy0 = g.my + clamp(ly.x, -1f, 1f) * g.h * .35f - g.h * .1f
+        val iy = if (botY - topY > pr * 2.4f) clamp(iy0, topY + pr * 1.2f, botY - pr * 1.2f) else (topY + botY) / 2
         if (open < .06f && squint.x < .5f) { path.reset(); path.moveTo(g.Ix, g.Iy); path.quadTo(g.mx, g.my - .01f, g.Ox, g.Oy); cv.drawPath(path, line(L.line, .014f)); return }
         eyePath(g); cv.save(); cv.clipPath(path)
         if (L.key == "glitch") { val s = .022f; var y = g.my - g.h * 1.2f

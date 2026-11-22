@@ -30,6 +30,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -138,7 +139,17 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
 
     val modes = when {
         state.video >= 0 -> listOf(Mode.LOOPS)
-        app.pulsify.engine.creatureInfo(state.character) != null -> listOf(Mode.LOOK, Mode.WORLD, Mode.TRICKS, Mode.TIME, Mode.SOUND)
+        app.pulsify.engine.creatureInfo(state.character) != null -> {
+            // Cosmo floats in his own space and Shadows live in pitch black: no world or time to pick there,
+            // and Cosmo has no tricks worth a panel.
+            val id = state.character
+            val noWorld = id == app.pulsify.engine.COSMO_ID || id == app.pulsify.engine.SHADOW_ID
+            buildList {
+                add(Mode.LOOK); if (!noWorld) add(Mode.WORLD)
+                if (id != app.pulsify.engine.COSMO_ID) add(Mode.TRICKS)
+                if (!noWorld) add(Mode.TIME); add(Mode.SOUND)
+            }
+        }
         else -> listOf(Mode.SKY, Mode.LOOK, Mode.TIME, Mode.SOUND)
     }
     var mode by remember { mutableStateOf(Mode.LOOK) }
@@ -589,25 +600,22 @@ private fun TrickButton(t: app.pulsify.engine.TrickInfo, onTap: () -> Unit) {
     val c = LocalPulse.current
     val scope = rememberCoroutineScope()
     val ring = remember { Animatable(0f) }
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(78.dp)) {
-        Box(
-            Modifier.size(62.dp)
-                .drawBehind {
-                    val r = ring.value
-                    if (r > 0f && r < 1f) drawCircle(c.accent.copy(alpha = 0.6f * (1f - r)), radius = size.minDimension / 2 * (1f + r * 0.7f), style = Stroke(3.dp.toPx()))
-                }
-                .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.05f)), center = Offset(50f, 40f)))
-                .border(1.dp, Color.White.copy(alpha = 0.14f), CircleShape)
-                .pressable(scaleDown = 0.86f) {
-                    onTap(); scope.launch { ring.snapTo(0f); ring.animateTo(1f, tween(520)) }
-                }
-                .semantics { contentDescription = "Trick: ${t.label}" },
-            contentAlignment = Alignment.Center,
-        ) { Text(t.emoji, style = T.title.copy(fontSize = 26.sp)) }
-        Gap(5.dp)
-        Text(t.label, style = T.micro, color = c.sub, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-    }
+    Box(
+        Modifier.height(46.dp).widthIn(min = 96.dp)
+            .drawBehind {
+                val r = ring.value
+                if (r > 0f && r < 1f) drawRoundRect(c.accent.copy(alpha = 0.6f * (1f - r)), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2), style = Stroke(2.dp.toPx() * (1f + r)))
+            }
+            .clip(RoundedCornerShape(50))
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+            .pressable(scaleDown = 0.9f) {
+                onTap(); scope.launch { ring.snapTo(0f); ring.animateTo(1f, tween(520)) }
+            }
+            .padding(horizontal = 18.dp)
+            .semantics { contentDescription = "Trick: ${t.label}" },
+        contentAlignment = Alignment.Center,
+    ) { Text(t.label, style = T.bodyStrong, color = c.text, maxLines = 1) }
 }
 
 @Composable

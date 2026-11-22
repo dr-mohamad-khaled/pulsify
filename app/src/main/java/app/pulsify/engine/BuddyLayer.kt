@@ -63,8 +63,8 @@ private val THROWS = mapOf(1 to Fx.OBJ_BALL, 2 to Fx.OBJ_BONE, 3 to Fx.OBJ_YARN,
     6 to Fx.OBJ_ROCK, 7 to Fx.OBJ_ACORN, 8 to Fx.OBJ_GEAR, 9 to Fx.OBJ_BLOB)
 
 fun makeCreature(id: Int, context: Context): Creature? = when (id) {
-    1 -> MochiScene(context); 2 -> ToonScene(PupKind) { it }; 4 -> ToonScene(BirdKind) { it }
-    5 -> GlowyScene(context); 6 -> GrombleScene(context); 7 -> ToonScene(SquirrelKind) { it }; 8 -> BotScene(transparent = true)
+    1 -> MochiScene(context); 4 -> ToonScene(ParrotArtKind, context) { it }
+    5 -> GlowyScene(context); 8 -> BotScene(transparent = true)
     9 -> GloopScene(context); else -> null
 }
 

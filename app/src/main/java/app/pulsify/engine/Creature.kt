@@ -22,6 +22,9 @@ interface Creature {
     fun perform(trick: String): Boolean = false
     /** The home screen was swiped to another page and settled ([dir] = -1 left, 1 right). */
     fun swiped(dir: Float, fast: Boolean) { greet() }
+    /** Minimum time between two swipe reactions. Creatures shouldn't repeat a reaction on every flick;
+     *  camera scenes (the statues) must answer every single swipe. */
+    val swipeCooldownMs: Long get() = 1500L
     fun update(dt: Float, input: SceneInput)
     fun draw(input: SceneInput)
     fun release()

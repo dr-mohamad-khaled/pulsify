@@ -133,7 +133,7 @@ class AstroScene(private val context: Context) : Creature {
     override fun perform(trick: String): Boolean {
         when (trick) {
             "faster" -> { boost(5f); play("Flail") }
-            "wave" -> play("Wave"); "look", "curl" -> play("LookAround"); "reach", "swim" -> play("Reach")
+            "wave" -> play("Wave"); "look", "curl" -> play("Stretch"); "reach", "swim" -> play("Reach")
             "thumbs" -> play("ThumbsUp"); "stretch", "relax" -> play("Stretch")
             else -> return false
         }
@@ -189,7 +189,7 @@ class AstroScene(private val context: Context) : Creature {
         nextLife -= dt
         if (nextLife <= 0f && cur?.name == "Idle") {
             nextLife = 6f + Random.nextFloat() * 6f
-            play(listOf("Wave", "LookAround", "Reach", "ThumbsUp", "Stretch", "LookAround").random())
+            play(listOf("Wave", "Reach", "ThumbsUp", "Stretch").random())   // no LookAround: it warps the suit
         }
         advance(dt)
     }

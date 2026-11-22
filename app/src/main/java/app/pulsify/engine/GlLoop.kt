@@ -57,12 +57,9 @@ class GlLoop(
     private var rw = 0; private var rh = 0
     val mochi = MochiScene(context)
     /** The 2D cast (Canvas creatures): Kalboob, Snowy, Sunny (Kiwi's 2D look), Acorn (Nutty's 2D look). */
-    val kalboob: Creature = ToonScene(PupKind) { it }
-    val duck: Creature = ToonScene(DuckKind) { it }
-    val kiwi: Creature = ToonScene(BirdKind) { it }
+    val duck: Creature = ToonScene(DuckArtKind, context) { it }
+    val kiwi: Creature = ToonScene(ParrotArtKind, context) { it }
     val glowy = GlowyScene(context)
-    val gromble = GrombleScene(context)
-    val nutty: Creature = ToonScene(SquirrelKind) { it }
     val gloop = GloopScene(context)
     /** The Meshy 3D pets (Snowball the kitten, Honey the pup, Nimbus the robot, Snowy the duckling). */
     val pet3d = Pet3DScene(context)
@@ -83,7 +80,7 @@ class GlLoop(
     /** Pharaohs: Tutankhamun, Nefertiti and Anubis as super wallpapers. */
     val statue = StatueScene(context)
     /** By character id - 1 (Kitty, id 3, is retired; Bolt, id 8, is the robots in [bots]). */
-    private val creatures: List<Creature?> = listOf(mochi, kalboob, null, kiwi, glowy, gromble, nutty, null, gloop)
+    private val creatures: List<Creature?> = listOf(mochi, null, null, kiwi, glowy, null, null, null, gloop)
     private val allCreatures: List<Creature> = creatures.filterNotNull() + pet3d + astro + fish + aquarium + orbit + peachy + shadow + bots + statue + duck
     /** The creature this frame wants: by character id, and for Kitty by style (1.. = 3D shapes). */
     private fun pick(): Creature? {
@@ -91,7 +88,8 @@ class GlLoop(
         if (input.character == STATUE_ID) { statue.look = STATUE_LOOKS[input.style.coerceIn(0, STATUE_LOOKS.size - 1)]; return statue }
         if (input.character == SHADOW_ID) { shadow.look = SHADOW_LOOKS[input.style.coerceIn(0, SHADOW_LOOKS.size - 1)]; return shadow }
         if (input.character == 1 && input.style == 1) return peachy
-        if (input.character == 6 && input.style > 0) { orbit.species = if (input.style == 2) ORBIT_IMP else ORBIT_REAPER; return orbit }
+        // Gromble is only its 3D looks now: 0 Reaper, 1 Mischief (2 = Mischief as saved by older versions)
+        if (input.character == 6) { orbit.species = if (input.style >= 1) ORBIT_IMP else ORBIT_REAPER; return orbit }
         if (input.character == SNOWY_ID) return duck
         petSpeciesFor(input.character, input.style, input.coat)?.let { pet3d.species = it; return pet3d }
         if (input.character == COSMO_ID) return astro
@@ -296,7 +294,7 @@ class GlLoop(
         // The same push the page physics would give: a quick slide and spring back, then a reaction.
         lagV += -dir * (0.9f + min(speed, 4f) * 0.35f)
         val c = active ?: return
-        if (now - lastSwipeReact > 1500) {
+        if (now - lastSwipeReact > c.swipeCooldownMs) {
             lastSwipeReact = now
             try { c.swiped(dir, speed > 2.2f) } catch (_: Throwable) {}
         }
@@ -350,7 +348,7 @@ class GlLoop(
             settle += dt
             if (settle > 0.2f && swipeTravel > 0.45f) {
                 val now = System.currentTimeMillis()
-                if (now - lastSwipeReact > 2500) {
+                if (now - lastSwipeReact > (if (c.swipeCooldownMs < 1500L) c.swipeCooldownMs else 2500L)) {
                     lastSwipeReact = now
                     try { c.swiped(swipeDir, swipeMax > 3f || swipeTravel > 1.6f) } catch (_: Throwable) {}
                 }
