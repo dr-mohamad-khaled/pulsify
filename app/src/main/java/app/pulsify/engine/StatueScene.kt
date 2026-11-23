@@ -40,8 +40,8 @@ class StatueLook(val name: String, val file: String, val env: Float, val lock: S
 
 /** A sitting twin for a flying bird: perched-bird shots and the perch animator. */
 private fun perched(name: String, file: String, d: Float, headY: Float) = StatueLook(name, file, 0.55f, Shot(0f, 6f, d, 0.05f),
-    // pages stay at a middle distance (no far shot), and a swipe only pulls back a little
-    listOf(Shot(-38f, 10f, d * 0.95f, 0.05f), Shot(24f, -5f, d * 0.85f, headY * 0.3f), Shot(82f, 7f, d * 0.93f, 0.05f), Shot(-112f, 14f, d, 0.05f), Shot(158f, 11f, d * 0.97f, 0.05f)),
+    // pages stay in front of the bird (within ±50 degrees) at a middle distance, so a swipe is a short, quick move
+    listOf(Shot(-28f, 10f, d * 0.95f, 0.05f), Shot(22f, -4f, d * 0.88f, headY * 0.25f), Shot(48f, 7f, d * 0.95f, 0.05f), Shot(-50f, 12f, d, 0.05f), Shot(4f, 8f, d * 0.97f, 0.05f)),
     group = "Birds", headY = headY, rig = "perch", swipePull = 0.35f)
 
 /** A camera shot around the statue: azimuth / elevation in degrees (0 = its face), distance, look-at height. */
@@ -66,8 +66,6 @@ val STATUE_LOOKS = listOf(
     // a rigged bird that flies on the spot (STA2 file): the same drone camera circles it
     StatueLook("Turquoise Motmot", "mot", 0.7f, Shot(0f, 10f, 3.7f, 0.02f),
         listOf(Shot(-30f, 14f, 3.5f), Shot(22f, -6f, 2.9f, 0.03f), Shot(76f, 8f, 3.4f), Shot(-115f, 24f, 3.7f), Shot(160f, 16f, 3.8f)), group = "Birds"),
-    StatueLook("Owl of Ra", "owl", 1.0f, Shot(0f, 4f, 5.4f),
-        listOf(Shot(-30f, -8f, 4.2f), Shot(16f, 2f, 3.1f, 0.12f), Shot(-85f, 4f, 3.9f), Shot(58f, 12f, 4.3f), Shot(170f, 10f, 4.6f))),
     StatueLook("Solar Queen", "sol", 1.0f, Shot(0f, 4f, 5.4f),
         listOf(Shot(-30f, -8f, 4.2f), Shot(16f, 2f, 3.1f, 0.12f), Shot(-85f, 4f, 3.9f), Shot(58f, 12f, 4.3f), Shot(170f, 10f, 4.6f))),
     StatueLook("Golden Bastet", "bas", 1.0f, Shot(0f, 4f, 5.0f),
@@ -90,7 +88,7 @@ val STATUE_LOOKS = listOf(
         listOf(Shot(-30f, 14f, 4.2f), Shot(22f, -6f, 3.8f, 0.03f), Shot(76f, 8f, 4.0f), Shot(-115f, 22f, 4.3f), Shot(160f, 16f, 4.4f)),
         group = "Birds", wingBias = 0.16f, flapAmp = 0.95f, rig = "fly"),
     // the budgie ("love bird"), sitting only
-    perched("Love Bird", "budgie", 4.4f, 0.6f),
+    perched("Budgie", "budgie", 4.4f, 0.6f),
 )
 
 /**
@@ -466,7 +464,10 @@ class StatueScene(private val context: Context) : Creature {
         ensureModel()
         GLES20.glGetIntegerv(GLES20.GL_VIEWPORT, vpBuf, 0)
         val vw = max(1, vpBuf[2]); val vh = max(1, vpBuf[3])
-        ensureFbo(vw, vh)
+        // supersampling: the model is drawn at twice the size and filtered down, so edges, feathers and fur
+        // stay crisp (no jaggies), capped so the buffer never gets bigger than a 1440p phone at 2x
+        val ss = if (vw * vh * 4 <= 1440 * 3200 * 4) 2 else 1
+        ensureFbo(vw * ss, vh * ss)
 
         // ---- camera ----
         val aspect = vw.toFloat() / vh
@@ -488,7 +489,7 @@ class StatueScene(private val context: Context) : Creature {
 
         // ---- statue into its own depth-buffered texture ----
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
-        GLES20.glViewport(0, 0, vw, vh)
+        GLES20.glViewport(0, 0, fbW, fbH)
         GLES20.glClearColor(0f, 0f, 0f, 0f)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glEnable(GLES20.GL_DEPTH_TEST); GLES20.glDepthFunc(GLES20.GL_LEQUAL); GLES20.glDepthMask(true)
