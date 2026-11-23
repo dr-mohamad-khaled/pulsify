@@ -73,6 +73,10 @@ val STATUE_LOOKS = listOf(
     StatueLook("Emerald Ringneck", "ring", 0.6f, Shot(0f, 10f, 5.6f, 0.02f),
         listOf(Shot(-30f, 14f, 5.3f), Shot(22f, -6f, 4.7f, 0.04f), Shot(76f, 8f, 5.1f), Shot(-115f, 22f, 5.5f), Shot(160f, 16f, 5.6f)),
         group = "Birds", wingBias = 0.42f, flapAmp = 1.25f),
+    // the cockatiel in endless flight (STA2 --cockatiel)
+    StatueLook("Golden Cockatiel", "tiel", 0.6f, Shot(0f, 10f, 4.4f, 0.0f),
+        listOf(Shot(-30f, 14f, 4.2f), Shot(22f, -6f, 3.8f, 0.03f), Shot(76f, 8f, 4.0f), Shot(-115f, 22f, 4.3f), Shot(160f, 16f, 4.4f)),
+        group = "Birds", wingBias = 0.16f, flapAmp = 0.95f),
 )
 
 /**
@@ -244,9 +248,9 @@ class StatueScene(private val context: Context) : Creature {
         return true
     }
 
-    override fun touchDown(nx: Float, ny: Float): Boolean { tiltTX = nx - .5f; tiltTY = ny - .5f; return false }
-    override fun touchMove(nx: Float, ny: Float): Boolean { tiltTX = nx - .5f; tiltTY = ny - .5f; return false }
-    override fun touchUp(): Boolean { tiltTX = 0f; tiltTY = 0f; return false }
+    override fun touchDown(nx: Float, ny: Float): Boolean { tiltTX = nx - .5f; tiltTY = ny - .5f; bird.touch(tiltTX, tiltTY, true); return false }
+    override fun touchMove(nx: Float, ny: Float): Boolean { tiltTX = nx - .5f; tiltTY = ny - .5f; bird.touch(tiltTX, tiltTY, true); return false }
+    override fun touchUp(): Boolean { tiltTX = 0f; tiltTY = 0f; bird.touch(0f, 0f, false); return false }
     override fun tapAt(nx: Float, ny: Float): Boolean = false
     override fun longPressAt(nx: Float, ny: Float): Boolean = false
 

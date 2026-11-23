@@ -14,6 +14,7 @@ usage: glb2sta2.py src.glb name outdir [--tris N] [--fit F] [--bird | --crow]
   --tris N  simplify to about N triangles (meshoptimizer, keeps UV seams)
   --fit F   scale so the largest half-extent is F model units
   --bird    keep the skin, merged to the reduced flying-bird skeleton below (StatueBird)
+  --cockatiel keep the skin, merged to the flying-bird skeleton from the Meshy cockatiel rig (tail halves joined)
   --ringneck  keep the skin, merged to the same flying-bird skeleton from a Meshy SmartRig biped bird (StatueBird)
   --crow    keep the skin, merged to the perched-crow skeleton (Meshy SmartRig biped bird, StatueCrow)
 """
@@ -25,7 +26,7 @@ import meshoptimizer as mo
 ap = argparse.ArgumentParser()
 ap.add_argument('src'); ap.add_argument('name'); ap.add_argument('outdir')
 ap.add_argument('--tris', type=int, default=0); ap.add_argument('--fit', type=float, default=0)
-ap.add_argument('--bird', action='store_true'); ap.add_argument('--crow', action='store_true'); ap.add_argument('--ringneck', action='store_true'); ap.add_argument('--tex', type=int, default=2048)
+ap.add_argument('--bird', action='store_true'); ap.add_argument('--crow', action='store_true'); ap.add_argument('--ringneck', action='store_true'); ap.add_argument('--cockatiel', action='store_true'); ap.add_argument('--tex', type=int, default=2048)
 A = ap.parse_args()
 
 b = open(A.src, 'rb').read()
@@ -46,7 +47,7 @@ prim = J['meshes'][0]['primitives'][0]; at = prim['attributes']
 P = acc(at['POSITION']).astype(np.float32); N = acc(at['NORMAL']).astype(np.float32); UV = acc(at['TEXCOORD_0']).astype(np.float32)
 I = acc(prim['indices']).reshape(-1).astype(np.uint32)
 JI = WT = None
-if A.bird or A.crow or A.ringneck:
+if A.bird or A.crow or A.ringneck or A.cockatiel:
     JI = acc(at['JOINTS_0']).astype(np.int32); WT = acc(at['WEIGHTS_0']).astype(np.float32)
 
 # ---- optional simplification ----
@@ -91,7 +92,7 @@ q8 = lambda v: np.round(np.clip(v, -1, 1) * 127).astype(np.int8)
 nv = len(P)
 fields = [('p', '<i2', 3), ('pad', '<u2'), ('n', 'i1', 4), ('t', 'i1', 4), ('uv', '<u2', 2)]
 bones = None
-if A.bird or A.crow or A.ringneck:
+if A.bird or A.crow or A.ringneck or A.cockatiel:
     # ---- reduced bird skeleton: each original joint folds into one of these ----
     skin = J['skins'][0]; joints = skin['joints']
     names = [J['nodes'][j]['name'] for j in joints]
@@ -130,11 +131,24 @@ if A.bird or A.crow or A.ringneck:
             ('tipR', 18, ['@Bone_029']), ('innerR', 15, ['@Bone_032']),
             ('legL', 0, nums(6, 5, 4, 14, 13, 17, 16, 15)), ('legR', 0, nums(9, 8, 7, 19, 18, 22, 21, 20)),
         ]
+    if A.cockatiel:  # 21 bones: the tail is two halves (L/R), no leg bones; '@mean' = pivot at the mean of the members
+        R = [
+            ('body', -1, nums(0)),
+            ('tail1', 0, ['@mean'] + nums(1, 3, 5)), ('tail2', 1, ['@mean'] + nums(2, 4)), ('tail3', 2, ['@Bone_002']), ('tail4', 3, ['@Bone_002']),
+            ('chest', 0, nums(8, 7)), ('neck1', 5, nums(6)), ('neck2', 6, ['@Bone_010']),
+            ('head', 7, nums(10, 9)),
+            ('shL', 5, nums(15)), ('armL', 9, nums(14)), ('foreL', 10, nums(13)), ('handL', 11, nums(12)),
+            ('tipL', 12, nums(11)), ('innerL', 9, ['@Bone_015']),
+            ('shR', 5, nums(20)), ('armR', 15, nums(19)), ('foreR', 16, nums(18)), ('handR', 17, nums(17)),
+            ('tipR', 18, nums(16)), ('innerR', 15, ['@Bone_020']),
+            ('legL', 0, ['@Bone_000']), ('legR', 0, ['@Bone_000']),
+        ]
     fold = np.full(len(joints), -1, np.int32); pivots = []
     for ri, (nm, par, members) in enumerate(R):
-        for m in members:
-            if not m.startswith('@'): fold[names.index(m)] = ri
-        pivots.append(heads[names.index(members[0].lstrip('@'))])
+        real = [m for m in members if not m.startswith('@')]
+        for m in real: fold[names.index(m)] = ri
+        if members[0] == '@mean': pivots.append(np.mean([heads[names.index(m)] for m in real], axis=0))
+        else: pivots.append(heads[names.index(members[0].lstrip('@'))])
     assert (fold >= 0).all(), [names[i] for i in np.where(fold < 0)[0]]
     nb = len(R)
     acc_w = np.zeros((nv, nb), np.float32)

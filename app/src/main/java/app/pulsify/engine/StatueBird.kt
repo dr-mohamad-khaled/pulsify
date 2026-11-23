@@ -2,7 +2,9 @@ package app.pulsify.engine
 
 import kotlin.math.PI
 import kotlin.math.atan2
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -47,7 +49,22 @@ class StatueBird : StatueRig {
 
     override fun kick(dir: Float) { if (bones == 0) return; burst = 1f; bankT = dir }
 
+    // The head: follows the camera calmly (never snaps across when the camera passes behind the bird)
+    // and leans a little towards a finger on the screen. Small angles only, so the neck never warps.
+    private var camAzLast = 0f
+    private var lookY = 0f; private var lookP = 0f
+    private var touchX = 0f; private var touchY = 0f; private var touching = false
+    override fun touch(x: Float, y: Float, down: Boolean) { touching = down; if (down) { touchX = x; touchY = y } }
+
     override fun update(dt: Float, time: Float, musicBass: Float) {
+        run {
+            val az = atan2(sin(camAzLast), cos(camAzLast))
+            val front = 1f - ((abs(az) - 1.6f) / 1.0f).coerceIn(0f, 1f)        // fades out as the camera goes round the back
+            val ty = az.coerceIn(-0.6f, 0.6f) * front + (if (touching) touchX * 0.45f else 0f)
+            val tp = if (touching) touchY * 0.3f else 0f
+            val k = 1f - exp(-3.2f * dt)
+            lookY += (ty - lookY) * k; lookP += (tp - lookP) * k
+        }
         t = time
         bass += (musicBass - bass) * min(1f, dt * 12f)
         if (bones == 0) return
@@ -74,11 +91,12 @@ class StatueBird : StatueRig {
         val dy = 0.028f * sin(ph - 1.4f) * (1f + 0.4f * burst)
         setRot(0, pitch, 0.05f * sin(t * .29f), bank + 0.05f * sin(t * .37f))
         for (k in 0 until 4) setRot(1 + k, 0.07f * sin(ph - 1.8f - 0.35f * k), 0.05f * sin(t * .5f + k * .6f) + 0.04f * bank, 0f)
-        // the head looks at whoever looks at the bird
-        val look = atan2(sin(camAz), cos(camAz)).coerceIn(-0.75f, 0.75f)
-        setRot(6, -pitch * 0.5f, look * 0.35f, -bank * 0.3f)
-        setRot(7, -pitch * 0.3f, look * 0.3f, -bank * 0.3f)
-        setRot(8, 0.03f * sin(t * .8f), look * 0.35f + 0.06f * sin(t * .41f), 0f)
+        // the head looks at whoever looks at the bird (smoothed in update), held steady against the wing beat
+        camAzLast = camAz
+        val look = lookY
+        setRot(6, -pitch * 0.6f + lookP * 0.3f, look * 0.35f, -bank * 0.25f)
+        setRot(7, -pitch * 0.4f + lookP * 0.3f, look * 0.3f, -bank * 0.2f)
+        setRot(8, lookP * 0.4f, look * 0.35f, 0f)
         for (side in intArrayOf(-1, 1)) {
             val base = if (side < 0) 9 else 15
             for (s in 0 until 5) {

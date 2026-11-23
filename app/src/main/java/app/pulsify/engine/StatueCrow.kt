@@ -22,6 +22,8 @@ interface StatueRig {
     fun kick(dir: Float)
     /** Where the camera will come to rest (radians around the model, 0 = its face). */
     fun rest(az: Float) {}
+    /** A finger on the screen ([x], [y]: -0.5..0.5 from the centre, y down); [down] false when it lifts. */
+    fun touch(x: Float, y: Float, down: Boolean) {}
     fun update(dt: Float, time: Float, musicBass: Float)
     /** [camAz]: where the camera is right now (radians). */
     fun pose(camAz: Float)
@@ -71,6 +73,13 @@ class StatueCrow : StatueRig {
     private var act = Act.NONE; private var actT = 0f; private var actLen = 0f
     private var nextAct = 3.5f
     private var startle = 0f
+    // a finger on the screen: the head turns a little towards it
+    private var touching = false; private var touchX = 0f; private var touchY = 0f
+    override fun touch(x: Float, y: Float, down: Boolean) {
+        if (down && !touching) holdT = 0f
+        touching = down; if (down) { touchX = x; touchY = y }
+        if (!down) holdT = 0.4f
+    }
 
     override fun setRig(par: IntArray, heads: FloatArray) {
         bones = par.size; parent = par; head = heads
@@ -128,7 +137,10 @@ class StatueCrow : StatueRig {
         holdT -= dt
         val moving = hopT >= 0f || hopsLeft > 0 || startle > 0.4f
         if (moving) { tgY = restAz; tgP = 0f; tgR = 0f; snap = 26f }
-        else if (act == Act.NONE && holdT <= 0f) {
+        else if (touching && act == Act.NONE) {
+            // subtle: at most ~17 degrees sideways and ~11 up/down, spread over the neck
+            tgY = restAz + touchX * 0.6f; tgP = touchY * 0.4f; tgR = -touchX * 0.1f; snap = 10f; glances = 0
+        } else if (act == Act.NONE && holdT <= 0f) {
             if (glances > 0) {
                 glances--
                 tgY = restAz + r(-1.3f, 1.3f); tgP = r(-0.25f, 0.35f); tgR = r(-0.15f, 0.15f); snap = r(16f, 26f)
