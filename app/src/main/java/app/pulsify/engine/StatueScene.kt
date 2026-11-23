@@ -85,8 +85,7 @@ val STATUE_LOOKS = listOf(
     // the cockatiel in endless flight (STA2 --cockatiel)
     StatueLook("Golden Cockatiel", "tiel", 0.6f, Shot(0f, 10f, 4.4f, 0.0f),
         listOf(Shot(-30f, 14f, 4.2f), Shot(22f, -6f, 3.8f, 0.03f), Shot(76f, 8f, 4.0f), Shot(-115f, 22f, 4.3f), Shot(160f, 16f, 4.4f)),
-        group = "Birds", wingBias = 0.16f, flapAmp = 0.95f, rig = "fly",
-        perch = perched("Golden Cockatiel", "tielp", 5.3f, 0.75f)),
+        group = "Birds", wingBias = 0.16f, flapAmp = 0.95f, rig = "fly"),
     // the budgie ("love bird"), sitting only
     perched("Love Bird", "budgie", 5.2f, 0.6f),
 )

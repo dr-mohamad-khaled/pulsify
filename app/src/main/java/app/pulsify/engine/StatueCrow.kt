@@ -37,13 +37,16 @@ interface StatueRig {
  *
  * Idle: it breathes, the head moves the way a bird's does (quick snaps, then holds), it looks at you
  * most of the time and glances around, cocks its head, peers at the ground, caws, shakes its feathers.
- * A swipe startles it: the head snaps to the new camera at once, then it walks on its legs: it turns
- * towards you, walks closer when the camera has moved further away, and turns to face you. With music the
+ * A swipe startles it: the head snaps to the new camera at once. The crow then hops round in one to
+ * three short hops (crouch, spring, land with a tail bob) until it faces the camera again; the parrots
+ * walk on their legs instead, closer to you when the camera settles further away. With music the
  * head bobs to the bass.
  */
 class StatueCrow : StatueRig {
-    /** Parrots (cockatiel, budgie) chirp and bob their heads instead of cawing. */
+    /** Parrots (the budgie) chirp and bob their heads instead of cawing, walk instead of hopping, and keep head turns small. */
     var parrot = false
+    /** How far the head and neck may turn (1 = the crow); the budgie's smaller head would warp at full size. */
+    private val headAmp get() = if (parrot) 0.45f else 1f
     override var bones = 0; private set
     private var parent = IntArray(0)
     private var head = FloatArray(0)
@@ -69,6 +72,9 @@ class StatueCrow : StatueRig {
     private var leg = Leg.IDLE
     private var legDelay = 0f
     private var gait = 0f; private var gaitAmp = 0f
+    // ---- the crow's hop-turns ----
+    private var hopFrom = 0f; private var hopTo = 0f; private var hopT = -1f; private var hopsLeft = 0; private var hopDelay = 0f
+    private var landBob = 0f
 
     // ---- gaze (world yaw / pitch, roll), bird style: snaps then holds ----
     private var gY = 0f; private var gP = 0f; private var gR = 0f
@@ -105,12 +111,22 @@ class StatueCrow : StatueRig {
         startle = 1f
         // the head finds the new camera at once; the legs follow
         act = Act.NONE
-        legDelay = 0.3f
+        if (parrot) legDelay = 0.3f else hopDelay = 0.28f
     }
 
     override fun rest(az: Float) = rest(az, walkNear)
 
     override fun rest(az: Float, dist: Float) {
+        if (!parrot) {
+            // the crow stays on its spot and hops round to face you
+            if (abs(wrap(az - restAz)) < 1e-3f) return
+            restAz = az
+            if (yaw.isNaN()) { yaw = az; gY = az; tgY = az; return }
+            tgY = az; tgP = 0f; tgR = 0f; snap = 26f; holdT = r(1.2f, 2f); glances = 0
+            if (hopDelay <= 0f) hopDelay = 0.35f
+            hopsLeft = 0; planHops()
+            return
+        }
         if (abs(wrap(az - restAz)) < 1e-3f && leg != Leg.IDLE) return
         val k = ((dist - walkNear) * 0.45f).coerceIn(0f, WALK_MAX)
         val nx = sin(az) * k; val nz = cos(az) * k
@@ -122,6 +138,11 @@ class StatueCrow : StatueRig {
         leg = if (abs(goX - px) + abs(goZ - pz) > 0.04f) Leg.TURN_TO_PATH else Leg.TURN_TO_YOU
     }
 
+    private fun planHops() {
+        val d = wrap(restAz - (if (hopT >= 0f) hopTo else yaw))
+        hopsLeft = if (abs(d) < 0.2f) 0 else kotlin.math.ceil(abs(d) / 1.35f).toInt().coerceIn(1, 3)
+    }
+
     override fun update(dt: Float, time: Float, musicBass: Float) {
         t = time
         bass += (musicBass - bass) * min(1f, dt * 14f)
@@ -129,7 +150,21 @@ class StatueCrow : StatueRig {
         if (yaw.isNaN()) { yaw = restAz; gY = restAz; tgY = restAz }
         startle = max(0f, startle - dt / 0.9f)
 
-        // walking: turn to the path, walk, turn to face you (always stepping while the body turns)
+        // the crow's hop-turns
+        landBob = max(0f, landBob - dt / 0.55f)
+        if (hopDelay > 0f) hopDelay -= dt
+        if (hopT >= 0f) {
+            hopT += dt / HOP
+            if (hopT >= 1f) { yaw = hopTo; hopT = -1f; landBob = 1f; planHops(); hopDelay = if (hopsLeft > 0) 0.08f else 0f }
+        } else if (hopsLeft > 0 && hopDelay <= 0f) {
+            // split what is left evenly over the hops still to come
+            val d = wrap(restAz - yaw)
+            hopFrom = yaw; hopTo = yaw + sign(d) * min(abs(d) / hopsLeft, 1.35f)
+            hopT = 0f; hopsLeft--
+        }
+        if (hopT >= 0f) yaw = hopFrom + (hopTo - hopFrom) * smooth(((hopT - 0.22f) / 0.56f).coerceIn(0f, 1f))
+
+        // walking (parrots): turn to the path, walk, turn to face you (always stepping while the body turns)
         if (legDelay > 0f) legDelay -= dt
         var stepping = false
         if (leg != Leg.IDLE && legDelay <= 0f) {
@@ -159,7 +194,7 @@ class StatueCrow : StatueRig {
 
         // gaze: hold, then snap to a new point
         holdT -= dt
-        val moving = leg != Leg.IDLE || startle > 0.4f
+        val moving = leg != Leg.IDLE || hopT >= 0f || hopsLeft > 0 || startle > 0.4f
         if (moving) { tgY = restAz; tgP = 0f; tgR = 0f; snap = 26f }
         else if (touching && act == Act.NONE) {
             // subtle: at most ~17 degrees sideways and ~11 up/down, spread over the neck
@@ -187,8 +222,9 @@ class StatueCrow : StatueRig {
             nextAct -= dt
             if (nextAct <= 0f) {
                 val n = rnd.nextInt(10)
-                act = if (parrot) when (n) { 0, 1 -> Act.CHIRP; 2, 3 -> Act.BOB; 4, 5 -> Act.PEER; 6, 7 -> Act.TILT; else -> Act.SHAKE }
-                      else when (n) { 0, 1, 2 -> Act.CAW; 3, 4 -> Act.PEER; 5, 6 -> Act.TILT; else -> Act.SHAKE }
+                // (no feather shake: Dr. Khaled took it out)
+                act = if (parrot) when (n) { 0, 1, 2 -> Act.CHIRP; 3, 4, 5 -> Act.BOB; 6, 7 -> Act.PEER; else -> Act.TILT }
+                      else when (n) { 0, 1, 2, 3 -> Act.CAW; 4, 5, 6 -> Act.PEER; else -> Act.TILT }
                 actT = 0f
                 actLen = when (act) { Act.CAW -> 1.9f; Act.PEER -> 1.7f; Act.TILT -> 1.5f; Act.SHAKE -> 0.75f; Act.CHIRP -> 1.2f; Act.BOB -> 1.3f; Act.NONE -> 0f }
                 tgY = restAz; tgP = 0f; tgR = 0f; snap = 22f; glances = 0
@@ -222,6 +258,23 @@ class StatueCrow : StatueRig {
             setRot(0, 0.04f * a, 0f, 0.05f * a * sg)
             setRot(8, 0.04f * a * sin(2f * g), 0f, 0f)
             walkBob = 0.08f * a * sin(2f * g)
+        }
+        // ---- hop: crouch, spring, land ----
+        if (hopT >= 0f) {
+            val u = hopT
+            val crouch = if (u < 0.22f) smooth(u / 0.22f) else if (u < 0.32f) 1f - smooth((u - 0.22f) / 0.1f) else 0f
+            val air = if (u in 0.22f..0.78f) ((u - 0.22f) / 0.56f).let { 4f * it * (1f - it) } else 0f
+            val land = if (u > 0.78f) sin(PI.toFloat() * (u - 0.78f) / 0.22f) else 0f
+            dyBody += -0.055f * crouch + 0.13f * air - 0.04f * land
+            setRot(0, 0.12f * crouch - 0.05f * air + 0.06f * land, 0f, 0f)
+            val bend = crouch + land * 0.7f
+            for (s in intArrayOf(11, 14)) { setRot(s, 0.22f * bend - 0.1f * air, 0f, 0f); setRot(s + 1, -0.35f * bend + 0.25f * air, 0f, 0f); setRot(s + 2, 0.15f * bend - 0.2f * air, 0f, 0f) }
+            setRot(8, 0.18f * air - 0.08f * crouch, 0f, 0f)
+        }
+        // landing: the tail bobs up and settles
+        if (landBob > 0f) {
+            val b = sin(landBob * PI.toFloat() * 2.2f) * landBob
+            setRot(8, 0.28f * b, 0f, 0f); setRot(9, 0.12f * b, 0f, 0f)
         }
         // startle: a flinch down, feathers tight
         if (startle > 0f) {
@@ -287,10 +340,14 @@ class StatueCrow : StatueRig {
 
         // ---- the head: world gaze minus the body's yaw, shared over neck and head ----
         setRot(0, 0f, by, 0f)
-        val rel = wrap(gY - by).coerceIn(-1.75f, 1.75f)
-        setRot(4, neckFwd * 0.5f + gP * 0.15f, rel * 0.2f, 0f)
-        setRot(5, neckFwd * 0.5f + gP * 0.25f, rel * 0.3f, 0f)
-        setRot(6, gP * 0.6f + headP, rel * 0.5f, gR + headR)
+        // parrots: everything above the shoulders at [headAmp] so the small head never warps
+        val ha = headAmp
+        val rel = (wrap(gY - by) * ha).coerceIn(-1.75f * ha, 1.75f * ha)
+        neckFwd *= ha; headP *= ha; headR *= ha
+        val gp = gP * ha; val gr = gR * ha
+        setRot(4, neckFwd * 0.5f + gp * 0.15f, rel * 0.2f, 0f)
+        setRot(5, neckFwd * 0.5f + gp * 0.25f, rel * 0.3f, 0f)
+        setRot(6, gp * 0.6f + headP, rel * 0.5f, gr + headR)
         setRot(7, jaw, 0f, 0f)
 
         // compose: M_i = M_parent * T(h) R T(-h)
@@ -323,6 +380,8 @@ class StatueCrow : StatueRig {
     }
 
     companion object {
+        /** One hop, seconds. */
+        const val HOP = 0.46f
         /** Furthest it walks from the centre (model units), so it always stays in the picture. */
         const val WALK_MAX = 0.45f
         const val WALK_SPEED = 0.36f      // model units per second
