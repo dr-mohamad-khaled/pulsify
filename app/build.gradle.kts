@@ -13,8 +13,8 @@ android {
         applicationId = "app.pulsify.v3"
         minSdk = 26
         targetSdk = 35
-        versionCode = 653
-        versionName = "6.5.3"
+        versionCode = 654
+        versionName = "6.5.4"
     }
 
     // A fixed test key, so every build from GitHub installs as an update over the last one.

@@ -34,12 +34,15 @@ class StatueLook(val name: String, val file: String, val env: Float, val lock: S
                  /** Animator: "fly" (StatueBird), "crow" or "perch" (StatueCrow; perch = a parrot). Empty for statues. */
                  val rig: String = "",
                  /** The same bird sitting (a perched twin): the Studio offers Perched / Flying / Shuffle. */
-                 val perch: StatueLook? = null)
+                 val perch: StatueLook? = null,
+                 /** How far the camera pulls back in the middle of a swipe (1 = the statues' drone move). */
+                 val swipePull: Float = 1f)
 
 /** A sitting twin for a flying bird: perched-bird shots and the perch animator. */
 private fun perched(name: String, file: String, d: Float, headY: Float) = StatueLook(name, file, 0.55f, Shot(0f, 6f, d, 0.05f),
-    listOf(Shot(-38f, 10f, d * 0.92f, 0.05f), Shot(24f, -5f, d * 0.75f, headY * 0.35f), Shot(82f, 7f, d * 0.9f, 0.05f), Shot(-112f, 16f, d * 0.97f, 0.05f), Shot(158f, 11f, d, 0.05f)),
-    group = "Birds", headY = headY, rig = "perch")
+    // pages stay at a middle distance (no far shot), and a swipe only pulls back a little
+    listOf(Shot(-38f, 10f, d * 0.95f, 0.05f), Shot(24f, -5f, d * 0.85f, headY * 0.3f), Shot(82f, 7f, d * 0.93f, 0.05f), Shot(-112f, 14f, d, 0.05f), Shot(158f, 11f, d * 0.97f, 0.05f)),
+    group = "Birds", headY = headY, rig = "perch", swipePull = 0.35f)
 
 /** A camera shot around the statue: azimuth / elevation in degrees (0 = its face), distance, look-at height. */
 data class Shot(val az: Float, val el: Float, val d: Float, val y: Float = 0f, val roll: Float = 0f)
@@ -87,7 +90,7 @@ val STATUE_LOOKS = listOf(
         listOf(Shot(-30f, 14f, 4.2f), Shot(22f, -6f, 3.8f, 0.03f), Shot(76f, 8f, 4.0f), Shot(-115f, 22f, 4.3f), Shot(160f, 16f, 4.4f)),
         group = "Birds", wingBias = 0.16f, flapAmp = 0.95f, rig = "fly"),
     // the budgie ("love bird"), sitting only
-    perched("Love Bird", "budgie", 5.2f, 0.6f),
+    perched("Love Bird", "budgie", 4.4f, 0.6f),
 )
 
 /**
@@ -245,7 +248,7 @@ class StatueScene(private val context: Context) : Creature {
         val P = pageShot(page)
         tAz = near(tAz, P.az); tEl = P.el; tD = P.d; tY = P.y
         val lift = min(1f, abs(tAz - az) / 60f) * 0.6f + 0.4f
-        vR += -dir * 110f; vEl += 120f * lift; vD += 7f * lift
+        vR += -dir * 110f; vEl += 120f * lift * (0.5f + 0.5f * look.swipePull); vD += 7f * lift * look.swipePull
         bird.kick(dir)
     }
 
