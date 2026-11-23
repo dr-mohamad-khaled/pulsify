@@ -133,6 +133,12 @@ private fun App(start: Screen = Screen.HOME) {
         app.pulsify.ui.IntroScreen { id -> Pulse.prefs.introSeen = true; Pulse.prefs.video = -1; Pulse.prefs.character = id; Pulse.prefs.commitActive(); intro = false }
         return
     }
+    // then, once, everything it needs (each with its reason): music, staying alive, Xiaomi's battery saver
+    var perms by remember { mutableStateOf(!Pulse.prefs.permsAsked) }
+    if (perms) {
+        app.pulsify.ui.PermissionsScreen { Pulse.prefs.permsAsked = true; perms = false }
+        return
+    }
     val state = remember { AppState().also { it.screen = start } }
     DisposableEffect(Unit) { onDispose { state.dispose() } }
     LaunchedEffect(Unit) {

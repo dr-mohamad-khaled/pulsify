@@ -17,6 +17,14 @@ class Prefs(context: Context) {
         get() = sp.getInt(K_CHAR, 1).let { if (it in app.pulsify.engine.RETIRED_CREATURES) 1 else it }
         set(v) = sp.edit().putInt(K_CHAR, v).apply()
 
+    /** The first-run permissions page has been shown (asked once, after the intro). */
+    var permsAsked: Boolean
+        get() = sp.getBoolean("permsAsked", false)
+        set(v) = sp.edit().putBoolean("permsAsked", v).apply()
+    /** The Xiaomi battery saver screen was opened from the permissions page (Xiaomi gives no way to read it back). */
+    var xiaomiBatteryOpened: Boolean
+        get() = sp.getBoolean("xiaomiBatteryOpened", false)
+        set(v) = sp.edit().putBoolean("xiaomiBatteryOpened", v).apply()
     /** The first-run intro has been seen. */
     var introSeen: Boolean
         get() = sp.getBoolean("introSeen", false)

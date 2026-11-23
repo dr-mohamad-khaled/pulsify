@@ -4,6 +4,8 @@
     <!-- Visualizer reads the phone's music output. It never records the microphone. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Asks once to leave battery optimisation, so Android doesn't close the live wallpaper. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <uses-feature android:name="android.software.live_wallpaper" android:required="true" />
     <uses-feature android:glEsVersion="0x00020000" android:required="true" />
