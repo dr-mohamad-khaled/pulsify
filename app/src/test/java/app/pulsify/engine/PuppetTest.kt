@@ -47,6 +47,14 @@ internal class CanvasPuppet(private val cv: Canvas) : PuppetGl() {
     }
     override fun clipRect(x0: Float, y0: Float, x1: Float, y1: Float) { clipM = M.copyOf(); clipPath = Path().apply { addRect(x0, y0, x1, y1, Path.Direction.CW) } }
     override fun noClip() { clipM = null; clipPath = null }
+    override fun quadRepeat(t: PTex?, x: Float, y: Float, w: Float, h: Float, u0: Float, u1: Float) {
+        val b = t?.bmp ?: return; enter()
+        val tw = w / (u1 - u0); var u = kotlin.math.floor(u0); val x0 = x - (u0 - u) * tw
+        var xx = x0
+        cv.save(); cv.clipRect(x, y, x + w, y + h)
+        while (xx < x + w) { cv.drawBitmap(b, null, RectF(xx, y, xx + tw, y + h), p); xx += tw; u += 1f }
+        cv.restore(); cv.restore()
+    }
     override fun quad(t: PTex?, x: Float, y: Float, w: Float, h: Float) {
         val b = t?.bmp ?: return; enter(); cv.drawBitmap(b, null, RectF(x, y, x + w, y + h), p); cv.restore()
     }

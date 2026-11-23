@@ -26,10 +26,17 @@ import kotlin.math.sin
 import kotlin.math.tan
 
 /** One statue of the Pharaohs section: its files and the camera shots of each home-screen page. */
-class StatueLook(val name: String, val file: String, val env: Float, val lock: Shot, val pages: List<Shot>, val spin: Float = 0f)
+class StatueLook(val name: String, val file: String, val env: Float, val lock: Shot, val pages: List<Shot>, val spin: Float = 0f, val group: String = "Pharaohs")
 
 /** A camera shot around the statue: azimuth / elevation in degrees (0 = its face), distance, look-at height. */
 data class Shot(val az: Float, val el: Float, val d: Float, val y: Float = 0f, val roll: Float = 0f)
+
+/** Super wallpaper sections on the home screen, in order, with their one-line pitch. */
+val STATUE_GROUPS = listOf(
+    "Pharaohs" to "Gold, stone and gods in the dark. Unlock it, swipe your pages, play music.",
+    "Birds" to "Birds in flight that never land. Swipe and they power up.",
+    "Planets" to "Worlds turning in the dark while the camera circles them.",
+)
 
 val STATUE_LOOKS = listOf(
     StatueLook("Tutankhamun", "tut", 1.15f, Shot(0f, 4f, 5.6f),
@@ -42,7 +49,7 @@ val STATUE_LOOKS = listOf(
         listOf(Shot(-30f, -8f, 4.3f), Shot(16f, 2f, 3.2f, 0.1f), Shot(-85f, 4f, 4.0f), Shot(58f, 12f, 4.4f), Shot(170f, 10f, 4.7f))),
     // a rigged bird that flies on the spot (STA2 file): the same drone camera circles it
     StatueLook("Turquoise Motmot", "mot", 0.7f, Shot(0f, 10f, 3.7f, 0.02f),
-        listOf(Shot(-30f, 14f, 3.5f), Shot(22f, -6f, 2.9f, 0.03f), Shot(76f, 8f, 3.4f), Shot(-115f, 24f, 3.7f), Shot(160f, 16f, 3.8f))),
+        listOf(Shot(-30f, 14f, 3.5f), Shot(22f, -6f, 2.9f, 0.03f), Shot(76f, 8f, 3.4f), Shot(-115f, 24f, 3.7f), Shot(160f, 16f, 3.8f)), group = "Birds"),
     StatueLook("Owl of Ra", "owl", 1.0f, Shot(0f, 4f, 5.4f),
         listOf(Shot(-30f, -8f, 4.2f), Shot(16f, 2f, 3.1f, 0.12f), Shot(-85f, 4f, 3.9f), Shot(58f, 12f, 4.3f), Shot(170f, 10f, 4.6f))),
     StatueLook("Solar Queen", "sol", 1.0f, Shot(0f, 4f, 5.4f),
@@ -53,7 +60,7 @@ val STATUE_LOOKS = listOf(
         listOf(Shot(-30f, -8f, 4.0f), Shot(16f, 2f, 3.0f, 0.12f), Shot(-85f, 4f, 3.8f), Shot(58f, 12f, 4.2f), Shot(170f, 10f, 4.5f))),
     // the moon turns slowly on its own while the drone circles it
     StatueLook("Cratered Moon", "moon", 0.5f, Shot(0f, 4f, 5.6f),
-        listOf(Shot(-30f, -6f, 4.6f), Shot(18f, 4f, 3.6f), Shot(-80f, 10f, 4.4f), Shot(60f, 16f, 4.8f), Shot(170f, 8f, 5.0f)), spin = 5f),
+        listOf(Shot(-30f, -6f, 4.6f), Shot(18f, 4f, 3.6f), Shot(-80f, 10f, 4.4f), Shot(60f, 16f, 4.8f), Shot(170f, 8f, 5.0f)), spin = 5f, group = "Planets"),
 )
 
 /**
@@ -109,13 +116,24 @@ class StatueScene(private val context: Context) : Creature {
 
     private fun pageShot(i: Int) = look.pages[((i % look.pages.size) + look.pages.size) % look.pages.size]
 
-    /** Screen on while locked: a fast punch-in from far away to the lock framing. */
+    /** Screen on while locked: the drone starts tight on a detail (the face, the bird's head, the
+     *  moon's craters) out of black, then pulls back and swings round until the subject sits centred,
+     *  facing the screen, in the lock framing. */
     private fun shotWake() {
-        val L = look.lock
-        az = near(0f, 0f); el = 0f; dist = 15f; ty = 0f; roll = 0f
-        val tz = L.az
-        fly(listOf(current(), L.copy(az = tz + 28f, d = L.d * 0.86f, el = L.el + 5f), L.copy(az = tz)), 0.85f, outExpo, 0.8f)
+        val L = look.lock; val tz = L.az
+        val headY = when (look.group) { "Birds" -> 0.06f; "Planets" -> 0.1f; else -> 0.48f }
+        val side = if ((wakeN++ and 1) == 0) 1f else -1f
+        az = tz + side * 62f; el = L.el + 24f; dist = 1.05f; ty = headY; roll = side * 16f
+        fly(listOf(current(),
+            Shot(tz + side * 40f, L.el + 15f, 1.6f, headY * 0.85f, side * 10f),
+            Shot(tz + side * 16f, L.el + 6f, L.d * 0.8f, L.y + headY * 0.25f, side * 3f),
+            L.copy(az = tz)), 2.3f, outQuart, 1.3f)
+        fadeIn = 0f
     }
+    private var wakeN = 0
+    /** 0..1 light ramp after the screen turns on, so the close-up rises out of black. */
+    private var fadeIn = 1f
+    private val outQuart: (Float) -> Float = { t -> 1f - (1f - t).pow(2.6f) }
 
     /** Unlock: lift off the lock framing, bank around and dive to the page's angle. */
     private fun shotUnlock() {
@@ -222,6 +240,7 @@ class StatueScene(private val context: Context) : Creature {
     // ---------------------------------------------------------------- update
     override fun update(dt: Float, input: SceneInput) {
         time += dt; lastDt = dt
+        fadeIn = min(1f, fadeIn + dt / 0.45f)
         if (entered != look.file) {
             if (entered.isNotEmpty() || !locked) shotEntrance()
             entered = look.file
@@ -243,7 +262,7 @@ class StatueScene(private val context: Context) : Creature {
         tiltX += (tiltTX - tiltX) * min(1f, dt * 5f); tiltY += (tiltTY - tiltY) * min(1f, dt * 5f)
         // lights come up after the far "screen off" look
         val farK = ((dist - 8f) / 7f).coerceIn(0f, 1f)
-        lightK = 1f - farK * 0.9f
+        lightK = (1f - farK * 0.9f) * (fadeIn * fadeIn * (3f - 2f * fadeIn))
         dim = if (input.mood == app.pulsify.core.Mood.NIGHT) 0.75f else 1f
 
         // glyphs: hidden in silence, fade in with music, each listens to its own band

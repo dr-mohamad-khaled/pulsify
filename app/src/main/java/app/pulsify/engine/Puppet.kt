@@ -36,11 +36,14 @@ internal class PuppetArt(private val dir: String) {
     val parts = HashMap<String, PPart>()
     var loaded = false; private set
     private var failed = false
+    /** The code-made bark that tiles along the perch (birds only). */
+    var bark: PTex? = null
 
     /** Tests: the pictures as bitmaps (no GL), for the Canvas twin of [PuppetGl]. */
     fun loadBitmaps(ctx: Context) {
         meta(ctx); if (rig == null) return
         for ((name, p) in parts) { val b = ctx.assets.open("puppets/$dir/$name.png").use { BitmapFactory.decodeStream(it) } ?: continue; p.tex = PTex(0, b.width, b.height, b) }
+        if (parts.containsKey("branch")) bark = Bark.bitmap().let { PTex(0, it.width, it.height, it) }
         loaded = true
     }
     fun meta(ctx: Context) {
@@ -80,13 +83,25 @@ internal class PuppetArt(private val dir: String) {
                 p.tex = PTex(ids[0], b.width, b.height); b.recycle()
             } catch (_: Throwable) {}
         }
+        if (parts.containsKey("branch")) try {
+            val b = Bark.bitmap()
+            val ids = IntArray(1); GLES20.glGenTextures(1, ids, 0)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, ids[0])
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR_MIPMAP_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, b, 0); GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+            bark = PTex(ids[0], b.width, b.height); b.recycle()
+        } catch (_: Throwable) {}
         loaded = true
     }
 
     /** The GL context was lost: ids are gone, upload again next time. */
-    fun forget() { parts.values.forEach { it.tex = null }; loaded = false }
+    fun forget() { parts.values.forEach { it.tex = null }; bark = null; loaded = false }
     fun release() {
-        val ids = parts.values.mapNotNull { it.tex?.id }.toIntArray()
+        val ids = (parts.values.mapNotNull { it.tex?.id } + listOfNotNull(bark?.id)).toIntArray()
+        bark = null
         if (ids.isNotEmpty()) GLES20.glDeleteTextures(ids.size, ids, 0)
         parts.values.forEach { it.tex = null }; loaded = false
     }
@@ -223,6 +238,12 @@ internal open class PuppetGl {
     }
     /** A part at its place, offset by (ox, oy); or at an explicit rect. */
     fun part(p: PPart?, ox: Float = 0f, oy: Float = 0f) { if (p != null) quad(p.tex, p.x + ox, p.y + oy, p.w, p.h) }
+    /** A quad whose picture repeats sideways from u0 to u1 (the texture must wrap). */
+    open fun quadRepeat(t: PTex?, x: Float, y: Float, w: Float, h: Float, u0: Float, u1: Float) {
+        if (t == null || alpha <= .003f) return
+        buf.position(0); put(x, y, u0, 0f); put(x + w, y, u1, 0f); put(x, y + h, u0, 1f); put(x + w, y + h, u1, 1f)
+        uniforms(t, null, 0f, 0, 0f); attribs(); GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+    }
     open fun quad(t: PTex?, x: Float, y: Float, w: Float, h: Float) {
         if (t == null || alpha <= .003f) return
         buf.position(0); put(x, y, 0f, 0f); put(x + w, y, 1f, 0f); put(x, y + h, 0f, 1f); put(x + w, y + h, 1f, 1f)

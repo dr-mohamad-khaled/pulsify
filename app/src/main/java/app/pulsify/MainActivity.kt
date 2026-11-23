@@ -119,6 +119,8 @@ class MainActivity : ComponentActivity() {
             return
         }
         Pulse.forceCalm = false
+        // the app always opens on the live wallpaper; an unfinished studio visit is forgotten
+        if (savedInstanceState == null) Pulse.prefs.revertDraft()
         val start = if (intent?.getStringExtra("open") == "friends") Screen.FRIENDS else Screen.HOME
         setContent { App(start) }
     }
@@ -128,7 +130,7 @@ class MainActivity : ComponentActivity() {
 private fun App(start: Screen = Screen.HOME) {
     var intro by remember { mutableStateOf(!Pulse.prefs.introSeen) }
     if (intro) {
-        app.pulsify.ui.IntroScreen { id -> Pulse.prefs.introSeen = true; Pulse.prefs.video = -1; Pulse.prefs.character = id; intro = false }
+        app.pulsify.ui.IntroScreen { id -> Pulse.prefs.introSeen = true; Pulse.prefs.video = -1; Pulse.prefs.character = id; Pulse.prefs.commitActive(); intro = false }
         return
     }
     val state = remember { AppState().also { it.screen = start } }

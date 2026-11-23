@@ -76,6 +76,51 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(K_SHUFFLE, false)
         set(v) = sp.edit().putBoolean(K_SHUFFLE, v).apply()
 
+    // ---- The active wallpaper ----
+    // The app's own preview (home hero, studio) shows the draft above; the live wallpaper shows this
+    // snapshot, which only changes when the user taps "Set as active wallpaper".
+
+    class Active(val character: Int, val video: Int, val variant: Int, val style: Int, val coat: Int, val env: Int, val bgColor: Int)
+
+    val active: Active
+        get() {
+            if (!sp.contains(A_CHAR)) commitActive()
+            val ch = sp.getInt(A_CHAR, 1).let { if (it in app.pulsify.engine.RETIRED_CREATURES) 1 else it }
+            return Active(ch, sp.getInt(A_VIDEO, -1), sp.getInt(A_VARIANT, 3), sp.getInt(A_STYLE, 0), sp.getInt(A_COAT, 0),
+                sp.getInt(A_ENV, 0), sp.getInt(A_BG, 0xFF000000.toInt()))
+        }
+
+    /** The draft becomes the live wallpaper. */
+    fun commitActive() {
+        sp.edit().putInt(A_CHAR, character).putInt(A_VIDEO, video).putInt(A_VARIANT, variant).putInt(A_STYLE, style)
+            .putInt(A_COAT, coat).putInt(A_ENV, env).putInt(A_BG, bgColor).apply()
+    }
+
+    /** True while the studio shows something other than the live wallpaper. */
+    val draftDiffers: Boolean
+        get() {
+            val a = active
+            if (video != a.video) return true
+            if (video >= 0) return false
+            if (character != a.character) return true
+            if (character == 0) return variant != a.variant
+            return style != a.style || coat != a.coat || env != a.env || bgColor != a.bgColor
+        }
+
+    /** Leaving the studio without setting it: the draft goes back to the live wallpaper. */
+    fun revertDraft() {
+        if (!sp.contains(A_CHAR)) { commitActive(); return }
+        val a = active
+        sp.edit().putInt(K_CHAR, a.character).putInt(K_VIDEO, a.video).putInt(K_VARIANT, a.variant).apply()
+        if (style != a.style) style = a.style
+        if (coat != a.coat) coat = a.coat
+        if (env != a.env) env = a.env
+        if (bgColor != a.bgColor) bgColor = a.bgColor
+    }
+
+    /** Unlock shuffle changes the live sky directly. */
+    fun setActiveVariant(v: Int) { sp.edit().putInt(A_VARIANT, v).apply() }
+
     val bondXp: Int get() = sp.getInt(K_XP, 0)
     val streak: Int get() = sp.getInt(K_STREAK, 0)
     val discoveries: Set<String> get() = sp.getStringSet(K_DISC, emptySet()) ?: emptySet()
@@ -111,6 +156,8 @@ class Prefs(context: Context) {
     }
 
     companion object {
+        const val A_CHAR = "a_character"; const val A_VIDEO = "a_video"; const val A_VARIANT = "a_variant"; const val A_STYLE = "a_style"
+        const val A_COAT = "a_coat"; const val A_ENV = "a_env"; const val A_BG = "a_bg"
         const val K_CHAR = "character"
         const val K_VIDEO = "video"
         const val K_COAT = "coat"

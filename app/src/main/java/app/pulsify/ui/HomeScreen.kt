@@ -99,18 +99,23 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                 items(app.pulsify.engine.CREATURES) { cr ->
                     PosterCard(
                         "thumbs/creature_${cr.id}.jpg", cr.name, cr.line, Color(cr.accent),
-                        live = state.video < 0 && state.character == cr.id,
+                        live = state.isActive(cr.id),
                     ) { openCreature(cr.id) }
                 }
             }
         }
-        item {
-            Shelf("Pharaohs", "3D statues that fly in like a super wallpaper.", Modifier.enter(4)) {
-                itemsIndexed(app.pulsify.engine.STATUE_LOOKS) { i, l ->
-                    PosterCard(
-                        "thumbs/statue_$i.jpg", l.name, "Unlock it. Swipe your pages. Play music.", Color(0xFFFFB36B),
-                        live = state.video < 0 && state.character == app.pulsify.engine.STATUE_ID && state.style == i,
-                    ) { state.applyCharacter(app.pulsify.engine.STATUE_ID); state.applyStyle(i); onOpenStudio() }
+        // Super wallpapers: one shelf per group (pharaohs, birds, planets)
+        for ((group, pitch) in app.pulsify.engine.STATUE_GROUPS) {
+            val looks = app.pulsify.engine.STATUE_LOOKS.withIndex().filter { it.value.group == group }
+            if (looks.isEmpty()) continue
+            item(key = "statues_$group") {
+                Shelf(group, pitch, Modifier.enter(4)) {
+                    items(looks) { (i, l) ->
+                        PosterCard(
+                            "thumbs/statue_$i.jpg", l.name, "", Color(0xFFFFB36B),
+                            live = state.isActive(app.pulsify.engine.STATUE_ID, i),
+                        ) { state.applyCharacter(app.pulsify.engine.STATUE_ID); state.applyStyle(i); onOpenStudio() }
+                    }
                 }
             }
         }
@@ -119,7 +124,7 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                 itemsIndexed(app.pulsify.engine.SHADOW_LOOKS) { i, l ->
                     PosterCard(
                         "thumbs/shadow_$i.jpg", l.name, "Touch it. Poke an eye. Leave it alone…", Color(l.line),
-                        live = state.video < 0 && state.character == app.pulsify.engine.SHADOW_ID && state.style == i,
+                        live = state.isActive(app.pulsify.engine.SHADOW_ID, i),
                     ) { state.applyCharacter(app.pulsify.engine.SHADOW_ID); state.applyStyle(i); onOpenStudio() }
                 }
             }
@@ -127,7 +132,7 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
         item {
             Shelf("Video loops", "Endless cinematic loops, no sound", Modifier.enter(4)) {
                 items(app.pulsify.engine.VIDEO_LOOPS) { v ->
-                    PosterCard("thumbs/loop_${v.id}.jpg", v.name, v.line, Color(v.c1), live = state.video == v.id, tall = true) {
+                    PosterCard("thumbs/loop_${v.id}.jpg", v.name, v.line, Color(v.c1), live = state.isActiveVideo(v.id), tall = true) {
                         state.applyVideo(v.id); onOpenStudio()
                     }
                 }
@@ -135,10 +140,10 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
         }
         item {
             Shelf("Skies", "Just the sky, reacting to touch and music", Modifier.enter(5)) {
-                items(SKY_VARIANTS) { v ->
+                items(SKY_VARIANTS.filter { !it.hidden }) { v ->
                     PosterCard(
                         if (v.id >= 2) "thumbs/sky_${v.id}.jpg" else null, v.name, v.tagline, Color(v.accent1),
-                        live = state.video < 0 && state.character == 0 && state.variant == v.id, sky = v.id, sky2 = Color(v.accent2),
+                        live = state.isActiveSky(v.id), sky = v.id, sky2 = Color(v.accent2),
                     ) { state.applyCharacter(0); state.applyVariant(v.id); onOpenStudio() }
                 }
             }

@@ -8,14 +8,19 @@ data class SkyVariant(
     val tagline: String,
     val accent1: Int,
     val accent2: Int,
+    /** Retired from the gallery; a wallpaper still set to it shows [liveSky] instead. */
+    val hidden: Boolean = false,
 )
 
+/** The sky actually drawn for a saved variant (retired skies fall back to Liquid Obsidian / Aurora). */
+fun liveSky(v: Int): Int = when (val s = SKY_VARIANTS.getOrNull(v)) { null -> 3; else -> if (s.hidden) (if (v == 2) 1 else 3) else v }
+
 val SKY_VARIANTS = listOf(
-    SkyVariant(0, "Night Sky", "Quiet stars, a faint milky band", 0xFFCDB4FF.toInt(), 0xFFFFB36B.toInt()),
+    SkyVariant(0, "Night Sky", "Quiet stars, a faint milky band", 0xFFCDB4FF.toInt(), 0xFFFFB36B.toInt(), hidden = true),
     SkyVariant(1, "Aurora", "Curtains of light that dance to the mids", 0xFF2DD4BF.toInt(), 0xFF9D4EDD.toInt()),
-    SkyVariant(2, "Nebula", "Slow clouds that swell with the bass", 0xFFFF5FA2.toInt(), 0xFF5B8CFF.toInt()),
+    SkyVariant(2, "Nebula", "Slow clouds that swell with the bass", 0xFFFF5FA2.toInt(), 0xFF5B8CFF.toInt(), hidden = true),
     SkyVariant(3, "Liquid Obsidian", "Black water that ripples under every touch and swipe", 0xFFCDB4FF.toInt(), 0xFFFFB36B.toInt()),
-    SkyVariant(4, "Neon Light Play", "Your finger paints light that blooms and drifts", 0xFFFF2BD6.toInt(), 0xFF00E5FF.toInt()),
+    SkyVariant(4, "Neon Light Play", "Your finger paints light that blooms and drifts", 0xFFFF2BD6.toInt(), 0xFF00E5FF.toInt(), hidden = true),
 )
 
 enum class Kind(val label: String) { CREATURE("Creatures"), WORLD("Worlds"), LOOP("Loops") }

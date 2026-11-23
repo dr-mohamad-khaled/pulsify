@@ -35,6 +35,10 @@ class AppState {
     var batterySaver by mutableStateOf(false); private set
     var shuffle by mutableStateOf(false); private set
     var kiwiWords by mutableStateOf(""); private set
+    /** What the live wallpaper shows; the fields above are the studio's draft. */
+    var active by mutableStateOf<app.pulsify.core.Prefs.Active?>(null); private set
+    /** The studio shows something that isn't the live wallpaper yet. */
+    var draftDiffers by mutableStateOf(false); private set
 
     /** A short celebratory banner (daily spark, discovery). */
     var toast by mutableStateOf<Toast?>(null)
@@ -66,10 +70,20 @@ class AppState {
         batterySaver = p.batterySaver
         shuffle = p.shuffleOnUnlock
         kiwiWords = p.kiwiWords
+        active = p.active
+        draftDiffers = p.draftDiffers
         loaded = true
     }
 
     fun applyVariant(v: Int) { Pulse.prefs.variant = v }
+
+    /** Live-wallpaper checks for the gallery badges. */
+    fun isActive(ch: Int, st: Int = -1): Boolean { val a = active ?: return false; return a.video < 0 && a.character == ch && (st < 0 || a.style == st) }
+    fun isActiveVideo(v: Int): Boolean = active?.video == v
+    fun isActiveSky(v: Int): Boolean { val a = active ?: return false; return a.video < 0 && a.character == 0 && app.pulsify.core.liveSky(a.variant) == v }
+
+    /** "Set as active wallpaper": the draft goes live. */
+    fun commitActive() { Pulse.prefs.commitActive() }
     fun applyCharacter(c: Int) { Pulse.prefs.video = -1; Pulse.prefs.character = c }
     fun applyVideo(v: Int) { Pulse.prefs.video = v }
     fun applyCoat(c: Int) { Pulse.prefs.coat = c }
@@ -78,7 +92,9 @@ class AppState {
     fun applyBgColor(c: Int) { Pulse.prefs.bgColor = c }
 
     val displayName: String
-        get() = app.pulsify.engine.videoLoop(video)?.name ?: app.pulsify.engine.creatureInfo(character)?.name ?: SKY_VARIANTS[variant.coerceIn(0, SKY_VARIANTS.size - 1)].name
+        get() = app.pulsify.engine.videoLoop(video)?.name
+            ?: (if (character == app.pulsify.engine.STATUE_ID) app.pulsify.engine.STATUE_LOOKS.getOrNull(style)?.name else null)
+            ?: app.pulsify.engine.creatureInfo(character)?.name ?: SKY_VARIANTS[variant.coerceIn(0, SKY_VARIANTS.size - 1)].name
     fun applyAccent(argb: Int) { Pulse.prefs.accent = argb }
     fun applyBrightness(b: Float) { Pulse.prefs.brightness = b }
     fun applyMusicReact(on: Boolean) { Pulse.prefs.musicReact = on }

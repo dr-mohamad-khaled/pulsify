@@ -47,6 +47,19 @@ internal object DuckArtKind : PuppetKind(1.4f, listOf("Quack", "Flap", "Waddle",
         fun foot(n: String, f: Float, cx: Float) { val L = lift(f) * W; val dir = r.face
             g.save(); g.translate(cx + L * dir * 14f, 1100f - L * 34f); g.rotate(-dir * L * .35f); g.translate(-cx, -1100f); g.part(P[n]); g.restore() }
         val bk = max(0f, r.back)
+        // Knocked over: a painted picture of the duck lying on its back takes over from the rig
+        // (crossfade while it tips), rocking a little and breathing, feet in the air.
+        val fallen = P["fallen"]
+        val fv = if (fallen?.tex != null) ((bk - .3f) / .4f).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) } else 0f
+        if (fv > 0f) {
+            val fp = fallen!!
+            g.save(); g.alpha *= fv
+            val cx = 448f; val by = fp.y + fp.h - 20f
+            g.translate(cx, by); g.rotate(sin(T * 3.1f) * .035f * bk); g.scale(1f + br * .01f, 1f - br * .015f + (1f - bk) * .25f); g.translate(-cx, -by)
+            g.part(fp); g.restore()
+        }
+        if (fv >= .999f) return
+        val sv0 = g.alpha; g.alpha *= 1f - fv
         if (bk < .02f) { foot("footL", 0f, 335f); foot("footR", PI.toFloat(), 560f) }
         g.save(); g.translate(448f, FEET - 30f); g.rotate(rockA); g.translate(0f, bob)
         if (bk > 0f) g.scale(1 + bk * .08f, 1 - bk * .42f)
@@ -98,6 +111,7 @@ internal object DuckArtKind : PuppetKind(1.4f, listOf("Quack", "Flap", "Waddle",
             val kick = sin(T * 16f + ph0) * .5f; val sd = if (cx < 448f) -1f else 1f
             g.save(); g.translate(cx, 1100f); g.translate(sd * bk * 34f, -bk * (150f + 30f * kick)); g.rotate(-sd * bk * (2.25f + .25f * kick)); g.translate(-cx, -1100f); g.part(P[n]); g.restore()
         }
+        g.alpha = sv0
     }
 }
 
@@ -123,8 +137,17 @@ internal object ParrotArtKind : PuppetKind(1.5f, listOf("Talk", "Whistle", "Side
     }
 
 
-    /** The branch stays in the world when the bird flies off. */
-    fun drawBranch(g: PuppetGl, art: PuppetArt) { if (!art.loaded) return; g.save(); g.useWorld(); g.translate(-ox, -oy); g.part(art.parts["branch"]); g.restore() }
+    /** The branch stays in the world when the bird flies off. It is made in code (see [Bark]) and runs
+     *  edge to edge, far past both sides of the screen. */
+    fun drawBranch(g: PuppetGl, art: PuppetArt) {
+        if (!art.loaded) return
+        val b = art.bark ?: run { g.save(); g.useWorld(); g.translate(-ox, -oy); g.part(art.parts["branch"]); g.restore(); return }
+        val h = 112f; val y = BY - 7f - h * (Bark.TOP / Bark.H)          // wood top just under the toes
+        val tile = Bark.W * h / Bark.H; val half = 9000f
+        g.save(); g.useWorld(); g.translate(-ox, -oy)
+        g.quadRepeat(b, CX - half, y, half * 2f, h, -half / tile + 0.37f, half / tile + 0.37f)
+        g.restore()
+    }
 
     override fun drawGl(g: PuppetGl, r: Rig, art: PuppetArt) {
         val a = art; val P = a.parts; if (!a.loaded) return

@@ -19,6 +19,8 @@ data class Settings(
     val video: Int = -1,
     val style: Int = 0,
     val bgColor: Int = 0xFF000000.toInt(),
+    /** What the live wallpaper shows (the app's preview shows the fields above). */
+    val active: Prefs.Active? = null,
 )
 
 /** Process-wide services shared by the app screens and the live wallpaper. */
@@ -79,6 +81,7 @@ object Pulse {
             video = prefs.video,
             style = prefs.style,
             bgColor = prefs.bgColor,
+            active = prefs.active,
         )
     }
 
@@ -98,19 +101,22 @@ object Pulse {
     fun fillInput(i: SceneInput, dt: Float, preview: Boolean, parallax: Float) {
         val s = settings
         device.poll()
-        i.character = s.character
-        i.video = s.video
-        i.coat = s.coat
-        i.style = s.style
-        i.bgColor = s.bgColor
-        val info = app.pulsify.engine.creatureInfo(s.character)
+        val a = if (preview) null else s.active
+        val character = a?.character ?: s.character
+        val env = a?.env ?: s.env
+        i.character = character
+        i.video = a?.video ?: s.video
+        i.coat = a?.coat ?: s.coat
+        i.style = a?.style ?: s.style
+        i.bgColor = a?.bgColor ?: s.bgColor
+        val info = app.pulsify.engine.creatureInfo(character)
         if (info != null) {
-            val e = info.envs[s.env.coerceIn(0, info.envs.size - 1)]
+            val e = info.envs[env.coerceIn(0, info.envs.size - 1)]
             i.world = e.world
             i.variant = e.skyVariant
         } else {
             i.world = -1
-            i.variant = s.variant
+            i.variant = app.pulsify.core.liveSky(a?.variant ?: s.variant)
         }
         val pm = if (preview) previewMood else null
         val ph = if (preview) previewHour else -1f

@@ -717,7 +717,6 @@ class Pet3DScene(private val context: Context) : Creature {
 /** Which Meshy pet (if any) a character id + chosen look maps to. Snowy (10) only exists in 3D. */
 fun petSpeciesFor(character: Int, style: Int, coat: Int = 0): PetSpecies? = when {
     style <= 0 -> null
-    character == 4 -> when (coat) { 0 -> PET_RINGNECK; 2 -> PET_COCKATIEL; else -> PET_BUDGIE }
     else -> null
 }
 const val SNOWY_ID = 10

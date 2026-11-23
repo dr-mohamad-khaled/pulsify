@@ -75,7 +75,7 @@ fun coatMatters(info: CreatureInfo, style: Int): Boolean {
     if (info.coats.size <= 1) return false
     return when (info.id) {
         1, 5 -> style == 0               // Jelly Bean, Lantern
-        4 -> style == 1                  // Kiwi: species in the Lifelike look (the painted ringneck is one bird)
+        4 -> false                       // Kiwi: the painted ringneck is one bird
         9 -> true                        // Gloop Gang: how many
         else -> false
     }
@@ -267,7 +267,7 @@ val KIWI_INFO = CreatureInfo(
         TrickInfo("workout", "Flap", ""), TrickInfo("shakeoff", "Shake off", ""), TrickInfo("curious", "Curious", ""),
         TrickInfo("oneleg", "One leg", ""), TrickInfo("puffup", "Puff up", ""), TrickInfo("stretch", "Wing stretch", ""),
     ),
-    styles = listOf("Ringneck", "Lifelike"),
+    styles = listOf("Ringneck"),
 )
 
 fun creatureInfo(id: Int): CreatureInfo? = when (id) { SHADOW_ID -> SHADOW_INFO; STATUE_ID -> STATUE_INFO; else -> CREATURES.firstOrNull { it.id == id } }

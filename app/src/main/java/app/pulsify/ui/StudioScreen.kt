@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -132,6 +133,8 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
     val ctx = LocalContext.current
     var loop by remember { mutableStateOf<GlLoop?>(null) }
     var hidden by remember { mutableStateOf(false) }
+    // leaving the studio without "Set as active wallpaper" forgets the draft
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { app.pulsify.core.Pulse.prefs.revertDraft() } }
     var bass by remember { mutableFloatStateOf(0f) }
     var source by remember { mutableStateOf(AudioFrame.Source.NONE) }
     val spectrum = remember { FloatArray(32) }
@@ -243,9 +246,11 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
                 Gap(14.dp)
                 var live by remember { mutableStateOf(AppState.isOurWallpaperActive(ctx)) }
                 LaunchedEffect(Unit) { while (true) { live = AppState.isOurWallpaperActive(ctx); kotlinx.coroutines.delay(800) } }
-                if (live) LiveBadge(Modifier.align(Alignment.CenterHorizontally))
-                else GlowButton("Set as wallpaper", Modifier.fillMaxWidth().padding(horizontal = 20.dp), pulse = bass) {
-                    if (!AppState.applyWallpaper(ctx)) state.toast = AppState.Toast("Already your wallpaper", "Changes show on your home screen right away.")
+                // Browsing never changes the home screen: only this button does.
+                if (live && !state.draftDiffers) LiveBadge(Modifier.align(Alignment.CenterHorizontally))
+                else GlowButton("Set as active wallpaper", Modifier.fillMaxWidth().padding(horizontal = 20.dp), pulse = bass) {
+                    state.commitActive()
+                    if (!AppState.applyWallpaper(ctx)) state.toast = AppState.Toast("Set as your wallpaper", "${state.displayName} is on your home screen now.")
                 }
             }
         }
@@ -381,7 +386,12 @@ private fun LookPanel(state: AppState) {
         if (info != null && info.styles.isNotEmpty()) {
             PanelTitle("Style", info.styles.getOrNull(state.style) ?: "")
             LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(info.styles) { i, name -> Pill(name, i == state.style) { state.applyStyle(i) } }
+                // super wallpapers only list their own section (pharaohs, birds or planets)
+                val shown = if (info.id == app.pulsify.engine.STATUE_ID) {
+                    val g = app.pulsify.engine.STATUE_LOOKS.getOrNull(state.style)?.group
+                    info.styles.withIndex().filter { app.pulsify.engine.STATUE_LOOKS.getOrNull(it.index)?.group == g }
+                } else info.styles.withIndex().toList()
+                items(shown) { (i, name) -> Pill(name, i == state.style) { state.applyStyle(i) } }
             }
             Gap(10.dp)
         }
@@ -843,7 +853,7 @@ private fun SkyPanel(state: AppState) {
         PanelTitle("Sky", SKY_VARIANTS.getOrNull(state.variant)?.name ?: "")
         Gap(4.dp)
         LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            itemsIndexed(SKY_VARIANTS) { _, v ->
+            itemsIndexed(SKY_VARIANTS.filter { !it.hidden }) { _, v ->
                 Poster(if (v.id >= 2) "thumbs/sky_${v.id}.jpg" else null, v.name, state.character == 0 && state.variant == v.id, Color(v.accent1), Color(v.accent2), skyStyle = v.id) {
                     state.applyCharacter(0); state.applyVariant(v.id)
                 }

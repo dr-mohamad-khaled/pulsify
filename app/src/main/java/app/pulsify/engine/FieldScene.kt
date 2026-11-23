@@ -21,6 +21,11 @@ import kotlin.random.Random
 class FieldScene(val kind: Int) {
     private var simProg = 0; private var drawProg = 0; private var vbo = 0
     private val tex = IntArray(2); private val fbo = IntArray(2)
+    // Liquid: slope and height at grid resolution in a filterable texture, so the screen reads smooth
+    // normals with hardware bilinear filtering (no blocky facets). Half float where the GPU can, else 8 bit.
+    private val nTex = IntArray(1); private val nFbo = IntArray(1)
+    private var nProg = 0; private var nHalf = false
+    private val nu = HashMap<String, Int>()
     private var cur = 0
     private var sw = 0; private var sh = 0
     private var w = 1; private var h = 1
@@ -44,7 +49,11 @@ class FieldScene(val kind: Int) {
         simProg = Gl.program(VERT, sim)
         drawProg = Gl.program(VERT, drw)
         for (n in listOf("uState", "uTexel", "uQ", "uN", "uAspect", "uDamp", "uDecay", "uTime")) su[n] = GLES20.glGetUniformLocation(simProg, n)
-        for (n in listOf("uState", "uTexel", "uAspect", "uA1", "uA2", "uA3", "uTime", "uBass", "uTreble", "uBright", "uRes")) du[n] = GLES20.glGetUniformLocation(drawProg, n)
+        for (n in listOf("uState", "uTexel", "uAspect", "uA1", "uA2", "uA3", "uTime", "uBass", "uTreble", "uBright", "uRes", "uEnc")) du[n] = GLES20.glGetUniformLocation(drawProg, n)
+        if (kind == LIQUID) {
+            nProg = Gl.program(VERT, LIQUID_NORMAL)
+            for (n in listOf("uState", "uTexel", "uEnc")) nu[n] = GLES20.glGetUniformLocation(nProg, n)
+        }
         val ids = IntArray(1); GLES20.glGenBuffers(1, ids, 0); vbo = ids[0]
         val tri = floatArrayOf(-1f, -1f, 3f, -1f, -1f, 3f)
         val fb = ByteBuffer.allocateDirect(tri.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().put(tri); fb.position(0)
@@ -54,7 +63,7 @@ class FieldScene(val kind: Int) {
 
     fun size(width: Int, height: Int) {
         w = max(1, width); h = max(1, height)
-        val nw = if (kind == LIQUID) 448 else 220   // liquid: fine grid so the ripples stay silky on 1440p screens
+        val nw = if (kind == LIQUID) 576 else 220   // liquid: fine grid so the ripples stay silky on 1440p screens
         val nh = (nw * h.toFloat() / w).toInt().coerceIn(nw, nw * 3)
         if (nw == sw && nh == sh) return
         freeTargets()
@@ -74,7 +83,28 @@ class FieldScene(val kind: Int) {
             if (kind == LIQUID) GLES20.glClearColor(0.5f, 0f, 0.5f, 0f) else GLES20.glClearColor(0f, 0f, 0f, 0f)
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT)
         }
+        if (kind == LIQUID) makeNormalTarget()
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
+    }
+
+    private fun makeNormalTarget() {
+        val ext = GLES20.glGetString(GLES20.GL_EXTENSIONS) ?: ""
+        val canHalf = "OES_texture_half_float" in ext && ("EXT_color_buffer_half_float" in ext || "OES_texture_half_float_linear" in ext)
+        GLES20.glGenTextures(1, nTex, 0); GLES20.glGenFramebuffers(1, nFbo, 0)
+        fun alloc(half: Boolean): Boolean {
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nTex[0])
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+            GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+            GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, sw, sh, 0, GLES20.GL_RGBA, if (half) HALF_FLOAT_OES else GLES20.GL_UNSIGNED_BYTE, null)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, nFbo[0])
+            GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, nTex[0], 0)
+            return GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER) == GLES20.GL_FRAMEBUFFER_COMPLETE && GLES20.glGetError() == GLES20.GL_NO_ERROR
+        }
+        while (GLES20.glGetError() != GLES20.GL_NO_ERROR) { }
+        nHalf = canHalf && alloc(true)
+        if (!nHalf) alloc(false)
     }
 
     // ---- input (normalised screen 0..1, y down) ----
@@ -199,14 +229,26 @@ class FieldScene(val kind: Int) {
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
             cur = 1 - cur
         }
+        // Liquid: slopes at grid resolution into the filterable texture.
+        if (kind == LIQUID && nProg != 0) {
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, nFbo[0])
+            GLES20.glUseProgram(nProg)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[cur])
+            GLES20.glUniform1i(nu["uState"]!!, 0)
+            GLES20.glUniform2f(nu["uTexel"]!!, 1f / sw, 1f / sh)
+            GLES20.glUniform1f(nu["uEnc"]!!, if (nHalf) 0f else 1f)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+        }
         // Show it.
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
         GLES20.glViewport(0, 0, w, h)
         GLES20.glUseProgram(drawProg)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex[cur])
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, if (kind == LIQUID && nProg != 0) nTex[0] else tex[cur])
         GLES20.glUniform1i(du["uState"]!!, 0)
         GLES20.glUniform2f(du["uTexel"]!!, 1f / sw, 1f / sh)
+        du["uEnc"]?.let { if (it >= 0) GLES20.glUniform1f(it, if (nHalf) 0f else 1f) }
         GLES20.glUniform2f(du["uRes"]!!, w.toFloat(), h.toFloat())
         GLES20.glUniform1f(du["uAspect"]!!, w.toFloat() / h)
         val pal = if (input.accent != 0) intArrayOf(input.accent, SkyScene.shiftHue(input.accent, 40f), SkyScene.shiftHue(input.accent, -60f))
@@ -227,6 +269,7 @@ class FieldScene(val kind: Int) {
     private fun freeTargets() {
         if (sw != 0) {
             GLES20.glDeleteFramebuffers(2, fbo, 0); GLES20.glDeleteTextures(2, tex, 0)
+            if (nTex[0] != 0) { GLES20.glDeleteFramebuffers(1, nFbo, 0); GLES20.glDeleteTextures(1, nTex, 0); nTex[0] = 0; nFbo[0] = 0 }
         }
         sw = 0; sh = 0
     }
@@ -235,6 +278,7 @@ class FieldScene(val kind: Int) {
         freeTargets()
         if (simProg != 0) GLES20.glDeleteProgram(simProg)
         if (drawProg != 0) GLES20.glDeleteProgram(drawProg)
+        if (nProg != 0) GLES20.glDeleteProgram(nProg); nProg = 0
         if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0)
         simProg = 0; drawProg = 0; vbo = 0
     }
@@ -243,6 +287,9 @@ class FieldScene(val kind: Int) {
         const val LIQUID = 3
         const val NEON = 4
         private const val MAXQ = 8
+        private const val HALF_FLOAT_OES = 0x8D61
+        /** 8-bit fallback: slope per grid texel is stored as slope * SLOPE_K + 0.5. */
+        private const val SLOPE_K = 3.0f
         private const val VERT = "attribute vec2 aPos;\nvarying vec2 vUv;\nvoid main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }\n"
 
         // Height and velocity packed as 8.8 fixed point in RG / BA (works on every GPU).
@@ -278,40 +325,58 @@ void main(){
 }
 """
 
+        // Smoothed slope (Sobel over a 3x3, then softened) and height of the water, one texel per grid cell.
+        val LIQUID_NORMAL = """
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D uState; uniform vec2 uTexel; uniform float uEnc;
+$PACK
+float h(vec2 o){ return dec(texture2D(uState, vUv + o * uTexel).rg); }
+void main(){
+  float a = h(vec2(-1.0, 1.0)), b = h(vec2(0.0, 1.0)), c = h(vec2(1.0, 1.0));
+  float d = h(vec2(-1.0, 0.0)), e = h(vec2(0.0)), f = h(vec2(1.0, 0.0));
+  float g = h(vec2(-1.0, -1.0)), i = h(vec2(0.0, -1.0)), j = h(vec2(1.0, -1.0));
+  float gx = ((c + 2.0 * f + j) - (a + 2.0 * d + g)) / 8.0;
+  float gy = ((a + 2.0 * b + c) - (g + 2.0 * i + j)) / 8.0;
+  float hs = (a + c + g + j + 2.0 * (b + d + f + i) + 4.0 * e) / 16.0;
+  vec4 o = vec4(gx, gy, hs, 1.0);
+  if (uEnc > 0.5) o = vec4(clamp(vec2(gx, gy) * ${SLOPE_K} + 0.5, 0.0, 1.0), clamp(hs * 0.5 + 0.5, 0.0, 1.0), 1.0);
+  gl_FragColor = o;
+}
+"""
+
+        // Black glass water: the same light as before, but the normals come from the filtered slope
+        // texture (smooth between grid cells, so no blocky facets) and the output is dithered.
         val LIQUID_DRAW = """
 precision highp float;
 varying vec2 vUv;
-uniform sampler2D uState; uniform vec2 uTexel; uniform vec2 uRes; uniform float uAspect;
+uniform sampler2D uState; uniform vec2 uTexel; uniform vec2 uRes; uniform float uAspect; uniform float uEnc;
 uniform vec3 uA1, uA2, uA3; uniform float uTime, uBass, uTreble, uBright;
-$PACK
-float H(vec2 uv){
-  // manual bilinear on the packed heights so the surface is silky, not blocky
-  vec2 st = uv / uTexel - 0.5; vec2 i = floor(st); vec2 f = fract(st);
-  vec2 b = (i + 0.5) * uTexel;
-  float a00 = dec(texture2D(uState, b).rg), a10 = dec(texture2D(uState, b + vec2(uTexel.x, 0.0)).rg);
-  float a01 = dec(texture2D(uState, b + vec2(0.0, uTexel.y)).rg), a11 = dec(texture2D(uState, b + uTexel).rg);
-  return mix(mix(a00, a10, f.x), mix(a01, a11, f.x), f.y);
-}
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+vec3 slope(vec2 uv){
+  vec4 t = texture2D(uState, uv);
+  if (uEnc > 0.5) return vec3((t.xy - 0.5) / ${SLOPE_K}, t.z * 2.0 - 1.0);
+  return t.xyz;
+}
 void main(){
-  vec2 e = uTexel * 1.3;
-  float hx = H(vUv + vec2(e.x, 0.0)) - H(vUv - vec2(e.x, 0.0));
-  float hy = H(vUv + vec2(0.0, e.y)) - H(vUv - vec2(0.0, e.y));
-  float h0 = H(vUv);
-  vec3 n = normalize(vec3(-hx * 14.0, -hy * 14.0, 1.0));
-  float slope = length(n.xy);
+  vec3 s = slope(vUv);
+  float h0 = s.z;
+  vec3 n = normalize(vec3(-s.xy * 36.0, 1.0));
+  float slp = length(n.xy);
   vec3 r = reflect(vec3(0.0, 0.0, -1.0), n);
   float l1 = pow(max(dot(r, normalize(vec3(-0.55, 0.62, 0.55))), 0.0), 26.0);
   float l2 = pow(max(dot(r, normalize(vec3(0.6, -0.4, 0.68))), 0.0), 20.0);
   float l3 = pow(max(dot(r, normalize(vec3(0.15, 0.85, 0.5))), 0.0), 70.0);
   vec3 col = uA1 * l1 * 1.7 + uA2 * l2 * 1.4 + mix(uA3, vec3(1.0), 0.6) * l3 * 0.9;
-  col += mix(uA2, uA1, smoothstep(-0.02, 0.02, h0)) * smoothstep(0.05, 0.7, slope) * 0.5;
+  col += mix(uA2, uA1, smoothstep(-0.02, 0.02, h0)) * smoothstep(0.05, 0.7, slp) * 0.5;
   vec2 sp = (vUv + n.xy * 0.04) * vec2(uAspect, 1.0) * 70.0;
-  vec2 id = floor(sp); float s = hash(id);
-  float st = step(0.982, s) * smoothstep(0.32, 0.0, length(fract(sp) - 0.5)) * (0.45 + 0.35 * sin(uTime * (1.0 + s * 3.0) + s * 40.0) + 0.5 * uTreble);
+  vec2 id = floor(sp); float rnd = hash(id);
+  float st = step(0.982, rnd) * smoothstep(0.32, 0.0, length(fract(sp) - 0.5)) * (0.45 + 0.35 * sin(uTime * (1.0 + rnd * 3.0) + rnd * 40.0) + 0.5 * uTreble);
   col += vec3(0.85, 0.88, 1.0) * st * 0.32;
   col += uA3 * 0.03 * (1.0 - length(vUv - vec2(0.5, 0.35))) * (1.0 + uBass);
   col *= uBright * (1.0 + uBass * 0.25);
+  // tiny dither so the soft glow never bands on 8-bit screens
+  col += (hash(gl_FragCoord.xy + fract(uTime)) - 0.5) / 255.0;
   gl_FragColor = vec4(max(col - 0.004, 0.0), 1.0);
 }
 """

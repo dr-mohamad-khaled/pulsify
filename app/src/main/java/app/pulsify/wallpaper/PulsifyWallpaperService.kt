@@ -63,10 +63,10 @@ class PulsifyWallpaperService : WallpaperService() {
                 feed.hidden = false
                 feed.greetSeq++
                 if (Pulse.settings.shuffleOnUnlock) {
-                    val cur = Pulse.settings.variant
-                    var next = Random.nextInt(SKY_VARIANTS.size)
-                    if (next == cur) next = (next + 1) % SKY_VARIANTS.size
-                    Pulse.prefs.variant = next
+                    val skies = SKY_VARIANTS.filter { !it.hidden }.map { it.id }
+                    val cur = Pulse.prefs.active.variant
+                    val next = skies.filter { it != cur }.randomOrNull() ?: skies.first()
+                    Pulse.prefs.setActiveVariant(next)
                 }
                 loop.greet()
             }
