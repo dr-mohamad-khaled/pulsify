@@ -14,6 +14,7 @@ usage: glb2sta2.py src.glb name outdir [--tris N] [--fit F] [--bird | --crow]
   --tris N  simplify to about N triangles (meshoptimizer, keeps UV seams)
   --fit F   scale so the largest half-extent is F model units
   --bird    keep the skin, merged to the reduced flying-bird skeleton below (StatueBird)
+  --perch NAME  keep the skin, merged to the perched-bird skeleton (StatueCrow) for NAME = tiel | budgie
   --cockatiel keep the skin, merged to the flying-bird skeleton from the Meshy cockatiel rig (tail halves joined)
   --ringneck  keep the skin, merged to the same flying-bird skeleton from a Meshy SmartRig biped bird (StatueBird)
   --crow    keep the skin, merged to the perched-crow skeleton (Meshy SmartRig biped bird, StatueCrow)
@@ -26,7 +27,7 @@ import meshoptimizer as mo
 ap = argparse.ArgumentParser()
 ap.add_argument('src'); ap.add_argument('name'); ap.add_argument('outdir')
 ap.add_argument('--tris', type=int, default=0); ap.add_argument('--fit', type=float, default=0)
-ap.add_argument('--bird', action='store_true'); ap.add_argument('--crow', action='store_true'); ap.add_argument('--ringneck', action='store_true'); ap.add_argument('--cockatiel', action='store_true'); ap.add_argument('--tex', type=int, default=2048)
+ap.add_argument('--bird', action='store_true'); ap.add_argument('--crow', action='store_true'); ap.add_argument('--ringneck', action='store_true'); ap.add_argument('--cockatiel', action='store_true'); ap.add_argument('--perch', default=''); ap.add_argument('--tex', type=int, default=2048)
 A = ap.parse_args()
 
 b = open(A.src, 'rb').read()
@@ -47,7 +48,7 @@ prim = J['meshes'][0]['primitives'][0]; at = prim['attributes']
 P = acc(at['POSITION']).astype(np.float32); N = acc(at['NORMAL']).astype(np.float32); UV = acc(at['TEXCOORD_0']).astype(np.float32)
 I = acc(prim['indices']).reshape(-1).astype(np.uint32)
 JI = WT = None
-if A.bird or A.crow or A.ringneck or A.cockatiel:
+if A.bird or A.crow or A.ringneck or A.cockatiel or A.perch:
     JI = acc(at['JOINTS_0']).astype(np.int32); WT = acc(at['WEIGHTS_0']).astype(np.float32)
 
 # ---- optional simplification ----
@@ -92,7 +93,7 @@ q8 = lambda v: np.round(np.clip(v, -1, 1) * 127).astype(np.int8)
 nv = len(P)
 fields = [('p', '<i2', 3), ('pad', '<u2'), ('n', 'i1', 4), ('t', 'i1', 4), ('uv', '<u2', 2)]
 bones = None
-if A.bird or A.crow or A.ringneck or A.cockatiel:
+if A.bird or A.crow or A.ringneck or A.cockatiel or A.perch:
     # ---- reduced bird skeleton: each original joint folds into one of these ----
     skin = J['skins'][0]; joints = skin['joints']
     names = [J['nodes'][j]['name'] for j in joints]
@@ -142,6 +143,23 @@ if A.bird or A.crow or A.ringneck or A.cockatiel:
             ('shR', 5, nums(20)), ('armR', 15, nums(19)), ('foreR', 16, nums(18)), ('handR', 17, nums(17)),
             ('tipR', 18, nums(16)), ('innerR', 15, ['@Bone_020']),
             ('legL', 0, ['@Bone_000']), ('legR', 0, ['@Bone_000']),
+        ]
+    # Perched birds use the crow's 17-bone layout (body, spine, chest, breast, neck1, neck2, head, jaw, tail1-3, legs).
+    if A.perch == 'tiel':      # Meshy cockatiel sitting (55 bones: toes and crest folded into feet and head)
+        R = [
+            ('body', -1, nums(1, 0)), ('spine', 0, nums(14)), ('chest', 1, nums(13)), ('breast', 2, ['@Bone_013']),
+            ('neck1', 2, nums(12)), ('neck2', 4, nums(11)), ('head', 5, nums(10, 44, 43, 50, 49, 48, 47, 54, 53, 52, 51)), ('jaw', 6, nums(46, 45)),
+            ('tail1', 0, nums(18)), ('tail2', 8, nums(17)), ('tail3', 9, nums(16, 15)),
+            ('thighL', 0, nums(9)), ('shinL', 11, nums(8)), ('footL', 12, nums(7, 6, *range(31, 43))),
+            ('thighR', 0, nums(5)), ('shinR', 14, nums(4)), ('footR', 15, nums(3, 2, *range(19, 31))),
+        ]
+    elif A.perch == 'budgie':  # Meshy budgie (14 bones, no jaw: the jaw is a still pivot)
+        R = [
+            ('body', -1, nums(1, 0)), ('spine', 0, ['@Bone_001']), ('chest', 1, ['@Bone_010']), ('breast', 2, ['@Bone_010']),
+            ('neck1', 2, nums(10)), ('neck2', 4, nums(9)), ('head', 5, nums(8)), ('jaw', 6, ['@Bone_008']),
+            ('tail1', 0, nums(13)), ('tail2', 8, nums(12)), ('tail3', 9, nums(11)),
+            ('thighL', 0, nums(7)), ('shinL', 11, nums(6)), ('footL', 12, nums(5)),
+            ('thighR', 0, nums(4)), ('shinR', 14, nums(3)), ('footR', 15, nums(2)),
         ]
     fold = np.full(len(joints), -1, np.int32); pivots = []
     for ri, (nm, par, members) in enumerate(R):

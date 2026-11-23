@@ -3,7 +3,6 @@ package app.pulsify.engine
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
-import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.max
@@ -22,6 +21,8 @@ interface StatueRig {
     fun kick(dir: Float)
     /** Where the camera will come to rest (radians around the model, 0 = its face). */
     fun rest(az: Float) {}
+    /** Where the camera will settle: angle (radians) and distance. Perched birds walk towards a far camera. */
+    fun rest(az: Float, dist: Float) = rest(az)
     /** A finger on the screen ([x], [y]: -0.5..0.5 from the centre, y down); [down] false when it lifts. */
     fun touch(x: Float, y: Float, down: Boolean) {}
     fun update(dt: Float, time: Float, musicBass: Float)
@@ -36,11 +37,13 @@ interface StatueRig {
  *
  * Idle: it breathes, the head moves the way a bird's does (quick snaps, then holds), it looks at you
  * most of the time and glances around, cocks its head, peers at the ground, caws, shakes its feathers.
- * A swipe startles it: the head snaps to the new camera at once, then it hops round in one to three
- * short hops (crouch, spring, land with a tail bob) until it faces the camera again. With music the
+ * A swipe startles it: the head snaps to the new camera at once, then it walks on its legs: it turns
+ * towards you, walks closer when the camera has moved further away, and turns to face you. With music the
  * head bobs to the bass.
  */
 class StatueCrow : StatueRig {
+    /** Parrots (cockatiel, budgie) chirp and bob their heads instead of cawing. */
+    var parrot = false
     override var bones = 0; private set
     private var parent = IntArray(0)
     private var head = FloatArray(0)
@@ -57,8 +60,15 @@ class StatueCrow : StatueRig {
     // ---- facing: where the body points, where it wants to point ----
     private var yaw = Float.NaN
     private var restAz = 0f
-    private var hopFrom = 0f; private var hopTo = 0f; private var hopT = -1f; private var hopsLeft = 0; private var hopDelay = 0f
-    private var landBob = 0f
+    // ---- walking: where it stands (model units, on the ground plane) and where it is going ----
+    /** Camera distance at which it stays on the spot; further away it walks up to [WALK_MAX] towards the camera. */
+    var walkNear = 2.7f
+    private var px = 0f; private var pz = 0f
+    private var goX = 0f; private var goZ = 0f
+    private enum class Leg { IDLE, TURN_TO_PATH, WALK, TURN_TO_YOU }
+    private var leg = Leg.IDLE
+    private var legDelay = 0f
+    private var gait = 0f; private var gaitAmp = 0f
 
     // ---- gaze (world yaw / pitch, roll), bird style: snaps then holds ----
     private var gY = 0f; private var gP = 0f; private var gR = 0f
@@ -69,7 +79,7 @@ class StatueCrow : StatueRig {
     private var camAzNow = 0f
 
     // ---- idle actions ----
-    private enum class Act { NONE, CAW, PEER, SHAKE, TILT }
+    private enum class Act { NONE, CAW, PEER, SHAKE, TILT, CHIRP, BOB }
     private var act = Act.NONE; private var actT = 0f; private var actLen = 0f
     private var nextAct = 3.5f
     private var startle = 0f
@@ -93,23 +103,23 @@ class StatueCrow : StatueRig {
     override fun kick(dir: Float) {
         if (bones == 0) return
         startle = 1f
-        // the head finds the new camera at once; the body follows in hops
+        // the head finds the new camera at once; the legs follow
         act = Act.NONE
-        hopDelay = 0.28f
+        legDelay = 0.3f
     }
 
-    override fun rest(az: Float) {
-        if (abs(wrap(az - restAz)) < 1e-3f) return
-        restAz = az
-        if (yaw.isNaN()) { yaw = az; gY = az; tgY = az; return }
+    override fun rest(az: Float) = rest(az, walkNear)
+
+    override fun rest(az: Float, dist: Float) {
+        if (abs(wrap(az - restAz)) < 1e-3f && leg != Leg.IDLE) return
+        val k = ((dist - walkNear) * 0.45f).coerceIn(0f, WALK_MAX)
+        val nx = sin(az) * k; val nz = cos(az) * k
+        if (abs(wrap(az - restAz)) < 1e-3f && abs(nx - goX) + abs(nz - goZ) < 0.01f) return
+        restAz = az; goX = nx; goZ = nz
+        if (yaw.isNaN()) { yaw = az; gY = az; tgY = az; px = nx; pz = nz; return }
         tgY = az; tgP = 0f; tgR = 0f; snap = 26f; holdT = r(1.2f, 2f); glances = 0
-        if (hopDelay <= 0f) hopDelay = 0.35f
-        hopsLeft = 0; planHops()
-    }
-
-    private fun planHops() {
-        val d = wrap(restAz - (if (hopT >= 0f) hopTo else yaw))
-        hopsLeft = if (abs(d) < 0.2f) 0 else ceil(abs(d) / 1.35f).toInt().coerceIn(1, 3)
+        if (legDelay <= 0f) legDelay = 0.35f
+        leg = if (abs(goX - px) + abs(goZ - pz) > 0.04f) Leg.TURN_TO_PATH else Leg.TURN_TO_YOU
     }
 
     override fun update(dt: Float, time: Float, musicBass: Float) {
@@ -118,24 +128,38 @@ class StatueCrow : StatueRig {
         if (bones == 0) return
         if (yaw.isNaN()) { yaw = restAz; gY = restAz; tgY = restAz }
         startle = max(0f, startle - dt / 0.9f)
-        landBob = max(0f, landBob - dt / 0.55f)
 
-        // hop-turns
-        if (hopDelay > 0f) hopDelay -= dt
-        if (hopT >= 0f) {
-            hopT += dt / HOP
-            if (hopT >= 1f) { yaw = hopTo; hopT = -1f; landBob = 1f; planHops(); hopDelay = if (hopsLeft > 0) 0.08f else 0f }
-        } else if (hopsLeft > 0 && hopDelay <= 0f) {
-            // split what is left evenly over the hops still to come
-            val d = wrap(restAz - yaw)
-            hopFrom = yaw; hopTo = yaw + sign(d) * min(abs(d) / hopsLeft, 1.35f)
-            hopT = 0f; hopsLeft--
+        // walking: turn to the path, walk, turn to face you (always stepping while the body turns)
+        if (legDelay > 0f) legDelay -= dt
+        var stepping = false
+        if (leg != Leg.IDLE && legDelay <= 0f) {
+            stepping = true
+            when (leg) {
+                Leg.TURN_TO_PATH, Leg.TURN_TO_YOU -> {
+                    val want = if (leg == Leg.TURN_TO_PATH) atan2(goX - px, goZ - pz) else restAz
+                    val d = wrap(want - yaw)
+                    val stepA = TURN_RATE * dt
+                    if (abs(d) <= stepA) { yaw += d; leg = if (leg == Leg.TURN_TO_PATH) Leg.WALK else Leg.IDLE }
+                    else yaw += sign(d) * stepA
+                }
+                Leg.WALK -> {
+                    val dx = goX - px; val dz = goZ - pz; val dl = kotlin.math.sqrt(dx * dx + dz * dz)
+                    val v = WALK_SPEED * min(1f, gaitAmp + 0.2f) * dt
+                    if (dl <= v) { px = goX; pz = goZ; leg = Leg.TURN_TO_YOU }
+                    else {
+                        px += dx / dl * v; pz += dz / dl * v
+                        yaw += wrap(atan2(dx, dz) - yaw) * min(1f, dt * 6f)
+                    }
+                }
+                Leg.IDLE -> {}
+            }
         }
-        if (hopT >= 0f) yaw = hopFrom + (hopTo - hopFrom) * smooth(((hopT - 0.22f) / 0.56f).coerceIn(0f, 1f))
+        gaitAmp += ((if (stepping) 1f else 0f) - gaitAmp) * min(1f, dt * 7f)
+        if (gaitAmp > 0.01f) gait += dt * 2f * PI.toFloat() * STEP_HZ else gait = 0f
 
         // gaze: hold, then snap to a new point
         holdT -= dt
-        val moving = hopT >= 0f || hopsLeft > 0 || startle > 0.4f
+        val moving = leg != Leg.IDLE || startle > 0.4f
         if (moving) { tgY = restAz; tgP = 0f; tgR = 0f; snap = 26f }
         else if (touching && act == Act.NONE) {
             // subtle: at most ~17 degrees sideways and ~11 up/down, spread over the neck
@@ -162,9 +186,11 @@ class StatueCrow : StatueRig {
         } else if (!moving) {
             nextAct -= dt
             if (nextAct <= 0f) {
-                act = when (rnd.nextInt(10)) { 0, 1, 2 -> Act.CAW; 3, 4 -> Act.PEER; 5, 6 -> Act.TILT; else -> Act.SHAKE }
+                val n = rnd.nextInt(10)
+                act = if (parrot) when (n) { 0, 1 -> Act.CHIRP; 2, 3 -> Act.BOB; 4, 5 -> Act.PEER; 6, 7 -> Act.TILT; else -> Act.SHAKE }
+                      else when (n) { 0, 1, 2 -> Act.CAW; 3, 4 -> Act.PEER; 5, 6 -> Act.TILT; else -> Act.SHAKE }
                 actT = 0f
-                actLen = when (act) { Act.CAW -> 1.9f; Act.PEER -> 1.7f; Act.TILT -> 1.5f; Act.SHAKE -> 0.75f; Act.NONE -> 0f }
+                actLen = when (act) { Act.CAW -> 1.9f; Act.PEER -> 1.7f; Act.TILT -> 1.5f; Act.SHAKE -> 0.75f; Act.CHIRP -> 1.2f; Act.BOB -> 1.3f; Act.NONE -> 0f }
                 tgY = restAz; tgP = 0f; tgR = 0f; snap = 22f; glances = 0
             }
         }
@@ -185,22 +211,17 @@ class StatueCrow : StatueRig {
         setRot(0, 0f, 0f, 0.025f * sin(t * 0.37f))
         for (k in 0 until 3) setRot(8 + k, 0.02f * sin(t * 0.9f - k * 0.5f), 0.025f * sin(t * 0.43f + k * 0.7f), 0f)
 
-        // ---- hop: crouch, spring, land ----
-        if (hopT >= 0f) {
-            val u = hopT
-            val crouch = if (u < 0.22f) smooth(u / 0.22f) else if (u < 0.32f) 1f - smooth((u - 0.22f) / 0.1f) else 0f
-            val air = if (u in 0.22f..0.78f) ((u - 0.22f) / 0.56f).let { 4f * it * (1f - it) } else 0f
-            val land = if (u > 0.78f) sin(PI.toFloat() * (u - 0.78f) / 0.22f) else 0f
-            dyBody += -0.055f * crouch + 0.13f * air - 0.04f * land
-            setRot(0, 0.12f * crouch - 0.05f * air + 0.06f * land, 0f, 0f)
-            val bend = crouch + land * 0.7f
-            for (s in intArrayOf(11, 14)) { setRot(s, 0.22f * bend - 0.1f * air, 0f, 0f); setRot(s + 1, -0.35f * bend + 0.25f * air, 0f, 0f); setRot(s + 2, 0.15f * bend - 0.2f * air, 0f, 0f) }
-            setRot(8, 0.18f * air - 0.08f * crouch, 0f, 0f)
-        }
-        // landing: the tail bobs up and settles
-        if (landBob > 0f) {
-            val b = sin(landBob * PI.toFloat() * 2.2f) * landBob
-            setRot(8, 0.28f * b, 0f, 0f); setRot(9, 0.12f * b, 0f, 0f)
+        // ---- walking: legs step in turn, the body sways over the standing leg, the head bobs ----
+        var walkBob = 0f
+        if (gaitAmp > 0.01f) {
+            val g = gait; val a = gaitAmp; val sg = sin(g)
+            val liftL = max(0f, sg) * a; val liftR = max(0f, -sg) * a
+            setRot(11, -0.2f * sg * a - 0.12f * liftL, 0f, 0f); setRot(12, 0.32f * liftL, 0f, 0f); setRot(13, -0.25f * liftL, 0f, 0f)
+            setRot(14, 0.2f * sg * a - 0.12f * liftR, 0f, 0f); setRot(15, 0.32f * liftR, 0f, 0f); setRot(16, -0.25f * liftR, 0f, 0f)
+            dyBody += 0.012f * a * abs(sin(2f * g))
+            setRot(0, 0.04f * a, 0f, 0.05f * a * sg)
+            setRot(8, 0.04f * a * sin(2f * g), 0f, 0f)
+            walkBob = 0.08f * a * sin(2f * g)
         }
         // startle: a flinch down, feathers tight
         if (startle > 0f) {
@@ -242,9 +263,25 @@ class StatueCrow : StatueRig {
                 setRot(8, 0.1f * d, 0.12f * s, 0f)
                 dyBody += 0.01f * d
             }
+            Act.CHIRP -> {
+                // three quick chirps: the beak opens a little, the head lifts, the tail flicks
+                val env = smooth((u / 0.12f).coerceAtMost(1f)) * smooth(((1f - u) / 0.15f).coerceAtMost(1f))
+                val c = max(pulse(u, 0.25f, 0.1f), max(pulse(u, 0.48f, 0.1f), pulse(u, 0.71f, 0.1f)))
+                headP = -0.12f * env - 0.05f * c
+                jaw = 0.2f * c
+                setRot(8, 0.12f * c, 0f, 0f)
+            }
+            Act.BOB -> {
+                // a parrot's head bob: quick nods from the neck, a small dip of the body
+                val env = smooth((u / 0.12f).coerceAtMost(1f)) * smooth(((1f - u) / 0.15f).coerceAtMost(1f))
+                val b = sin(u * 2f * PI.toFloat() * 4f) * env
+                neckFwd = 0.16f * b; headP = -0.1f * b
+                dyBody += -0.01f * (b * b)
+            }
             Act.NONE -> {}
         }
 
+        neckFwd += walkBob
         // ---- music: a light head bob on the bass ----
         if (bass > 0.02f) { neckFwd += 0.1f * bass; headP += 0.12f * bass }
 
@@ -265,9 +302,9 @@ class StatueCrow : StatueRig {
             val r3 = sz * cy; val r4 = sz * sy * sx + cz * cx; val r5 = sz * sy * cx - cz * sx
             val r6 = -sy; val r7 = cy * sx; val r8 = cy * cx
             val hx = head[i * 3]; val hy = head[i * 3 + 1]; val hz = head[i * 3 + 2]
-            L[0] = r0; L[1] = r1; L[2] = r2; L[3] = hx - (r0 * hx + r1 * hy + r2 * hz)
+            L[0] = r0; L[1] = r1; L[2] = r2; L[3] = hx - (r0 * hx + r1 * hy + r2 * hz) + (if (i == 0) px else 0f)
             L[4] = r3; L[5] = r4; L[6] = r5; L[7] = hy - (r3 * hx + r4 * hy + r5 * hz) + (if (i == 0) dyBody else 0f)
-            L[8] = r6; L[9] = r7; L[10] = r8; L[11] = hz - (r6 * hx + r7 * hy + r8 * hz)
+            L[8] = r6; L[9] = r7; L[10] = r8; L[11] = hz - (r6 * hx + r7 * hy + r8 * hz) + (if (i == 0) pz else 0f)
             val p = parent[i]
             val W = world[i]
             if (p < 0) System.arraycopy(L, 0, W, 0, 12) else mul34(world[p], L, W)
@@ -286,8 +323,11 @@ class StatueCrow : StatueRig {
     }
 
     companion object {
-        /** One hop, seconds. */
-        const val HOP = 0.46f
+        /** Furthest it walks from the centre (model units), so it always stays in the picture. */
+        const val WALK_MAX = 0.45f
+        const val WALK_SPEED = 0.36f      // model units per second
+        const val TURN_RATE = 2.4f        // radians per second, stepping on the spot
+        const val STEP_HZ = 1.7f          // full stride cycles per second (two steps each)
         fun wrap(a: Float): Float = atan2(sin(a), cos(a))
         private fun smooth(x: Float): Float { val c = x.coerceIn(0f, 1f); return c * c * (3f - 2f * c) }
         /** 0 → 1 → 0 bump centred at [c] with half-width [w]. */

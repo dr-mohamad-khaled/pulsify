@@ -399,6 +399,16 @@ private fun LookPanel(state: AppState) {
             }
             Gap(10.dp)
         }
+        val twin = if (info?.id == app.pulsify.engine.STATUE_ID) app.pulsify.engine.STATUE_LOOKS.getOrNull(state.style)?.perch else null
+        if (twin != null) {
+            // a bird with a sitting twin: sitting, flying, or a new pick each time the screen wakes
+            val poses = listOf("Perched", "Flying", "Shuffle")
+            PanelTitle("Pose", poses.getOrNull(state.coat) ?: "")
+            Row(Modifier.padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                poses.forEachIndexed { i, n -> Pill(n, i == state.coat.coerceIn(0, 2)) { state.applyCoat(i) } }
+            }
+            Gap(10.dp)
+        }
         if (info != null && info.id == 5 && state.style == 3) {
             AquariumPanel()
         } else if (info != null && app.pulsify.engine.coatMatters(info, state.style)) {

@@ -85,7 +85,7 @@ class GlLoop(
     /** The creature this frame wants: by character id, and for Kitty by style (1.. = 3D shapes). */
     private fun pick(): Creature? {
         if (input.character == 8) { bots.look = BOT_LOOKS[input.style.coerceIn(0, BOT_LOOKS.size - 1)]; return bots }
-        if (input.character == STATUE_ID) { statue.look = STATUE_LOOKS[input.style.coerceIn(0, STATUE_LOOKS.size - 1)]; return statue }
+        if (input.character == STATUE_ID) { statue.baseLook = STATUE_LOOKS[input.style.coerceIn(0, STATUE_LOOKS.size - 1)]; statue.pose = input.coat; return statue }
         if (input.character == SHADOW_ID) { shadow.look = SHADOW_LOOKS[input.style.coerceIn(0, SHADOW_LOOKS.size - 1)]; return shadow }
         if (input.character == 1 && input.style == 1) return peachy
         // Gromble is only its 3D looks now: 0 Reaper, 1 Mischief (2 = Mischief as saved by older versions)

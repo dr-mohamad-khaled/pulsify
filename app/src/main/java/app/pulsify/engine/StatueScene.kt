@@ -30,7 +30,16 @@ class StatueLook(val name: String, val file: String, val env: Float, val lock: S
                  /** Height of the head (model units) for the wake close-up; NaN = the section's default. */
                  val headY: Float = Float.NaN,
                  /** Flying rigs: downward shoulder angle and wing-beat size (see [StatueBird]). */
-                 val wingBias: Float = 0f, val flapAmp: Float = 1f)
+                 val wingBias: Float = 0f, val flapAmp: Float = 1f,
+                 /** Animator: "fly" (StatueBird), "crow" or "perch" (StatueCrow; perch = a parrot). Empty for statues. */
+                 val rig: String = "",
+                 /** The same bird sitting (a perched twin): the Studio offers Perched / Flying / Shuffle. */
+                 val perch: StatueLook? = null)
+
+/** A sitting twin for a flying bird: perched-bird shots and the perch animator. */
+private fun perched(name: String, file: String, d: Float, headY: Float) = StatueLook(name, file, 0.55f, Shot(0f, 6f, d, 0.05f),
+    listOf(Shot(-38f, 10f, d * 0.92f, 0.05f), Shot(24f, -5f, d * 0.75f, headY * 0.35f), Shot(82f, 7f, d * 0.9f, 0.05f), Shot(-112f, 16f, d * 0.97f, 0.05f), Shot(158f, 11f, d, 0.05f)),
+    group = "Birds", headY = headY, rig = "perch")
 
 /** A camera shot around the statue: azimuth / elevation in degrees (0 = its face), distance, look-at height. */
 data class Shot(val az: Float, val el: Float, val d: Float, val y: Float = 0f, val roll: Float = 0f)
@@ -68,15 +77,18 @@ val STATUE_LOOKS = listOf(
     // a living crow standing on the spot (STA2 --crow): it looks around and hops round to face each new camera
     StatueLook("Midnight Sentinel", "crow", 0.55f, Shot(0f, 6f, 3.7f, 0.05f),
         listOf(Shot(-38f, 10f, 3.4f, 0.05f), Shot(24f, -5f, 2.7f, 0.22f), Shot(82f, 7f, 3.3f, 0.05f), Shot(-112f, 16f, 3.6f, 0.05f), Shot(158f, 11f, 3.7f, 0.05f)),
-        group = "Birds", headY = 0.6f),
+        group = "Birds", headY = 0.6f, rig = "crow"),
     // the Indian ringneck in endless flight (STA2 --ringneck), the same drone camera circling it
     StatueLook("Emerald Ringneck", "ring", 0.6f, Shot(0f, 10f, 5.6f, 0.02f),
         listOf(Shot(-30f, 14f, 5.3f), Shot(22f, -6f, 4.7f, 0.04f), Shot(76f, 8f, 5.1f), Shot(-115f, 22f, 5.5f), Shot(160f, 16f, 5.6f)),
-        group = "Birds", wingBias = 0.42f, flapAmp = 1.25f),
+        group = "Birds", wingBias = 0.42f, flapAmp = 1.25f, rig = "fly"),
     // the cockatiel in endless flight (STA2 --cockatiel)
     StatueLook("Golden Cockatiel", "tiel", 0.6f, Shot(0f, 10f, 4.4f, 0.0f),
         listOf(Shot(-30f, 14f, 4.2f), Shot(22f, -6f, 3.8f, 0.03f), Shot(76f, 8f, 4.0f), Shot(-115f, 22f, 4.3f), Shot(160f, 16f, 4.4f)),
-        group = "Birds", wingBias = 0.16f, flapAmp = 0.95f),
+        group = "Birds", wingBias = 0.16f, flapAmp = 0.95f, rig = "fly",
+        perch = perched("Golden Cockatiel", "tielp", 5.3f, 0.75f)),
+    // the budgie ("love bird"), sitting only
+    perched("Love Bird", "budgie", 5.2f, 0.6f),
 )
 
 /**
@@ -92,11 +104,23 @@ class StatueScene(private val context: Context) : Creature {
     override var listener: SceneListener? = null
     override var bottomInset = 0f
 
-    @Volatile var look: StatueLook = STATUE_LOOKS[0]
+    /** The look picked in the Studio, and for birds with a sitting twin: 0 perched, 1 flying, 2 shuffle (a new pick each time the screen wakes). */
+    @Volatile var baseLook: StatueLook = STATUE_LOOKS[0]
+    @Volatile var pose = 1
+    private var shuffleSit = false
+    private var shuffledFor: StatueLook? = null
+    /** What is on screen now. */
+    val look: StatueLook get() {
+        val b = baseLook; val p = b.perch ?: return b
+        return when (pose) { 0 -> p; 2 -> if (shuffleSit) p else b; else -> b }
+    }
     private val flyer = StatueBird()
     private val crow = StatueCrow()
     /** The animator for rigged looks: the crow stands and lives, the others fly. */
-    private val bird: StatueRig get() = if (look.file == "crow") crow else flyer.also { it.wingBias = look.wingBias; it.flapAmp = look.flapAmp }
+    private val bird: StatueRig get() = look.let { l ->
+        // perched birds stay put at their closest shot and walk up to you when the camera settles further away
+        if (l.rig == "crow" || l.rig == "perch") crow.also { it.parrot = l.rig == "perch"; it.walkNear = l.pages.minOf { s -> s.d } } else flyer.also { it.wingBias = l.wingBias; it.flapAmp = l.flapAmp }
+    }
 
     private var w = 1; private var h = 1
     private var time = 0f
@@ -190,6 +214,9 @@ class StatueScene(private val context: Context) : Creature {
     // ---------------------------------------------------------------- events
     /** The phone's screen came on ([locked]: over the lock screen). */
     override fun screenOn(locked: Boolean) {
+        // shuffle: sitting or flying, picked again every time the screen wakes
+        if (pose == 2 && baseLook.perch != null) shuffleSit = if (shuffledFor !== baseLook) java.util.Random().nextBoolean().also { shuffledFor = baseLook } else !shuffleSit
+        entered = look.file   // the wake shot shows the new pick (no entrance flight)
         this.locked = locked
         if (locked) shotWake()
     }
@@ -279,7 +306,7 @@ class StatueScene(private val context: Context) : Creature {
         val music0 = input.audio.source != AudioFrame.Source.NONE
         bird.update(dt, time, if (music0) input.audio.bass else 0f)
         // where the camera will settle: the end of the flight, or the spring's target
-        bird.rest(((flight?.keys?.last()?.az ?: tAz) * D2R))
+        bird.rest((flight?.keys?.last()?.az ?: tAz) * D2R, if (locked) 0f else (flight?.keys?.last()?.d ?: tD))   // on the lock screen it stays in the middle
         tiltX += (tiltTX - tiltX) * min(1f, dt * 5f); tiltY += (tiltTY - tiltY) * min(1f, dt * 5f)
         // lights come up after the far "screen off" look
         val farK = ((dist - 8f) / 7f).coerceIn(0f, 1f)
