@@ -56,6 +56,13 @@ class WorldScene(private val context: Context) {
     private var phaseSpec: PhotoWorld? = null
     private val phaseTex = HashMap<Int, Int>()
     private var zoom = 1f
+    // The user's own photo ([USER_WORLD]): one picture, no times of day, the creature where they put it.
+    private var userMode = false
+    private var userKey = ""
+    private var userFile = ""
+    private var userY = 0.78f
+    /** Sideways home of the creature on the user's photo (-0.5..0.5 of the width). */
+    var homeX = 0f; private set
     /** The ground line in uv for the current image world (NaN when the world has no picture). */
     var groundY = Float.NaN; private set
 
@@ -141,7 +148,7 @@ class WorldScene(private val context: Context) {
         // Re-render the cached painting when the world changes or the clock moves on 5 minutes.
         val bucket = (input.hour * 12f).toInt()
         if (!dirty && (input.world != cachedWorld || bucket != cachedHourBucket)) { dirty = true; strip = 0 }
-        if (input.world != loadedWorld) loadImages(input.world)
+        if (input.world != loadedWorld || (input.world == USER_WORLD && input.userBg != userKey)) { userKey = input.userBg; loadImages(input.world) }
     }
 
     /** Loads the pictures for a world (on the GL thread, only when the world changes). */
@@ -150,10 +157,23 @@ class WorldScene(private val context: Context) {
         freeImages()
         val spec = WORLD_IMAGES[world]
         val wasImage = imageMode
-        imageMode = false; phaseMode = false; phaseSpec = null; zoom = 1f
+        imageMode = false; phaseMode = false; phaseSpec = null; zoom = 1f; userMode = false; homeX = 0f
         groundY = Float.NaN
         val photo = PHOTO_WORLDS[world]
-        if (photo != null && imgProg != 0) {
+        if (world == USER_WORLD && imgProg != 0) {
+            // "file|version|x|y": the photo lives in the app's files; a missing photo shows true black
+            val parts = userKey.split('|')
+            userFile = parts.getOrNull(0) ?: ""
+            homeX = (parts.getOrNull(2)?.toFloatOrNull() ?: 0.5f) - 0.5f
+            userY = parts.getOrNull(3)?.toFloatOrNull() ?: 0.78f
+            val f = java.io.File(context.filesDir, userFile)
+            if (userFile.isNotEmpty() && f.exists()) {
+                val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(f.path, o)
+                if (o.outWidth > 0) { imgW = o.outWidth; imgH = o.outHeight; imageMode = true; userMode = true; hasNightImg = false }
+            }
+            if (!userMode) groundY = (0.5f - userY) * 2f * (0.5f * h / min(w, h))
+        } else if (photo != null && imgProg != 0) {
             try {
                 val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 context.assets.open("worlds/p${world}_1.webp").use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
@@ -188,7 +208,7 @@ class WorldScene(private val context: Context) {
     /** Decodes a world picture no taller than needed for this screen (zoom included), so a
      *  1536x2752 painting on a 720p phone costs ~7 MB of texture instead of ~17 MB. */
     private fun decode(path: String): android.graphics.Bitmap? = try {
-        val full = context.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }) }
+        val full = if (path.startsWith("/")) android.graphics.BitmapFactory.decodeFile(path) else context.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888 }) }
         val want = (fitH * 1.05f).toInt()
         if (full != null && want > 0 && full.height > want * 1.08f) {
             val tw = (full.width * want / full.height.toFloat()).toInt().coerceAtLeast(1)
@@ -225,6 +245,8 @@ class WorldScene(private val context: Context) {
     }
 
     private fun updateGround() {
+        // on the user's photo the creature stands where they chose, in screen terms
+        if (loadedWorld == USER_WORLD) { groundY = (0.5f - userY) * 2f * (0.5f * h / min(w, h)); return }
         if (!imageMode) { groundY = Float.NaN; return }
         computeMap()
         val vImg = 1f - groundFrac
@@ -259,6 +281,19 @@ class WorldScene(private val context: Context) {
             GLES20.glUniform1f(iu["uNightK"]!!, k)
             GLES20.glUniform1f(iu["uDusk"]!!, 0f)
             GLES20.glUniform1f(iu["uHasNight"]!!, 1f)
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+            return
+        }
+        if (userMode) {
+            if (dayTex == 0) decode(java.io.File(context.filesDir, userFile).path)?.let { dayTex = upload(it); it.recycle() }
+            if (dayTex == 0) { GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT); return }
+            bindTri(imgProg); computeMap()
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, dayTex); GLES20.glUniform1i(iu["uDay"]!!, 0)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, dayTex); GLES20.glUniform1i(iu["uNight"]!!, 1)
+            GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
+            GLES20.glUniform2f(iu["uRes"]!!, rw.toFloat(), rh.toFloat())
+            GLES20.glUniform4f(iu["uMap"]!!, map[0], map[1], map[2], map[3])
+            GLES20.glUniform1f(iu["uNightK"]!!, 0f); GLES20.glUniform1f(iu["uDusk"]!!, 0f); GLES20.glUniform1f(iu["uHasNight"]!!, 1f)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
             return
         }
@@ -356,7 +391,8 @@ class WorldScene(private val context: Context) {
         GLES20.glUniform1f(ou["uFloor"]!!, floorUv())
         GLES20.glUniform1f(ou["uTime"]!!, time % 3600f)
         GLES20.glUniform1f(ou["uWorld"]!!, input.world.toFloat())
-        GLES20.glUniform1f(ou["uNight"]!!, nightAmount(input.hour))
+        // the user's photo is shown as it is: no night grading or stars over it
+        GLES20.glUniform1f(ou["uNight"]!!, if (userMode) 0f else nightAmount(input.hour))
         GLES20.glUniform1f(ou["uBass"]!!, a.bass)
         GLES20.glUniform1f(ou["uTreble"]!!, a.treble)
         GLES20.glUniform1f(ou["uBeat"]!!, a.beat)
@@ -468,6 +504,25 @@ class WorldScene(private val context: Context) {
             61 to PhotoWorld(0.68f, 0.55f, 3, live = 12),                             // Snowy Cabin
             63 to PhotoWorld(0.66f, 0.53f, 4, live = 9),                              // Savanna
             64 to PhotoWorld(0.62f, 0.38f, 4, live = 11, waterTop = 0.17f, waterBottom = 0.36f), // Waterhole
+            // 7.0: three worlds per creature
+            80 to PhotoWorld(0.76f, 0.50f, 6, sky = false, live = 4),               // Pastel Playroom (Mochi)
+            81 to PhotoWorld(0.78f, 0.47f, 7, live = 8),                            // Candy Meadow
+            82 to PhotoWorld(0.78f, 0.50f, 7, live = 8),                            // Cloud Garden
+            83 to PhotoWorld(0.78f, 0.56f, 4, sky = false, live = 1),               // Canopy Deck (Kiwi)
+            84 to PhotoWorld(0.80f, 0.40f, 10, live = 11, waterTop = 0.36f, waterBottom = 0.44f), // Palm Lagoon
+            85 to PhotoWorld(0.80f, 0.52f, 6, sky = false, live = 1),               // Riad Courtyard
+            86 to PhotoWorld(0.84f, 0.50f, 5, sky = false, live = 1),               // Coral Reef (fish)
+            87 to PhotoWorld(0.84f, 0.50f, 5, sky = false),                         // Deep Trench
+            88 to PhotoWorld(0.84f, 0.50f, 5, sky = false, live = 1),               // Moss Garden
+            89 to PhotoWorld(0.78f, 0.45f, 9, live = 4),                            // Volcano Crater (Gromble)
+            90 to PhotoWorld(0.80f, 0.50f, 9, live = 12),                           // Haunted Courtyard
+            91 to PhotoWorld(0.80f, 0.60f, 7, sky = false),                         // Crystal Cave
+            92 to PhotoWorld(0.80f, 0.55f, 6, sky = false),                         // Robot Lab (Bolt)
+            93 to PhotoWorld(0.80f, 0.42f, 8, live = 1),                            // Sky Rooftop
+            94 to PhotoWorld(0.80f, 0.50f, 8, sky = false, live = 1),               // Space Deck
+            95 to PhotoWorld(0.80f, 0.48f, 4, live = 11, waterTop = 0.40f, waterBottom = 0.50f), // Lily Pond (Snowy)
+            96 to PhotoWorld(0.80f, 0.42f, 4, live = 9),                            // Farmyard
+            97 to PhotoWorld(0.80f, 0.50f, 1, live = 1),                            // Blossom Garden
         )
 
         private fun smooth(a: Float, b: Float, x: Float): Float {

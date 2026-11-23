@@ -2,7 +2,8 @@
 import sys, numpy as np
 from PIL import Image, ImageFilter
 wid = sys.argv[1]; srcs = sys.argv[2:6]
-OUT = '/home/claude/pulsify/app/src/main/assets/worlds'
+import os
+OUT = os.environ.get('PULSIFY_WORLDS', os.path.join(os.path.dirname(os.path.abspath(__file__)), '../../app/src/main/assets/worlds'))
 W, H = 1536, 2752
 def load(p):
     im = Image.open(p).convert('RGB')

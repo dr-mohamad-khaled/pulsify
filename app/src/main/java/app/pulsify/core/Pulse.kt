@@ -21,6 +21,9 @@ data class Settings(
     val bgColor: Int = 0xFF000000.toInt(),
     /** What the live wallpaper shows (the app's preview shows the fields above). */
     val active: Prefs.Active? = null,
+    /** The user-photo world of the draft and of the live wallpaper (see [Prefs.userBgKey]). */
+    val userBg: String = "",
+    val activeUserBg: String = "",
 )
 
 /** Process-wide services shared by the app screens and the live wallpaper. */
@@ -82,6 +85,8 @@ object Pulse {
             style = prefs.style,
             bgColor = prefs.bgColor,
             active = prefs.active,
+            userBg = prefs.userBgKey(prefs.character, prefs.style),
+            activeUserBg = prefs.active.let { prefs.userBgKey(it.character, it.style) },
         )
     }
 
@@ -109,9 +114,12 @@ object Pulse {
         i.coat = a?.coat ?: s.coat
         i.style = a?.style ?: s.style
         i.bgColor = a?.bgColor ?: s.bgColor
+        // the user's own photo: which file, and where they put the creature on it
+        i.userBg = if (a != null) s.activeUserBg else s.userBg
         val info = app.pulsify.engine.creatureInfo(character)
         if (info != null) {
-            val e = info.envs[env.coerceIn(0, info.envs.size - 1)]
+            val list = app.pulsify.engine.envsFor(info, i.style)
+            val e = list[env.coerceIn(0, list.size - 1)]
             i.world = e.world
             i.variant = e.skyVariant
         } else {

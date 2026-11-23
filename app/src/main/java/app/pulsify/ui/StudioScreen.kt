@@ -133,6 +133,8 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
     val ctx = LocalContext.current
     var loop by remember { mutableStateOf<GlLoop?>(null) }
     var hidden by remember { mutableStateOf(false) }
+    // placing the creature on the user's photo: the controls step aside for a full-screen drag
+    var placing by remember { mutableStateOf(false) }
     // leaving the studio without "Set as active wallpaper" forgets the draft
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { app.pulsify.core.Pulse.prefs.revertDraft() } }
     var bass by remember { mutableFloatStateOf(0f) }
@@ -181,14 +183,14 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
     var dockTop by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(loop, hidden, dockTop, rootH) {
         val l = loop ?: return@LaunchedEffect
-        l.setBottomInset(if (hidden || dockTop <= 0f) 0f else ((rootH - dockTop) / rootH).coerceIn(0f, 0.6f))
+        l.setBottomInset(if (hidden || placing || dockTop <= 0f) 0f else ((rootH - dockTop) / rootH).coerceIn(0f, 0.6f))
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { rootH = it.height.coerceAtLeast(1) }) {
         LiveSky(Modifier.fillMaxSize(), renderScale = 0.65f, interactive = true, fpsCap = 0, onLoop = { loop = it })
 
         // Top: back, the name set big, hide.
-        AnimatedVisibility(!hidden, enter = fadeIn() + slideInVertically { -it / 2 }, exit = fadeOut() + slideOutVertically { -it / 2 }) {
+        AnimatedVisibility(!hidden && !placing, enter = fadeIn() + slideInVertically { -it / 2 }, exit = fadeOut() + slideOutVertically { -it / 2 }) {
             Box(
                 Modifier.fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.65f), Color.Transparent)))
@@ -211,7 +213,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
 
         // Bottom: panel, dial, action. No box: a long soft scrim lets the wallpaper breathe.
         AnimatedVisibility(
-            !hidden, modifier = Modifier.align(Alignment.BottomCenter),
+            !hidden && !placing, modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn() + slideInVertically { it / 3 }, exit = fadeOut() + slideOutVertically { it / 3 },
         ) {
             Column(
@@ -232,7 +234,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
                     Box(Modifier.fillMaxWidth().height(236.dp)) {
                         when (m) {
                             Mode.LOOK -> LookPanel(state)
-                            Mode.WORLD -> WorldPanel(state)
+                            Mode.WORLD -> WorldPanel(state) { placing = true }
                             Mode.TRICKS -> TricksPanel(state, loop)
                             Mode.TIME -> TimePanel()
                             Mode.SOUND -> SoundPanel(state, source, spectrum, tick)
@@ -255,9 +257,11 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
             }
         }
 
+        AnimatedVisibility(placing, enter = fadeIn(), exit = fadeOut()) { PlaceCreatureOverlay(state) { placing = false } }
+
         // Hidden: one quiet tap target brings the controls back.
         AnimatedVisibility(
-            hidden, modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 22.dp),
+            hidden && !placing, modifier = Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 22.dp),
             enter = fadeIn(), exit = fadeOut(),
         ) {
             Box(
@@ -272,7 +276,7 @@ fun StudioScreen(state: AppState, onBack: () -> Unit) {
 private fun subtitle(state: AppState): String {
     if (app.pulsify.engine.videoLoop(state.video) != null) return "Video loop"
     val info = app.pulsify.engine.creatureInfo(state.character) ?: return "Live sky"
-    val env = info.envs.getOrNull(state.env)?.name ?: ""
+    val env = app.pulsify.engine.envsFor(info, state.style).getOrNull(state.env)?.name ?: ""
     val look = if (app.pulsify.engine.coatMatters(info, state.style)) info.coats.getOrNull(state.coat)?.name ?: ""
         else info.styles.getOrNull(state.style) ?: info.name
     return "$look in $env"
@@ -414,7 +418,7 @@ private fun LookPanel(state: AppState) {
     }
 }
 
-/** Glowy › Aquarium: presets, how many of each fish, and which tank. */
+/** Glowy › Aquarium: presets and how many of each fish (the tank is in the World tab). */
 @Composable
 private fun AquariumPanel() {
     val c = LocalPulse.current
@@ -423,11 +427,7 @@ private fun AquariumPanel() {
     remember { app.pulsify.engine.AquariumConfig.load(ctx); 0 }
     val cfg = app.pulsify.engine.AquariumConfig
     @Suppress("UNUSED_EXPRESSION") rev
-    PanelTitle("Tank", app.pulsify.engine.AQUA_TANKS.getOrNull(cfg.tank) ?: "")
-    LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        itemsIndexed(app.pulsify.engine.AQUA_TANKS) { i, name -> Pill(name, i == cfg.tank) { cfg.setTank(ctx, i); rev++ } }
-    }
-    Gap(8.dp)
+    // the tank is picked in the World tab, like every other creature's world
     PanelTitle("Presets", "${cfg.counts.sum()} fish")
     LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         itemsIndexed(app.pulsify.engine.AQUA_PRESETS) { i, p -> Pill(p.first, false) { cfg.setPreset(ctx, i); rev++ } }
@@ -502,29 +502,63 @@ private fun BrightnessLine(state: AppState) {
 
 // ---------------------------------------------------------------- World
 
-/** Worlds as tall posters (the real painting, day or night with the clock), swiped like a deck. */
+/**
+ * Worlds as tall posters (the real painting, day or night with the clock), swiped like a deck. Every
+ * creature ends its list with a plain colour (pick it below) and "Your photo" (pick one from the phone,
+ * then place the creature on it).
+ */
 @Composable
-private fun WorldPanel(state: AppState) {
+private fun WorldPanel(state: AppState, onPlace: () -> Unit) {
     val info = app.pulsify.engine.creatureInfo(state.character) ?: return
+    val ctx = LocalContext.current
     val night = isNightNow()
+    val envs = app.pulsify.engine.envsFor(info, state.style)
+    val cur = envs.getOrNull(state.env)?.world
+    val photoIdx = envs.indexOfFirst { it.world == app.pulsify.engine.USER_WORLD }
+    var photoRev by remember { mutableIntStateOf(0) }
+    val hasPhoto = remember(state.character, state.style, photoRev) { PhotoWorld.has(ctx, state.character, state.style) }
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            val ch = state.character; val st = state.style
+            if (PhotoWorld.import(ctx, uri, ch, st)) {
+                photoRev++
+                if (photoIdx >= 0) state.applyEnv(photoIdx)
+                onPlace()
+            } else state.toast = AppState.Toast("That photo didn't open", "Try another picture from your gallery.")
+        }
+    }
+    fun choosePhoto() = pick.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
-        if (info.envs.getOrNull(state.env)?.world == app.pulsify.engine.SOLID_WORLD) {
+        if (cur == app.pulsify.engine.SOLID_WORLD) {
             PanelTitle("Background", if (state.bgColor == 0xFF000000.toInt()) "True black" else "")
             OrbRow(app.pulsify.engine.SOLID_COLORS.map { Color(it) to Color(app.pulsify.engine.SkyScene.shiftHue(it, 20f)) },
                 app.pulsify.engine.SOLID_COLORS.indexOf(state.bgColor).coerceAtLeast(0), small = true) { state.applyBgColor(app.pulsify.engine.SOLID_COLORS[it]) }
             Gap(8.dp)
+        } else if (cur == app.pulsify.engine.USER_WORLD && hasPhoto) {
+            Row(Modifier.padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Place ${info.name}", true) { onPlace() }
+                Pill("Change photo", false) { choosePhoto() }
+            }
+            Gap(10.dp)
         }
-        PanelTitle("World", info.envs.getOrNull(state.env)?.name ?: "")
+        PanelTitle("World", envs.getOrNull(state.env)?.name ?: "")
         Gap(4.dp)
         val ls = rememberLazyListState(initialFirstVisibleItemIndex = state.env.coerceAtLeast(0))
         LazyRow(state = ls, contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            itemsIndexed(info.envs) { i, e ->
-                Poster(
-                    if (e.world >= 0 && e.world != app.pulsify.engine.SOLID_WORLD) app.pulsify.engine.WorldScene.worldAsset(e.world, night) else null,
-                    e.name, i == state.env,
-                    if (e.world == app.pulsify.engine.SOLID_WORLD) Color(state.bgColor) else Color(e.c1),
-                    if (e.world == app.pulsify.engine.SOLID_WORLD) Color(state.bgColor) else Color(e.c2), skyStyle = e.skyVariant,
-                ) { state.applyEnv(i) }
+            itemsIndexed(envs) { i, e ->
+                val w = e.world
+                val asset = when {
+                    w == app.pulsify.engine.USER_WORLD -> if (hasPhoto) "file:" + java.io.File(ctx.filesDir, app.pulsify.core.Pulse.prefs.userBgFile(state.character, state.style)).path + "#" + photoRev else null
+                    w >= app.pulsify.engine.AQUA_WORLD0 && w < app.pulsify.engine.ORBIT_WORLD0 -> "aquarium/bg_${w - app.pulsify.engine.AQUA_WORLD0}.jpg"
+                    w >= 0 && w < app.pulsify.engine.SOLID_WORLD -> app.pulsify.engine.WorldScene.worldAsset(w, night)
+                    else -> null
+                }
+                val solid = w == app.pulsify.engine.SOLID_WORLD
+                Poster(asset, if (w == app.pulsify.engine.USER_WORLD && !hasPhoto) "+ Your photo" else e.name, i == state.env,
+                    if (solid) Color(state.bgColor) else Color(e.c1), if (solid) Color(state.bgColor) else Color(e.c2), skyStyle = e.skyVariant,
+                ) {
+                    if (w == app.pulsify.engine.USER_WORLD && !hasPhoto) choosePhoto() else state.applyEnv(i)
+                }
             }
         }
     }
@@ -569,12 +603,22 @@ private fun Poster(asset: String?, name: String, selected: Boolean, c1: Color, c
 }
 
 fun decodeSmall(ctx: android.content.Context, path: String, targetW: Int): ImageBitmap? = try {
+    if (path.startsWith("file:")) {
+        // the user's own photo ("file:<path>#<version>")
+        val f = path.removePrefix("file:").substringBefore('#')
+        val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(f, o)
+        var s = 1
+        while (o.outWidth / (s * 2) >= targetW) s *= 2
+        android.graphics.BitmapFactory.decodeFile(f, android.graphics.BitmapFactory.Options().apply { inSampleSize = s })?.asImageBitmap()
+    } else run {
     val o = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
     ctx.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it, null, o) }
     var s = 1
     while (o.outWidth / (s * 2) >= targetW) s *= 2
     val o2 = android.graphics.BitmapFactory.Options().apply { inSampleSize = s }
     ctx.assets.open(path).use { android.graphics.BitmapFactory.decodeStream(it, null, o2) }?.asImageBitmap()
+    }
 } catch (_: Throwable) { null }
 
 // ---------------------------------------------------------------- Tricks

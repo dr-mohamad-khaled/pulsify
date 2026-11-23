@@ -19,31 +19,35 @@ import kotlin.math.sin
  * towards the camera. Music speeds the wings up with the bass; every swipe gives a power burst and a
  * bank into the turn.
  */
-class StatueBird {
-    var bones = 0; private set
+class StatueBird : StatueRig {
+    override var bones = 0; private set
     private var parent = IntArray(0)
     private var head = FloatArray(0)
     /** Bone matrices for the shader: 3 rows of vec4 per bone. */
-    var mats = FloatArray(0); private set
+    override var mats = FloatArray(0); private set
 
+    /** Extra downward angle on the shoulders (radians), for rigs whose wings rest raised (the ringneck). */
+    var wingBias = 0f
+    /** Wing-beat size (1 = the motmot's). */
+    var flapAmp = 1f
     private var ph = 0f
     private var burst = 0f
     private var bank = 0f; private var bankT = 0f
     private var bass = 0f
     private var t = 0f
 
-    fun setRig(par: IntArray, heads: FloatArray) {
+    override fun setRig(par: IntArray, heads: FloatArray) {
         bones = par.size; parent = par; head = heads
         mats = FloatArray(bones * 12)
         rot = FloatArray(bones * 3)
         world = Array(bones) { FloatArray(12) }
     }
 
-    fun clear() { bones = 0 }
+    override fun clear() { bones = 0 }
 
-    fun kick(dir: Float) { if (bones == 0) return; burst = 1f; bankT = dir }
+    override fun kick(dir: Float) { if (bones == 0) return; burst = 1f; bankT = dir }
 
-    fun update(dt: Float, time: Float, musicBass: Float) {
+    override fun update(dt: Float, time: Float, musicBass: Float) {
         t = time
         bass += (musicBass - bass) * min(1f, dt * 12f)
         if (bones == 0) return
@@ -62,10 +66,10 @@ class StatueBird {
     private fun setRot(i: Int, x: Float, y: Float, z: Float) { if (i < bones) { rot[i * 3] = x; rot[i * 3 + 1] = y; rot[i * 3 + 2] = z } }
 
     /** Poses the bird for this frame. [camAz] (radians) is where the camera sits around it. */
-    fun pose(camAz: Float) {
+    override fun pose(camAz: Float) {
         if (bones == 0) return
         java.util.Arrays.fill(rot, 0f)
-        val aw = 0.5f * (1f + 0.22f * bass + 0.35f * burst)
+        val aw = 0.5f * flapAmp * (1f + 0.22f * bass + 0.35f * burst)
         val pitch = 0.05f * sin(ph - 1.0f)
         val dy = 0.028f * sin(ph - 1.4f) * (1f + 0.4f * burst)
         setRot(0, pitch, 0.05f * sin(t * .29f), bank + 0.05f * sin(t * .37f))
@@ -78,7 +82,7 @@ class StatueBird {
         for (side in intArrayOf(-1, 1)) {
             val base = if (side < 0) 9 else 15
             for (s in 0 until 5) {
-                val a = aw * SEG_W[s] * (wave(ph - LAG[s]) - 0.12f)          // + = wing down
+                val a = aw * SEG_W[s] * (wave(ph - LAG[s]) - 0.12f) + (if (s == 0) wingBias else 0f)   // + = wing down
                 val u = upFold(ph - 0.4f - LAG[s] * 0.5f)
                 val sweep = SWEEP[s] * u
                 val twist = if (s >= 3) 0.16f * cos(ph - 0.6f - LAG[s]) else 0f

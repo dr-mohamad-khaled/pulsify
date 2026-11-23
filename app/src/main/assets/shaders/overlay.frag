@@ -139,7 +139,8 @@ void main() {
             float ray = 0.5 + 0.5 * sin(ang * 34.0 + sin(ang * 13.0 + uTime * 0.25) * 2.0 + uTime * 0.12);
             add += vec3(1.0, 0.82, 0.55) * pow(ray, 6.0) * uRays * 0.065 * exp(-length(d) * 0.9);
         }
-        if (uFx < 1.5) {                 // 1 petals
+        if (uFx < 0.5) {                 // 0 nothing: the user's own photo stays as it is
+        } else if (uFx < 1.5) {          // 1 petals
             for (int i = 0; i < 12; i++) {
                 float fi = float(i);
                 vec2 start = vec2(h11(fi + 40.0) * 2.0 - 1.0, h11(fi * 3.1 + 40.0) * 2.0 - 1.0) * uHalf;

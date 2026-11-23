@@ -42,10 +42,28 @@ class Prefs(context: Context) {
         get() = sp.getInt(K_BG + "_" + character, 0xFF000000.toInt())
         set(v) = sp.edit().putInt(K_BG + "_" + character, v).apply()
 
-    /** Each creature remembers its own environment (index into its env list). */
+    /** Each creature (and each of its looks) remembers its own environment (index into its env list). */
     var env: Int
-        get() = sp.getInt(K_ENV + "_" + character, 0)
-        set(v) = sp.edit().putInt(K_ENV + "_" + character, v).apply()
+        get() = sp.getInt(K_ENV + "_" + character + "_" + style, sp.getInt(K_ENV + "_" + character, 0))
+        set(v) = sp.edit().putInt(K_ENV + "_" + character + "_" + style, v).apply()
+
+    // ---- the user's own photo world, one per creature look ----
+    /** Name of the photo file in filesDir for this creature look. */
+    fun userBgFile(character: Int, style: Int) = "userbg_${character}_$style.jpg"
+    /** Where the creature stands on the photo: x (0..1 of the width) and y (0..1 from the top, its feet). */
+    fun userSpot(character: Int, style: Int): Pair<Float, Float> =
+        sp.getFloat("ubx_${character}_$style", 0.5f) to sp.getFloat("uby_${character}_$style", 0.78f)
+    fun setUserSpot(character: Int, style: Int, x: Float, y: Float) {
+        sp.edit().putFloat("ubx_${character}_$style", x.coerceIn(0.08f, 0.92f)).putFloat("uby_${character}_$style", y.coerceIn(0.3f, 0.95f)).apply()
+    }
+    /** Bumped each time a new photo is picked, so the wallpaper reloads it. */
+    fun userBgVersion(character: Int, style: Int): Int = sp.getInt("ubv_${character}_$style", 0)
+    fun bumpUserBg(character: Int, style: Int) { sp.edit().putInt("ubv_${character}_$style", userBgVersion(character, style) + 1).apply() }
+    /** Everything the renderer needs to know about a user photo in one cheap key: file|version|x|y. */
+    fun userBgKey(character: Int, style: Int): String {
+        val (x, y) = userSpot(character, style)
+        return "${userBgFile(character, style)}|${userBgVersion(character, style)}|$x|$y"
+    }
 
     var variant: Int
         get() = sp.getInt(K_VARIANT, 0)

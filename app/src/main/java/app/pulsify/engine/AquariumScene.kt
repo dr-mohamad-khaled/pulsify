@@ -107,6 +107,8 @@ class AquariumScene(private val context: Context) : Creature {
     private class Dot(var x: Float, var y: Float, var vy: Float, var r: Float, var life: Float, val kind: Int)
     private val dots = ArrayList<Dot>()
     private var w = 1; private var h = 1; private var dp = 1f
+    /** Which tank to paint (index into [AQUA_TANKS]), or -1 when the background comes from elsewhere. */
+    @Volatile var tankWorld = 0
     private var time = 0f; private var bass = 0f; private var built = -1; private var tankLoaded = -1
     private var touching = false; private var tX = 0f; private var tY = 0f; private var t0 = 0f; private var tvx = 0f; private var lastTx = 0f
 
@@ -258,20 +260,24 @@ class AquariumScene(private val context: Context) : Creature {
 
     // ---------------------------------------------------------------- draw
     override fun draw(input: SceneInput) {
-        val tank = AquariumConfig.tank
-        if (tankLoaded != tank) { if (bgTex != 0) GLES20.glDeleteTextures(1, intArrayOf(bgTex), 0); bgTex = loadTex("aquarium/bg_$tank.jpg", false) { a -> bgW = (a * 1000).toInt(); bgH = 1000 }; tankLoaded = tank }
+        // the tank is the World picked in the Studio; a plain colour or the user's photo is already drawn behind
+        val own = tankWorld >= 0
+        val tank = if (own) tankWorld.coerceIn(0, AQUA_TANKS.size - 1) else 0
+        if (own && tankLoaded != tank) { if (bgTex != 0) GLES20.glDeleteTextures(1, intArrayOf(bgTex), 0); bgTex = loadTex("aquarium/bg_$tank.jpg", false) { a -> bgW = (a * 1000).toInt(); bgH = 1000 }; tankLoaded = tank }
         val vp = IntArray(4); GLES20.glGetIntegerv(GLES20.GL_VIEWPORT, vp, 0); GLES20.glViewport(0, 0, w, h)
         GLES20.glDisable(GLES20.GL_DEPTH_TEST)
         // tank picture (cover fit) with a soft moving shimmer
+        if (own) {
         GLES20.glUseProgram(bgProg); GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, bgTex); GLES20.glUniform1i(bu["uTex"]!!, 0)
         val sa = w / h.toFloat(); val ia = bgW / bgH.toFloat(); if (sa < ia) GLES20.glUniform4f(bu["uCover"]!!, sa / ia, 1f, (1f - sa / ia) / 2f, 0f) else GLES20.glUniform4f(bu["uCover"]!!, 1f, ia / sa, 0f, (1f - ia / sa) / 2f)
         GLES20.glUniform1f(bu["uTime"]!!, time % 1000f); GLES20.glUniform1f(bu["uBass"]!!, bass)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, quadVbo); GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+        }
         // fish, far ones first
         GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glUseProgram(spriteProg); GLES20.glUniform2f(su["uRes"]!!, w.toFloat(), h.toFloat()); GLES20.glUniform1i(su["uTex"]!!, 0)
-        val water = WATER[tank.coerceIn(0, WATER.size - 1)]; GLES20.glUniform3f(su["uWater"]!!, water[0], water[1], water[2])
+        val water = if (own) WATER[tank.coerceIn(0, WATER.size - 1)] else NO_WATER; GLES20.glUniform3f(su["uWater"]!!, water[0], water[1], water[2])
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, stripVbo); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         for (f in fish) {
             val i = f.si
@@ -315,6 +321,8 @@ class AquariumScene(private val context: Context) : Creature {
         private const val STRIPS = 20
         private const val MAX_DOTS = 120
         private val WATER = arrayOf(floatArrayOf(.03f, .2f, .18f), floatArrayOf(.02f, .12f, .28f), floatArrayOf(0f, 0f, .02f), floatArrayOf(.2f, .12f, .03f), floatArrayOf(.25f, .32f, .3f), floatArrayOf(0f, .01f, .04f))
+        /** No tank picture behind (plain colour or the user's photo): no water tint on the fish. */
+        private val NO_WATER = floatArrayOf(0f, 0f, 0f)
         private const val BG_VS = """
 attribute vec2 aPos; varying vec2 vUv; uniform vec4 uCover;
 void main(){ vec2 uv = aPos * 0.5 + 0.5; vUv = vec2(uCover.z + uv.x * uCover.x, 1.0 - (uCover.w + uv.y * uCover.y)); gl_Position = vec4(aPos, 0.0, 1.0); }"""

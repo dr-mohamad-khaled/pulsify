@@ -230,6 +230,8 @@ internal class ToonScene(private val kind: ToonKind, private val ctx: android.co
     // ------------------------------------------------------------ layout
     override fun onSurfaceChanged(width: Int, height: Int) { w = max(1, width); h = max(1, height); layout() }
     override fun setGround(y: Float) { if (y == ground || (y.isNaN() && ground.isNaN())) return; ground = y; layout() }
+    private var userX = 0f
+    override fun setHomeX(x: Float) { if (x == userX) return; userX = x; layout() }
     private fun layout() {
         val m = min(w, h).toFloat()
         U = m * 0.3f * (if (kind.perch) 1f else 1f)
@@ -238,10 +240,11 @@ internal class ToonScene(private val kind: ToonKind, private val ctx: android.co
         if (h.toFloat() / w < 1.5f) { U = m * 0.2f; gUv = -halfH + 0.18f }
         if (bottomInset > 0f) gUv = max(gUv, -halfH + bottomInset * 2f * halfH + 0.05f)
         floorY = h * 0.5f - gUv * m
-        cx0 = w * 0.5f
+        cx0 = w * (0.5f + userX)
         perchDirty = true
     }
-    private val halfW get() = (w * 0.5f / U) - 0.6f
+    // room to roam either side of home (less when the user moved home towards an edge)
+    private val halfW get() = max(0.3f, ((w * 0.5f - abs(cx0 - w * 0.5f)) / U) - 0.6f)
 
     // ------------------------------------------------------------ touch
     private fun toX(nx: Float) = (nx * w - cx0) / U

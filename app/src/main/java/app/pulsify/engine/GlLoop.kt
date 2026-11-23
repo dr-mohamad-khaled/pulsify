@@ -102,7 +102,7 @@ class GlLoop(
         set(v) { field = v; scene.listener = v; allCreatures.forEach { it.listener = v } }
     /** The creature for character id 1, 2, ... (0 = sky only). */
     private val active: Creature? get() = pick()?.takeIf { it in okCreatures && it === loadedCreature }
-    private val worldOn: Boolean get() = input.world >= 0 && input.world != SOLID_WORLD && input.video < 0 && worldState == 1
+    private val worldOn: Boolean get() = paintedWorld(input.world) && input.video < 0 && worldState == 1
     private val video = VideoScene(context)
     val input = SceneInput()
     @Volatile var batterySaver = false
@@ -377,7 +377,7 @@ class GlLoop(
     }
 
     private fun ensureParts() {
-        val wantWorld = input.world >= 0 && input.world != SOLID_WORLD && input.video < 0
+        val wantWorld = paintedWorld(input.world) && input.video < 0
         val wantSky = input.world < 0 && input.video < 0
         if (wantSky && skyState == 0) {
             skyState = if (safeInit("sky") { scene.onSurfaceCreated(); if (rw > 0) scene.onSurfaceChanged(rw, rh) }) 1 else -1
@@ -584,12 +584,16 @@ class GlLoop(
         Gl.target = if (offscreen) fbo else 0
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
         GLES20.glViewport(0, 0, if (offscreen) fbW else surfW, if (offscreen) fbH else surfH)
-        val ownWorld = showMainCreature && (active === orbit || active === shadow || active === bots)
+        // Gromble paints its own 3D world (when one of those is picked); Shadows lives on pure black.
+        orbit.worldIndex = if (input.world >= ORBIT_WORLD0) input.world - ORBIT_WORLD0 else -1
+        aquarium.tankWorld = if (input.world >= AQUA_WORLD0 && input.world < ORBIT_WORLD0) input.world - AQUA_WORLD0 else -1
+        bots.overWorld = !(input.world == SOLID_WORLD && (input.bgColor and 0xFFFFFF) == 0)
+        val ownWorld = showMainCreature && ((active === orbit && orbit.worldIndex >= 0) || active === shadow)
         if (input.video >= 0) {
             video.draw()
         } else if (ownWorld) {
             // Reaper / Mischief draw their own world; Shadows lives on pure black
-            if (active === shadow || active === bots) { GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT) }
+            if (active === shadow) { GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT) }
         } else if (worldOn) {
             world.update(dt, input); world.draw(input)
         } else if (skyOk) {
@@ -602,7 +606,7 @@ class GlLoop(
         if (showMainCreature) active?.let { c ->
             if (c === pet3d) { fillLedges(); pet3d.viewLag = lag }
             if (c === orbit || c === astro) fillLedges()
-            c.setGround(if (worldOn) world.groundY else Float.NaN); c.update(dt, input)
+            c.setGround(if (worldOn) world.groundY else Float.NaN); c.setHomeX(if (worldOn && input.world == USER_WORLD) world.homeX else 0f); c.update(dt, input)
             swipePhysics(dt, c)
             val vw = if (offscreen) fbW else surfW; val vh = if (offscreen) fbH else surfH
             val px = (lag * vw).toInt()

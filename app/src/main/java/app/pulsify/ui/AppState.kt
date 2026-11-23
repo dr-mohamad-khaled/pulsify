@@ -111,7 +111,7 @@ class AppState {
             val info = app.pulsify.engine.creatureInfo(character) ?: return true
             if (info.id == 11 || app.pulsify.engine.petSpeciesFor(character, style, coat) != null) return false
             if (info.id == 4) return true
-            return (info.envs.getOrNull(env)?.world ?: 0) < 0
+            return (app.pulsify.engine.envsFor(info, style).getOrNull(env)?.world ?: 0) < 0
         }
 
     val accentPair: Pair<Color, Color>

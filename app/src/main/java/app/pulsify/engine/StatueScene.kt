@@ -26,7 +26,11 @@ import kotlin.math.sin
 import kotlin.math.tan
 
 /** One statue of the Pharaohs section: its files and the camera shots of each home-screen page. */
-class StatueLook(val name: String, val file: String, val env: Float, val lock: Shot, val pages: List<Shot>, val spin: Float = 0f, val group: String = "Pharaohs")
+class StatueLook(val name: String, val file: String, val env: Float, val lock: Shot, val pages: List<Shot>, val spin: Float = 0f, val group: String = "Pharaohs",
+                 /** Height of the head (model units) for the wake close-up; NaN = the section's default. */
+                 val headY: Float = Float.NaN,
+                 /** Flying rigs: downward shoulder angle and wing-beat size (see [StatueBird]). */
+                 val wingBias: Float = 0f, val flapAmp: Float = 1f)
 
 /** A camera shot around the statue: azimuth / elevation in degrees (0 = its face), distance, look-at height. */
 data class Shot(val az: Float, val el: Float, val d: Float, val y: Float = 0f, val roll: Float = 0f)
@@ -61,6 +65,14 @@ val STATUE_LOOKS = listOf(
     // the moon turns slowly on its own while the drone circles it
     StatueLook("Cratered Moon", "moon", 0.5f, Shot(0f, 4f, 5.6f),
         listOf(Shot(-30f, -6f, 4.6f), Shot(18f, 4f, 3.6f), Shot(-80f, 10f, 4.4f), Shot(60f, 16f, 4.8f), Shot(170f, 8f, 5.0f)), spin = 5f, group = "Planets"),
+    // a living crow standing on the spot (STA2 --crow): it looks around and hops round to face each new camera
+    StatueLook("Midnight Sentinel", "crow", 0.55f, Shot(0f, 6f, 3.7f, 0.05f),
+        listOf(Shot(-38f, 10f, 3.4f, 0.05f), Shot(24f, -5f, 2.7f, 0.22f), Shot(82f, 7f, 3.3f, 0.05f), Shot(-112f, 16f, 3.6f, 0.05f), Shot(158f, 11f, 3.7f, 0.05f)),
+        group = "Birds", headY = 0.6f),
+    // the Indian ringneck in endless flight (STA2 --ringneck), the same drone camera circling it
+    StatueLook("Emerald Ringneck", "ring", 0.6f, Shot(0f, 10f, 5.6f, 0.02f),
+        listOf(Shot(-30f, 14f, 5.3f), Shot(22f, -6f, 4.7f, 0.04f), Shot(76f, 8f, 5.1f), Shot(-115f, 22f, 5.5f), Shot(160f, 16f, 5.6f)),
+        group = "Birds", wingBias = 0.42f, flapAmp = 1.25f),
 )
 
 /**
@@ -77,7 +89,10 @@ class StatueScene(private val context: Context) : Creature {
     override var bottomInset = 0f
 
     @Volatile var look: StatueLook = STATUE_LOOKS[0]
-    private val bird = StatueBird()
+    private val flyer = StatueBird()
+    private val crow = StatueCrow()
+    /** The animator for rigged looks: the crow stands and lives, the others fly. */
+    private val bird: StatueRig get() = if (look.file == "crow") crow else flyer.also { it.wingBias = look.wingBias; it.flapAmp = look.flapAmp }
 
     private var w = 1; private var h = 1
     private var time = 0f
@@ -121,7 +136,7 @@ class StatueScene(private val context: Context) : Creature {
      *  facing the screen, in the lock framing. */
     private fun shotWake() {
         val L = look.lock; val tz = L.az
-        val headY = when (look.group) { "Birds" -> 0.06f; "Planets" -> 0.1f; else -> 0.48f }
+        val headY = if (!look.headY.isNaN()) look.headY else when (look.group) { "Birds" -> 0.06f; "Planets" -> 0.1f; else -> 0.48f }
         val side = if ((wakeN++ and 1) == 0) 1f else -1f
         az = tz + side * 62f; el = L.el + 24f; dist = 1.05f; ty = headY; roll = side * 16f
         fly(listOf(current(),
@@ -259,6 +274,8 @@ class StatueScene(private val context: Context) : Creature {
         } ?: stepSpring(dt)
         val music0 = input.audio.source != AudioFrame.Source.NONE
         bird.update(dt, time, if (music0) input.audio.bass else 0f)
+        // where the camera will settle: the end of the flight, or the spring's target
+        bird.rest(((flight?.keys?.last()?.az ?: tAz) * D2R))
         tiltX += (tiltTX - tiltX) * min(1f, dt * 5f); tiltY += (tiltTY - tiltY) * min(1f, dt * 5f)
         // lights come up after the far "screen off" look
         val farK = ((dist - 8f) / 7f).coerceIn(0f, 1f)

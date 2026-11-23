@@ -70,6 +70,9 @@ class OrbitScene(private val context: Context) : Creature {
     private var nextLife = 6f; private val taps = ArrayList<Float>()
     private var near = 0f; private var shake = 0f
     private var env = 0
+    /** The world picked in the Studio (index into [ORBIT_ENVS]), or -1: a plain colour or the user's photo is drawn behind instead. */
+    @Volatile var worldIndex = 0
+    private var seenWorld = -2
     private var jaw = 0f; private var jawT = -9f; private var snicker = 3f
     private var hold = 0f; private var ball = 0f; private var battery = .5f; private var charging = false
     private val ballPos = FloatArray(3); private var hasBall = false
@@ -113,7 +116,7 @@ class OrbitScene(private val context: Context) : Creature {
         meta = try { JSONObject(context.assets.open("pets/${species.model}.json").bufferedReader().use { it.readText() }) } catch (e: Exception) { null }
         meta?.optJSONObject("mouth")?.let { } ; meta?.optJSONArray("mouth")?.let { a -> for (i in 0 until min(4, a.length())) pet.mouthCurve[i] = a.getDouble(i).toFloat() }
         intCache.clear(); vecCache.clear()
-        loadedSp = species; env = species.env; cur = null; play("Idle")
+        loadedSp = species; env = if (worldIndex >= 0) worldIndex.coerceIn(0, ORBIT_ENVS.size - 1) else species.env; cur = null; play("Idle")
     }
     override fun onSurfaceChanged(width: Int, height: Int) {
         w = max(1, width); h = max(1, height); val m = min(w, h).toFloat(); halfW = .5f * w / m; halfH = .5f * h / m
@@ -216,6 +219,7 @@ class OrbitScene(private val context: Context) : Creature {
     // ---------------------------------------------------------------- update
     private var pagesKnown = false
     override fun update(dt: Float, input: SceneInput) {
+        if (worldIndex != seenWorld) { seenWorld = worldIndex; if (worldIndex >= 0) env = worldIndex.coerceIn(0, ORBIT_ENVS.size - 1); bgDirty = true }
         ensureModel(); val c0 = cur ?: return
         time += dt; val t = time
         charging = input.charging; battery = input.battery.coerceIn(0f, 1f)
@@ -440,6 +444,7 @@ class OrbitScene(private val context: Context) : Creature {
         // the world, drawn in code at reduced resolution into its own buffer; re-rendered ~24x a second
         // (or at once when the camera moves), then stretched to the screen with linear filtering
         val bw = max(1, (vp[2] * BG_SCALE).toInt()); val bh = max(1, (vp[3] * BG_SCALE).toInt())
+        if (worldIndex >= 0) {
         ensureBg(bw, bh)
         val moving = abs(camYaw - bgYaw) > .002f || abs(camX - bgCx) > .002f || abs(camZ - bgCz) > .002f || env != bgEnv
         if (bgDirty || moving || time - bgT > 1f / 24f) {
@@ -462,6 +467,7 @@ class OrbitScene(private val context: Context) : Creature {
         GLES20.glUniform1i(blU, 0); GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, tri); GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
+        }
         // the creature
         val P = pet; val s = size(); val k = s / P.height; val boxHalf = P.boxR * k
         val m = min(vp[2], vp[3])

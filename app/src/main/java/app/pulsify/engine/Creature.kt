@@ -18,6 +18,8 @@ interface Creature {
     fun screenOn(locked: Boolean) {}
     /** Where the ground is in the current world picture (uv), or NaN for the default floor. */
     fun setGround(y: Float) {}
+    /** Sideways home spot chosen on the user's own photo (-0.5..0.5 of the screen width, 0 = centre). */
+    fun setHomeX(x: Float) {}
     /** Plays a named trick from the Studio's Tricks tab. Returns false for unknown ids. */
     fun perform(trick: String): Boolean = false
     /** The home screen was swiped to another page and settled ([dir] = -1 left, 1 right). */

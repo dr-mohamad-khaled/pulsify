@@ -9,6 +9,19 @@ data class EnvInfo(val name: String, val world: Int, val skyVariant: Int = 0, va
 /** World id for a plain background in a colour the user picks (true black by default). */
 const val SOLID_WORLD = 100
 
+/** World id for the user's own photo from the phone (one per creature, with the creature placed where they chose). */
+const val USER_WORLD = 101
+/** Glowy's Aquarium look: its tanks are worlds AQUA_WORLD0 + tank index (the aquarium paints them itself). */
+const val AQUA_WORLD0 = 200
+/** Gromble (Reaper, Mischief): the 3D worlds drawn in code that turn with the camera, ORBIT_WORLD0 + index. */
+const val ORBIT_WORLD0 = 300
+
+/** Worlds the shared world painter draws (pictures, the old procedural paintings, the user's photo). */
+fun paintedWorld(world: Int): Boolean = (world in 0 until SOLID_WORLD) || world == USER_WORLD
+
+val PLAIN_ENV = EnvInfo("Plain colour", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF111111.toInt())
+val PHOTO_ENV = EnvInfo("Your photo", USER_WORLD, c1 = 0xFF2A2338.toInt(), c2 = 0xFF15121E.toInt())
+
 /** Background colours offered for [SOLID_WORLD]. */
 val SOLID_COLORS = listOf(
     0xFF000000.toInt(), 0xFF0B1026.toInt(), 0xFF1A0B24.toInt(), 0xFF06201C.toInt(),
@@ -57,6 +70,50 @@ val W_AQUARIUM = EnvInfo("Planted Tank", 75, c1 = -14702982, c2 = -1739917)
 val W_BLACKWATER = EnvInfo("Blackwater Tank", 76, c1 = -7513557, c2 = -11633350)
 val W_BALCONY = EnvInfo("Balcony Garden", 77, c1 = -5005861, c2 = -14997)
 
+// 7.0 worlds (ids 80+): Flow paintings in four times of day, made for each creature (tools/bg/make_world.py).
+val V_PLAYROOM = EnvInfo("Pastel Playroom", 80, c1 = 0xFFC9B6F2.toInt(), c2 = 0xFFFFD6E8.toInt())
+val V_CANDY = EnvInfo("Candy Meadow", 81, c1 = 0xFFFFB3D9.toInt(), c2 = 0xFF8EF2D0.toInt())
+val V_CLOUD = EnvInfo("Cloud Garden", 82, c1 = 0xFFF5D0E8.toInt(), c2 = 0xFF8CB8F2.toInt())
+val V_CANOPY = EnvInfo("Canopy Deck", 83, c1 = 0xFF2E7D4F.toInt(), c2 = 0xFFB8F27A.toInt())
+val V_LAGOON = EnvInfo("Palm Lagoon", 84, c1 = 0xFF3FC1FF.toInt(), c2 = 0xFFFFC46B.toInt())
+val V_RIAD = EnvInfo("Riad Courtyard", 85, c1 = 0xFF2F6FD6.toInt(), c2 = 0xFFF2C46B.toInt())
+val V_REEF = EnvInfo("Coral Reef", 86, c1 = 0xFF1FA6C7.toInt(), c2 = 0xFFFF8099.toInt())
+val V_TRENCH = EnvInfo("Deep Trench", 87, c1 = 0xFF04101F.toInt(), c2 = 0xFF4DE6FF.toInt())
+val V_MOSS = EnvInfo("Moss Garden", 88, c1 = 0xFF2E7D4F.toInt(), c2 = 0xFFD95B43.toInt())
+val V_VOLCANO = EnvInfo("Volcano Crater", 89, c1 = 0xFF4D0D0D.toInt(), c2 = 0xFFFF8C1A.toInt())
+val V_HAUNTED = EnvInfo("Haunted Courtyard", 90, c1 = 0xFF3D2E6B.toInt(), c2 = 0xFFFFBF4D.toInt())
+val V_CRYSTAL = EnvInfo("Crystal Cave", 91, c1 = 0xFF5C3D8C.toInt(), c2 = 0xFF2DD4BF.toInt())
+val V_LAB = EnvInfo("Robot Lab", 92, c1 = 0xFF0E2A33.toInt(), c2 = 0xFF2DD4BF.toInt())
+val V_ROOFTOP = EnvInfo("Sky Rooftop", 93, c1 = 0xFF1F2A44.toInt(), c2 = 0xFF59B8FF.toInt())
+val V_STATION = EnvInfo("Space Deck", 94, c1 = 0xFF0B1026.toInt(), c2 = 0xFF8A93AE.toInt())
+val V_POND = EnvInfo("Lily Pond", 95, c1 = 0xFF7ED957.toInt(), c2 = 0xFFFF9EC4.toInt())
+val V_FARM = EnvInfo("Farmyard", 96, c1 = 0xFFE8B04A.toInt(), c2 = 0xFFC0392B.toInt())
+val V_BLOSSOM = EnvInfo("Blossom Garden", 97, c1 = 0xFFFFB7D5.toInt(), c2 = 0xFF8C6CE6.toInt())
+
+/** A creature's worlds: its pictures (the ones that ship), then a plain colour and the user's own photo. */
+fun worldsOf(vararg pics: EnvInfo): List<EnvInfo> = pics.filter { it.world in PHOTO_READY } + PLAIN_ENV + PHOTO_ENV
+
+/**
+ * The worlds offered for a creature in a given look. Glowy's Aquarium shows its tanks, Gromble adds its
+ * code-drawn 3D worlds (they turn with the camera); every list ends with a plain colour and your photo.
+ */
+fun envsFor(info: CreatureInfo, style: Int): List<EnvInfo> = when {
+    info.id == 5 && style == 3 -> AQUA_TANKS.mapIndexed { i, n -> EnvInfo(n, AQUA_WORLD0 + i, c1 = AQUA_TANK_COLORS[i * 2], c2 = AQUA_TANK_COLORS[i * 2 + 1]) } + PLAIN_ENV + PHOTO_ENV
+    // Gromble: the painted worlds (he stands on them, the camera turns him), then the 3D worlds that turn with the camera
+    info.id == 6 -> info.envs.filter { it.world in 0 until SOLID_WORLD } +
+        ORBIT_ENVS.mapIndexed { i, n -> EnvInfo("$n 3D", ORBIT_WORLD0 + i, c1 = ORBIT_ENV_COLORS[i * 2], c2 = ORBIT_ENV_COLORS[i * 2 + 1]) } + PLAIN_ENV + PHOTO_ENV
+    else -> info.envs
+}
+
+private val AQUA_TANK_COLORS = intArrayOf(
+    0xFF2E7D4F.toInt(), 0xFF8EE03B.toInt(), 0xFF1FA6C7.toInt(), 0xFFFF8099.toInt(), 0xFF0A1F4D.toInt(), 0xFF4DE6FF.toInt(),
+    0xFF3A2410.toInt(), 0xFFD9A15A.toInt(), 0xFFE8E0D0.toInt(), 0xFF5FB04F.toInt(), 0xFF02050C.toInt(), 0xFF2D5BFF.toInt(),
+)
+private val ORBIT_ENV_COLORS = intArrayOf(
+    0xFF4D0D0D.toInt(), 0xFFFF8C1A.toInt(), 0xFF3D2E6B.toInt(), 0xFFFFBF4D.toInt(), 0xFF5C3D8C.toInt(), 0xFF2DD4BF.toInt(),
+    0xFF0E2A44.toInt(), 0xFF9DE6FF.toInt(), 0xFFFFB3D9.toInt(), 0xFF8EF2D0.toInt(),
+)
+
 /** New photo worlds first; the old low-horizon pictures only stay until at least two new ones are ready. */
 fun worlds(photo: List<EnvInfo>, old: List<EnvInfo>, keep: List<EnvInfo> = emptyList()): List<EnvInfo> {
     val fresh = photo.filter { it.world >= 60 && it.world in PHOTO_READY }
@@ -101,10 +158,7 @@ val GLOWY_INFO = CreatureInfo(
     5, "Glowy", "Anglerfish, clownfish, betta, puffer or koi. Follows your finger.",
     "Drag: the lure follows you. Touch the water: little fish gather and it gulps them. Tap: the lure flashes.",
     0xFF80F2FF.toInt(), GLOWY_COATS.map { CoatInfo(it.name, it.body, it.glow) },
-    worlds(listOf(W_AQUARIUM, W_BLACKWATER, P_REEF, P_SHIP), listOf(
-        EnvInfo("Coral Garden", 13, c1 = 0xFF1FA6C7.toInt(), c2 = 0xFFFF8099.toInt()),
-        EnvInfo("Sunken Ship", 14, c1 = 0xFF14666B.toInt(), c2 = 0xFFFFD159.toInt()),
-    ), listOf(EnvInfo("Midnight Trench", 12, c1 = 0xFF0A1F4D.toInt(), c2 = 0xFF4DE6FF.toInt()))),
+    worldsOf(V_TRENCH, V_REEF, V_MOSS),
     listOf(
         TrickInfo("feed", "Feed", "🐟"), TrickInfo("flash", "Flash the lure", "💡"), TrickInfo("puff", "Puff up", "🐡"),
         TrickInfo("loop", "Loop", "🌀"), TrickInfo("bubbles", "Bubbles", "🫧"), TrickInfo("yawn", "Big yawn", "🥱"),
@@ -117,13 +171,10 @@ val GROMBLE_INFO = CreatureInfo(
     6, "Gromble", "Tries very hard to be evil. Fails adorably.",
     "Finger far away: he growls. Finger close: he panics. Poke him three times. Hold him: secretly loves it.",
     0xFFB380FF.toInt(), GROMBLE_COATS.map { CoatInfo(it.name, it.fur, it.horn) },
-    worlds(listOf(W_GRAVEYARD, W_PUMPKINS, P_GRAVEYARD, P_PUMPKIN), listOf(
-        EnvInfo("Lava Lair", 15, c1 = 0xFF4D0D0D.toInt(), c2 = 0xFFFF8C1A.toInt()),
-        EnvInfo("Haunted Hill", 16, c1 = 0xFF3D2E6B.toInt(), c2 = 0xFFFFBF4D.toInt()),
-        EnvInfo("Evil HQ", 17, c1 = 0xFF5C3D8C.toInt(), c2 = 0xFF99FF59.toInt()),
-    )),
+    // the World tab adds the code-drawn 3D worlds after these (see envsFor)
+    worldsOf(V_VOLCANO, V_HAUNTED, V_CRYSTAL),
     listOf(
-        TrickInfo("notify", "Knock", ""), TrickInfo("world", "Next world", ""), TrickInfo("walk", "Walk", ""),
+        TrickInfo("notify", "Knock", ""), TrickInfo("walk", "Walk", ""),
     ),
     styles = listOf("Reaper", "Mischief"),
 )
@@ -150,7 +201,7 @@ val BOLT_INFO = CreatureInfo(
     8, "Bolt", "Five smart little robots with LED faces. Pick one.",
     "Tap it: it giggles (3 fast taps: it overheats). Drag it: you pick it up. Tap the floor: it goes there. Hold the screen: it scans your finger.",
     0xFF2DD4BF.toInt(), listOf(CoatInfo("Graphite", 0xFF231C35.toInt(), 0xFF2DD4BF.toInt())),
-    listOf(EnvInfo("Pitch Black", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF000000.toInt())),
+    worldsOf(V_LAB, V_ROOFTOP, V_STATION),
     listOf(
         TrickInfo("wave", "Wave", "👋"), TrickInfo("scan", "Scan", "🔍"), TrickInfo("jump", "Jump", "⬆️"), TrickInfo("glitch", "Glitch", "📺"),
         TrickInfo("nap", "Nap", "💤"), TrickInfo("faces", "Faces", "😎"), TrickInfo("look", "Look around", "👀"), TrickInfo("dance", "Cheer", "🎉"), TrickInfo("notify", "Notification", "🔔"),
@@ -168,8 +219,8 @@ val GLOOP_INFO = CreatureInfo(
         EnvInfo("Gum Pool", 29, c1 = 0xFF73F2C8.toInt(), c2 = 0xFFFFC6DA.toInt()),
         EnvInfo("Moon Jelly", 30, c1 = 0xFF9D5CF2.toInt(), c2 = 0xFFFFE6FA.toInt()),
         EnvInfo("Sherbet Hills", 31, c1 = 0xFFFFB38F.toInt(), c2 = 0xFFFF9EB8.toInt()),
-        EnvInfo("Plain Colour", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF111111.toInt()),
-    ).let { listOf(P_CANDY, P_CLOUD).filter { p -> p.world in PHOTO_READY } + it },
+        PLAIN_ENV, PHOTO_ENV,
+    ),
     listOf(
         TrickInfo("tag", "Tag", "🏃"), TrickInfo("tower", "Jelly tower", "🗼"), TrickInfo("conga", "Conga line", "💃"),
         TrickInfo("peekaboo", "Peekaboo", "🙈"), TrickInfo("bounce", "Bounce", "🔴"), TrickInfo("wave", "Mexican wave", "🌊"),
@@ -181,10 +232,7 @@ val SNOWY_INFO = CreatureInfo(
     SNOWY_ID, "Snowy", "Fluffy duckling. Quacks at everything, dreams of flying.",
     "Tap: quack-poke. Hold: cuddles. Drag to carry, fling to throw. Play music and it dances.",
     0xFFFFB45C.toInt(), listOf(CoatInfo("Snow white", 0xFFF4F1EA.toInt(), 0xFFFF9A2E.toInt())),
-    worlds(listOf(W_POND, W_FARM, P_POND, P_BLOSSOM), listOf(
-        EnvInfo("Snow Day", 4, c1 = 0xFFDDEBFF.toInt(), c2 = 0xFF2E7D6B.toInt()),
-        EnvInfo("Blossom Garden", 11, c1 = 0xFFFFB7D5.toInt(), c2 = 0xFF8C6CE6.toInt()),
-    ), listOf(EnvInfo("Plain Colour", SOLID_WORLD, c1 = 0xFF000000.toInt(), c2 = 0xFF111111.toInt()))),
+    worldsOf(V_POND, V_FARM, V_BLOSSOM),
     listOf(
         TrickInfo("quack", "Quack", "🦆"), TrickInfo("flap", "Flap", "🪽"), TrickInfo("fly", "Try to fly", "✈️"),
         TrickInfo("crumbs", "Bread crumbs", "🍞"), TrickInfo("splash", "Puddle", "💦"),
@@ -231,10 +279,7 @@ private val BASE_CREATURES = listOf(
         1, "Mochi", "Battery-juice bean. Don't take its jar.",
         "Tap Mochi. Hold it. Try stealing its jar while you charge.",
         0xFF7CF2A8.toInt(), MOCHI_COATS.map { CoatInfo(it.name, it.base, it.rim) },
-        worlds(listOf(P_CANDY, P_CLOUD), listOf(
-            EnvInfo("Cloud Nursery", 1, c1 = 0xFFF5A8D8.toInt(), c2 = 0xFF8C7AE6.toInt()),
-            EnvInfo("Battery Lab", 2, c1 = 0xFF4ADE80.toInt(), c2 = 0xFF1B2430.toInt()),
-        ), listOf(EnvInfo("Candy Cosmos", -1, 0, 0xFF5BF09A.toInt(), 0xFFC9A6FF.toInt()))),
+        worldsOf(V_PLAYROOM, V_CANDY, V_CLOUD),
         listOf(TrickInfo("hello", "Say hi", "👋"), TrickInfo("bubble", "Blow a bubble", "🫧"), TrickInfo("star", "Catch a star", "⭐"), TrickInfo("party", "Party", "🎉"), TrickInfo("wobble", "Wobble", "🍮"), TrickInfo("giggle", "Giggle", "😆"), TrickInfo("stretch", "Big stretch", "🙆"),
             TrickInfo("shy", "Shy (Peachy)", "🙈"), TrickInfo("love", "Love (Peachy)", "💗"), TrickInfo("sleepy", "Sleepy (Peachy)", "💤"), TrickInfo("tumble", "Tumble (Peachy)", "🌀"), TrickInfo("notify", "Notification (Peachy)", "🔔")),
         styles = listOf("Jelly Bean", "Peachy"),
@@ -256,11 +301,7 @@ val KIWI_INFO = CreatureInfo(
     4, "Kiwi", "Talks, whistles, headbangs. Teach it words.",
     "Tap it: squawk. Drag it off the branch and let go: it flies a lap and lands. Swipe your pages: it takes off.",
     0xFF7BE08A.toInt(), KIWI_SPECIES.map { CoatInfo(it.name, it.body, it.face) },
-    worlds(listOf(W_TERRACE, W_GREENHOUSE, P_RAINFOREST, P_BEACH), listOf(
-        EnvInfo("Rainforest", 9, c1 = 0xFF2E7D4F.toInt(), c2 = 0xFFB8F27A.toInt()),
-        EnvInfo("Palm Beach", 10, c1 = 0xFF3FC1FF.toInt(), c2 = 0xFFFFC46B.toInt()),
-        EnvInfo("Blossom Garden", 11, c1 = 0xFFFFB7D5.toInt(), c2 = 0xFF8C6CE6.toInt()),
-    )),
+    worldsOf(V_CANOPY, V_LAGOON, V_RIAD),
     listOf(
         TrickInfo("talk", "Say something", ""), TrickInfo("whistle", "Whistle", ""), TrickInfo("squawk", "Squawk!", ""),
         TrickInfo("fly", "Fly a lap", ""), TrickInfo("hang", "Upside-down", ""), TrickInfo("sidestep", "Side step", ""),

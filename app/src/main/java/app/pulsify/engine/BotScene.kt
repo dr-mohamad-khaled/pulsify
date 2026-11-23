@@ -88,6 +88,18 @@ class BotScene(private val transparent: Boolean = false) : Creature {
     private fun wake() { if (act?.n == "nap") { act = null; sq.v += 4; ant.v += 6 } }
 
     // ---------------------------------------------------------------- layout (bitmap pixels)
+    // Where the robot stands: the world's ground (uv, NaN = the default 70% line) and an optional sideways home.
+    private var ground = Float.NaN; private var homeX = 0f
+    private fun groundFrac(): Float {
+        if (ground.isNaN() || sw <= 0) return .7f
+        val halfH = .5f * sh / min(sw, sh).toFloat()
+        return (.5f - ground / (2f * halfH)).coerceIn(.3f, .92f)
+    }
+    override fun setGround(y: Float) { if (y == ground || (y.isNaN() && ground.isNaN())) return; ground = y; if (bw > 2) { GY = H * groundFrac() } }
+    override fun setHomeX(x: Float) { if (x == homeX) return; homeX = x; if (bw > 2) CX = W / 2 + homeX * W }
+    /** Over a picture or a coloured background the robot is drawn with alpha; over true black it stays opaque. */
+    @Volatile var overWorld = false
+    private val alpha get() = transparent || overWorld
     private var W = 1f; private var H = 1f; private var U = 1f; private var GY = 1f; private var CX = .5f; private var bw = 2; private var bh = 2
     private fun botScreen(ly: Float, out: FloatArray = tmp2): FloatArray { out[0] = CX + x * U; out[1] = GY - (air + ly + (if (look.loco == "hover") hov - .1f else 0f)) * U; return out }
     private val tmp2 = FloatArray(2)
@@ -552,10 +564,11 @@ class BotScene(private val transparent: Boolean = false) : Creature {
     }
 
     // ---------------------------------------------------------------- GL plumbing
-    private var prog = 0; private var vbo = 0; private var tex = 0; private var bmp: Bitmap? = null; private var cvs: Canvas? = null; private var uTex = 0
+    private var prog = 0; private var progBlack = 0; private var uTexBlack = 0; private var vbo = 0; private var tex = 0; private var bmp: Bitmap? = null; private var cvs: Canvas? = null; private var uTex = 0
     private var sw = 1; private var sh = 1
     override fun onSurfaceCreated() {
-        prog = Gl.program(VS, if (transparent) FS_ALPHA else FS); uTex = GLES20.glGetUniformLocation(prog, "uTex")
+        prog = Gl.program(VS, FS_ALPHA); uTex = GLES20.glGetUniformLocation(prog, "uTex")
+        progBlack = if (transparent) 0 else Gl.program(VS, FS); uTexBlack = if (progBlack != 0) GLES20.glGetUniformLocation(progBlack, "uTex") else 0
         val ids = IntArray(1); GLES20.glGenBuffers(1, ids, 0); vbo = ids[0]
         val q = floatArrayOf(-1f, -1f, 1f, -1f, -1f, 1f, 1f, 1f); val fb = ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder()).asFloatBuffer().put(q); fb.position(0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, 32, fb, GLES20.GL_STATIC_DRAW); tex = 0
@@ -563,14 +576,14 @@ class BotScene(private val transparent: Boolean = false) : Creature {
     override fun onSurfaceChanged(width: Int, height: Int) {
         sw = max(1, width); sh = max(1, height)
         val k = min(1f, 720f / min(sw, sh)); bw = max(8, (sw * k).roundToInt()); bh = max(8, (sh * k).roundToInt())
-        W = bw.toFloat(); H = bh.toFloat(); U = min(W * .5f, H * .3f); GY = H * .7f; CX = W / 2
+        W = bw.toFloat(); H = bh.toFloat(); U = min(W * .5f, H * .3f); GY = H * groundFrac(); CX = W / 2 + homeX * W
     }
-    override fun release() { if (prog != 0) GLES20.glDeleteProgram(prog); if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0); if (tex != 0) GLES20.glDeleteTextures(1, intArrayOf(tex), 0); prog = 0; vbo = 0; tex = 0; bmp?.recycle(); bmp = null; cvs = null }
+    override fun release() { if (prog != 0) GLES20.glDeleteProgram(prog); if (progBlack != 0) GLES20.glDeleteProgram(progBlack); progBlack = 0; if (vbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(vbo), 0); if (tex != 0) GLES20.glDeleteTextures(1, intArrayOf(tex), 0); prog = 0; vbo = 0; tex = 0; bmp?.recycle(); bmp = null; cvs = null }
     override fun draw(input: SceneInput) {
         var b = bmp
         if (b == null || b.width != bw || b.height != bh) { b?.recycle(); b = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888); bmp = b; cvs = Canvas(b); if (tex != 0) GLES20.glDeleteTextures(1, intArrayOf(tex), 0); tex = 0 }
         val cv = cvs!!
-        cv.drawColor(if (transparent) Color.TRANSPARENT else Color.BLACK, PorterDuff.Mode.SRC)
+        cv.drawColor(if (alpha) Color.TRANSPARENT else Color.BLACK, PorterDuff.Mode.SRC)
         drawCable(cv); drawScan(cv)
         // the robot (robot units, y up, origin at its feet)
         cv.save(); cv.translate(CX + x * U, GY - air * U); cv.scale(U, -U)
@@ -588,11 +601,13 @@ class BotScene(private val transparent: Boolean = false) : Creature {
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR); GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
             GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE); GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
             GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, b, 0) } else { GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex); GLUtils.texSubImage2D(GLES20.GL_TEXTURE_2D, 0, 0, 0, b) }
-        GLES20.glUseProgram(prog); GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex); GLES20.glUniform1i(uTex, 0)
-        if (transparent) { GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA) } else GLES20.glDisable(GLES20.GL_BLEND)
+        // over true black: the opaque pass that crushes near-black to pixels-off; otherwise blend over the world
+        if (alpha || progBlack == 0) { GLES20.glUseProgram(prog); GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex); GLES20.glUniform1i(uTex, 0) }
+        else { GLES20.glUseProgram(progBlack); GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex); GLES20.glUniform1i(uTexBlack, 0) }
+        if (alpha) { GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA) } else GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo); GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4); GLES20.glDisableVertexAttribArray(0); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
-        if (transparent) GLES20.glDisable(GLES20.GL_BLEND)
+        if (alpha) GLES20.glDisable(GLES20.GL_BLEND)
     }
 
     companion object {

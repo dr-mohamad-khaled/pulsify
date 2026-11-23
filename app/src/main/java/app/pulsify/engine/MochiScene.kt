@@ -159,13 +159,15 @@ class MochiScene(private val context: Context) : Creature {
         if (y == ground || (y.isNaN() && ground.isNaN())) return
         ground = y; layout()
     }
+    private var userX = 0f
+    override fun setHomeX(x: Float) { if (x == userX) return; userX = x; layout() }
 
     private fun layout() {
         val halfH = 0.5f * h / min(w, h)
         val halfW = 0.5f * w / min(w, h)
         // Same size on every screen in short-side units; never wider than the screen allows.
         size = min(0.62f, halfW * 2f * 0.62f)
-        homeX = 0f
+        homeX = (userX * 2f * halfW).coerceIn(-halfW + 0.5f * size, halfW - 0.5f * size)
         homeY = (if (ground.isNaN()) -halfH + 0.32f else ground) + 0.55f * size
         // Short previews (the home-screen card) keep Mochi smaller and up top, clear of the text.
         if (h.toFloat() / w < 1.5f) {

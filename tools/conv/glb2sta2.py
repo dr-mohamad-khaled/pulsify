@@ -10,10 +10,12 @@ STA2 (skinned) = STA1 header with 'STA2', then
   ni * u32 indices
 Model is recentred so its bbox centre is the origin, y up, front +Z.
 
-usage: glb2sta2.py src.glb name outdir [--tris N] [--fit F] [--bird]
+usage: glb2sta2.py src.glb name outdir [--tris N] [--fit F] [--bird | --crow]
   --tris N  simplify to about N triangles (meshoptimizer, keeps UV seams)
   --fit F   scale so the largest half-extent is F model units
-  --bird    keep the skin, merged to the reduced bird skeleton below
+  --bird    keep the skin, merged to the reduced flying-bird skeleton below (StatueBird)
+  --ringneck  keep the skin, merged to the same flying-bird skeleton from a Meshy SmartRig biped bird (StatueBird)
+  --crow    keep the skin, merged to the perched-crow skeleton (Meshy SmartRig biped bird, StatueCrow)
 """
 import io, json, struct, sys, argparse
 import numpy as np
@@ -23,7 +25,7 @@ import meshoptimizer as mo
 ap = argparse.ArgumentParser()
 ap.add_argument('src'); ap.add_argument('name'); ap.add_argument('outdir')
 ap.add_argument('--tris', type=int, default=0); ap.add_argument('--fit', type=float, default=0)
-ap.add_argument('--bird', action='store_true'); ap.add_argument('--tex', type=int, default=2048)
+ap.add_argument('--bird', action='store_true'); ap.add_argument('--crow', action='store_true'); ap.add_argument('--ringneck', action='store_true'); ap.add_argument('--tex', type=int, default=2048)
 A = ap.parse_args()
 
 b = open(A.src, 'rb').read()
@@ -44,7 +46,7 @@ prim = J['meshes'][0]['primitives'][0]; at = prim['attributes']
 P = acc(at['POSITION']).astype(np.float32); N = acc(at['NORMAL']).astype(np.float32); UV = acc(at['TEXCOORD_0']).astype(np.float32)
 I = acc(prim['indices']).reshape(-1).astype(np.uint32)
 JI = WT = None
-if A.bird:
+if A.bird or A.crow or A.ringneck:
     JI = acc(at['JOINTS_0']).astype(np.int32); WT = acc(at['WEIGHTS_0']).astype(np.float32)
 
 # ---- optional simplification ----
@@ -89,7 +91,7 @@ q8 = lambda v: np.round(np.clip(v, -1, 1) * 127).astype(np.int8)
 nv = len(P)
 fields = [('p', '<i2', 3), ('pad', '<u2'), ('n', 'i1', 4), ('t', 'i1', 4), ('uv', '<u2', 2)]
 bones = None
-if A.bird:
+if A.bird or A.crow or A.ringneck:
     # ---- reduced bird skeleton: each original joint folds into one of these ----
     skin = J['skins'][0]; joints = skin['joints']
     names = [J['nodes'][j]['name'] for j in joints]
@@ -108,10 +110,31 @@ if A.bird:
         ('tipR', 18, nums(62, 61, 70, 69, 72, 71, 74, 73)), ('innerR', 15, nums(45, 44, 43)),
         ('legL', 0, nums(15, 14, 13, 12, 11, 10)), ('legR', 0, nums(21, 20, 19, 18, 17, 16)),
     ]
+    if A.crow:  # a perched bird: no wing bones (the wings stay folded), a jaw for the caw
+        R = [
+            ('body', -1, nums(0, 1)), ('spine', 0, nums(4)), ('chest', 1, nums(3, 2)), ('breast', 2, nums(23, 22)),
+            ('neck1', 2, nums(21)), ('neck2', 4, nums(20)), ('head', 5, nums(19)), ('jaw', 6, nums(18, 17)),
+            ('tail1', 0, nums(16)), ('tail2', 8, nums(15)), ('tail3', 9, nums(14, 13)),
+            ('thighL', 0, nums(8)), ('shinL', 11, nums(7)), ('footL', 12, nums(6, 5, 27, 26, 25, 24, 31, 30, 29, 28, 35, 34, 33, 32)),
+            ('thighR', 0, nums(12)), ('shinR', 14, nums(11)), ('footR', 15, nums(10, 9, 39, 38, 37, 36, 43, 42, 41, 40, 47, 46, 45, 44)),
+        ]
+    if A.ringneck:  # SmartRig biped bird: same 23 bird bones; '@Bone_x' = pivot only (no skin of its own)
+        R = [
+            ('body', -1, nums(0)),
+            ('tail1', 0, nums(1)), ('tail2', 1, nums(3)), ('tail3', 2, nums(2)), ('tail4', 3, ['@Bone_002']),
+            ('chest', 0, nums(12)), ('neck1', 5, nums(11)), ('neck2', 6, ['@Bone_010']),
+            ('head', 7, nums(10, 24, 23)),
+            ('shL', 5, nums(28)), ('armL', 9, nums(27)), ('foreL', 10, nums(26)), ('handL', 11, nums(25)),
+            ('tipL', 12, ['@Bone_025']), ('innerL', 9, ['@Bone_028']),
+            ('shR', 5, nums(32)), ('armR', 15, nums(31)), ('foreR', 16, nums(30)), ('handR', 17, nums(29)),
+            ('tipR', 18, ['@Bone_029']), ('innerR', 15, ['@Bone_032']),
+            ('legL', 0, nums(6, 5, 4, 14, 13, 17, 16, 15)), ('legR', 0, nums(9, 8, 7, 19, 18, 22, 21, 20)),
+        ]
     fold = np.full(len(joints), -1, np.int32); pivots = []
     for ri, (nm, par, members) in enumerate(R):
-        for m in members: fold[names.index(m)] = ri
-        pivots.append(heads[names.index(members[0])])
+        for m in members:
+            if not m.startswith('@'): fold[names.index(m)] = ri
+        pivots.append(heads[names.index(members[0].lstrip('@'))])
     assert (fold >= 0).all(), [names[i] for i in np.where(fold < 0)[0]]
     nb = len(R)
     acc_w = np.zeros((nv, nb), np.float32)
