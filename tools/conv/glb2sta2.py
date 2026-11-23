@@ -27,7 +27,7 @@ import meshoptimizer as mo
 ap = argparse.ArgumentParser()
 ap.add_argument('src'); ap.add_argument('name'); ap.add_argument('outdir')
 ap.add_argument('--tris', type=int, default=0); ap.add_argument('--fit', type=float, default=0)
-ap.add_argument('--bird', action='store_true'); ap.add_argument('--crow', action='store_true'); ap.add_argument('--ringneck', action='store_true'); ap.add_argument('--cockatiel', action='store_true'); ap.add_argument('--perch', default=''); ap.add_argument('--tex', type=int, default=2048)
+ap.add_argument('--bird', action='store_true'); ap.add_argument('--crow', action='store_true'); ap.add_argument('--ringneck', action='store_true'); ap.add_argument('--cockatiel', action='store_true'); ap.add_argument('--perch', default=''); ap.add_argument('--tex', type=int, default=2048); ap.add_argument('--lossless', action='store_true')
 A = ap.parse_args()
 
 b = open(A.src, 'rb').read()
@@ -194,10 +194,14 @@ mat = J['materials'][0]; pbr = mat['pbrMetallicRoughness']
 def img(ti, out, size, q):
     tx = J['textures'][ti]; im = J['images'][tx['source']]; bv = J['bufferViews'][im['bufferView']]
     data = BIN[bv.get('byteOffset', 0): bv.get('byteOffset', 0) + bv['byteLength']]
-    Image.open(io.BytesIO(data)).convert('RGB').resize((size, size), Image.LANCZOS).save(f'{A.outdir}/{A.name}_{out}.webp', 'WEBP', quality=q, method=6)
+    im = Image.open(io.BytesIO(data)).convert('RGB')
+    if im.size != (size, size): im = im.resize((size, size), Image.LANCZOS)
+    # --lossless keeps every detail of the Meshy textures (bigger files, no compression blocks in fur and feathers)
+    if A.lossless: im.save(f'{A.outdir}/{A.name}_{out}.webp', 'WEBP', lossless=True, quality=100, method=6)
+    else: im.save(f'{A.outdir}/{A.name}_{out}.webp', 'WEBP', quality=q, method=6)
 img(pbr['baseColorTexture']['index'], 'c', A.tex, 90)
 img(mat['normalTexture']['index'], 'n', A.tex, 92)
-img(pbr['metallicRoughnessTexture']['index'], 'mr', 1024, 90)
+img(pbr['metallicRoughnessTexture']['index'], 'mr', 2048 if A.lossless else 1024, 90)
 print(A.name, nv, len(I) // 3, 'tris; half extents', S, 'fit', fit)
 if bones:
     for i, ((nm, par, _), h) in enumerate(zip(bones[0], bones[1])): print(i, nm, par, np.round(h, 3))

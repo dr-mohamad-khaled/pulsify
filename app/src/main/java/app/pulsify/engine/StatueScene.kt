@@ -375,8 +375,10 @@ class StatueScene(private val context: Context) : Creature {
             val par = IntArray(nb); val heads = FloatArray(nb * 3)
             for (i in 0 until nb) { par[i] = bb.int; heads[i * 3] = bb.float; heads[i * 3 + 1] = bb.float; heads[i * 3 + 2] = bb.float }
             bird.setRig(par, heads)
+            // flying birds: the camera circles the body, not the middle of the wingspan, so the bird stays centred
+            if (look.rig == "fly") { pivX = heads[0]; pivY = heads[1]; pivZ = heads[2] } else { pivX = 0f; pivY = 0f; pivZ = 0f }
             vOff += 4 + nb * 16
-        } else bird.clear()
+        } else { bird.clear(); pivX = 0f; pivY = 0f; pivZ = 0f }
         stride = if (skinned) 28 else 20
         val vb = ByteBuffer.allocateDirect(nv * stride).order(ByteOrder.nativeOrder()); vb.put(bytes, vOff, nv * stride); vb.position(0)
         val iOff = vOff + nv * stride
@@ -403,6 +405,7 @@ class StatueScene(private val context: Context) : Creature {
         loaded = look.file
     }
 
+    private var aniso = -1f
     private fun texture(path: String): Int {
         val opts = BitmapFactory.Options().apply { inPremultiplied = false; inScaled = false }
         val bmp = context.assets.open(path).use { BitmapFactory.decodeStream(it, null, opts) }!!
@@ -414,6 +417,10 @@ class StatueScene(private val context: Context) : Creature {
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT)
         GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bmp, 0)
         GLES20.glGenerateMipmap(GLES20.GL_TEXTURE_2D)
+        // anisotropic filtering keeps feathers and fur sharp where the surface turns away from the camera
+        if (aniso < 0f) aniso = if (GLES20.glGetString(GLES20.GL_EXTENSIONS)?.contains("GL_EXT_texture_filter_anisotropic") == true)
+            FloatArray(1).also { GLES20.glGetFloatv(0x84FF, it, 0) }[0].coerceAtMost(8f) else 0f
+        if (aniso > 1f) GLES20.glTexParameterf(GLES20.GL_TEXTURE_2D, 0x84FE, aniso)
         bmp.recycle()
         return t[0]
     }
@@ -458,6 +465,7 @@ class StatueScene(private val context: Context) : Creature {
 
     private val proj = FloatArray(16); private val view = FloatArray(16); private val mvp = FloatArray(16)
     private val vpBuf = IntArray(4)
+    private var pivX = 0f; private var pivY = 0f; private var pivZ = 0f
 
     override fun draw(input: SceneInput) {
         if (prog == 0) return
@@ -480,11 +488,11 @@ class StatueScene(private val context: Context) : Creature {
         if (!live && flight == null) az += 0.07f
         val a = (az + hovAz) * D2R; val e = (el + hovEl) * D2R
         val d = dist * (1f + (if (live) sin(time * .19f) * 0.025f else 0f))
-        val cx = sin(a) * cos(e) * d; val cy = ty + sin(e) * d; val cz = cos(a) * cos(e) * d
+        val cx = pivX + sin(a) * cos(e) * d; val cy = pivY + ty + sin(e) * d; val cz = pivZ + cos(a) * cos(e) * d
         // roll: tilt the up vector about the view axis
         val r = roll * D2R
         val upx = sin(r) * cos(a); val upy = cos(r); val upz = -sin(r) * sin(a)
-        Matrix.setLookAtM(view, 0, cx, cy, cz, 0f, ty, 0f, upx, upy, upz)
+        Matrix.setLookAtM(view, 0, cx, cy, cz, pivX, pivY + ty, pivZ, upx, upy, upz)
         Matrix.multiplyMM(mvp, 0, proj, 0, view, 0)
 
         // ---- statue into its own depth-buffered texture ----
