@@ -609,7 +609,8 @@ class GlLoop(
             c.setGround(if (worldOn) world.groundY else Float.NaN); c.setHomeX(if (worldOn && input.world == USER_WORLD) world.homeX else 0f); c.update(dt, input)
             swipePhysics(dt, c)
             val vw = if (offscreen) fbW else surfW; val vh = if (offscreen) fbH else surfH
-            val px = (lag * vw).toInt()
+            // Cosmo paints its own full-screen space: sliding the whole viewport would bare the screen edge
+            val px = if (c === astro) 0 else (lag * vw).toInt()
             if (px != 0) GLES20.glViewport(px, 0, vw, vh)
             c.draw(input)
             if (px != 0) GLES20.glViewport(0, 0, vw, vh)
