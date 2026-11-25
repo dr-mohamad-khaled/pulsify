@@ -37,14 +37,14 @@ class StarField {
     }
     private fun build(W: Int, H: Int) {
         // same statistics as the per-pixel cells: 3 parallax layers + fine stars inside the Milky Way band
-        val s = min(W, H) / 1080f; val area = W.toFloat() * H; val out = ArrayList<Float>(16000)
+        val rnd = Random(20261125); val s = min(W, H) / 1080f; val area = W.toFloat() * H; val out = ArrayList<Float>(16000)
         fun layer(cell: Float, dens: Float, rad: Float, k: Float, tw: Float, gain: Float, bandOnly: Boolean) {
             val cnt = (area / ((cell * s) * (cell * s)) * dens * (if (bandOnly) 1.6f else 1f)).roundToInt()
             for (i in 0 until cnt) {
-                val x = Random.nextFloat(); val y = Random.nextFloat()
-                if (bandOnly) { val qx = (x - .5f) * W / H; val qy = y - .5f; val t = (qx * .6f + qy * .9f + .05f) * 3.2f; if (Random.nextFloat() > exp(-t * t) * .35f / .56f) continue }
-                out.add(x); out.add(y); out.add(k); out.add(rad); out.add((.6f + 2 * Random.nextFloat()) * tw); out.add(Random.nextFloat() * 40f)
-                out.add(Random.nextFloat()); out.add(Random.nextFloat()); out.add(gain); out.add(0f)
+                val x = rnd.nextFloat(); val y = rnd.nextFloat()
+                if (bandOnly) { val qx = (x - .5f) * W / H; val qy = y - .5f; val t = (qx * .6f + qy * .9f + .05f) * 3.2f; if (rnd.nextFloat() > exp(-t * t) * .35f / .56f) continue }
+                out.add(x); out.add(y); out.add(k); out.add(rad); out.add((.6f + 2 * rnd.nextFloat()) * tw); out.add(rnd.nextFloat() * 40f)
+                out.add(rnd.nextFloat()); out.add(rnd.nextFloat()); out.add(gain); out.add(0f)
             }
         }
         layer(46f, .55f, .75f, .25f, .7f, .7f, false); layer(90f, .45f, 1.05f, .5f, 1f, 1f, false)

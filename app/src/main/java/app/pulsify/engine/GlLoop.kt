@@ -587,7 +587,7 @@ class GlLoop(
         // Gromble paints its own 3D world (when one of those is picked); Shadows lives on pure black.
         orbit.worldIndex = if (input.world >= ORBIT_WORLD0) input.world - ORBIT_WORLD0 else -1
         aquarium.tankWorld = if (input.world >= AQUA_WORLD0 && input.world < ORBIT_WORLD0) input.world - AQUA_WORLD0 else -1
-        bots.overWorld = !(input.world == SOLID_WORLD && (input.bgColor and 0xFFFFFF) == 0)
+        bots.overWorld = input.world != BOT_ROOM_WORLD && !(input.world == SOLID_WORLD && (input.bgColor and 0xFFFFFF) == 0)
         val ownWorld = showMainCreature && ((active === orbit && orbit.worldIndex >= 0) || active === shadow)
         if (input.video >= 0) {
             video.draw()

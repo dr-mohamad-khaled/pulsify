@@ -561,6 +561,7 @@ private fun WorldPanel(state: AppState, onPlace: () -> Unit) {
                     w == app.pulsify.engine.USER_WORLD -> if (hasPhoto) "file:" + java.io.File(ctx.filesDir, app.pulsify.core.Pulse.prefs.userBgFile(state.character, state.style)).path + "#" + photoRev else null
                     w >= app.pulsify.engine.AQUA_WORLD0 && w < app.pulsify.engine.ORBIT_WORLD0 -> "aquarium/bg_${w - app.pulsify.engine.AQUA_WORLD0}.jpg"
                     w >= 0 && w < app.pulsify.engine.SOLID_WORLD -> app.pulsify.engine.WorldScene.worldAsset(w, night)
+                    w == app.pulsify.engine.BOT_ROOM_WORLD -> "thumbs/bot_room.jpg"
                     else -> null
                 }
                 val solid = w == app.pulsify.engine.SOLID_WORLD

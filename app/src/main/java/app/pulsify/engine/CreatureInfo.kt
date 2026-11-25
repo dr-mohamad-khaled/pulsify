@@ -11,6 +11,8 @@ const val SOLID_WORLD = 100
 
 /** World id for the user's own photo from the phone (one per creature, with the creature placed where they chose). */
 const val USER_WORLD = 101
+/** Bolt's own dark room with the reflective grid floor (drawn by BotScene itself). */
+const val BOT_ROOM_WORLD = 102
 /** Glowy's Aquarium look: its tanks are worlds AQUA_WORLD0 + tank index (the aquarium paints them itself). */
 const val AQUA_WORLD0 = 200
 /** Gromble (Reaper, Mischief): the 3D worlds drawn in code that turn with the camera, ORBIT_WORLD0 + index. */
@@ -201,7 +203,7 @@ val BOLT_INFO = CreatureInfo(
     8, "Bolt", "Five smart little robots with LED faces. Pick one.",
     "Tap it: it giggles (3 fast taps: it overheats). Drag it: you pick it up. Tap the floor: it goes there. Hold the screen: it scans your finger.",
     0xFF2DD4BF.toInt(), listOf(CoatInfo("Graphite", 0xFF231C35.toInt(), 0xFF2DD4BF.toInt())),
-    worldsOf(V_LAB, V_ROOFTOP, V_STATION),
+    listOf(EnvInfo("Bot Room", BOT_ROOM_WORLD, c1 = 0xFF0D0A14.toInt(), c2 = 0xFF2DD4BF.toInt())) + worldsOf(V_LAB, V_ROOFTOP, V_STATION),
     listOf(
         TrickInfo("wave", "Wave", "👋"), TrickInfo("scan", "Scan", "🔍"), TrickInfo("jump", "Jump", "⬆️"), TrickInfo("glitch", "Glitch", "📺"),
         TrickInfo("nap", "Nap", "💤"), TrickInfo("faces", "Faces", "😎"), TrickInfo("look", "Look around", "👀"), TrickInfo("dance", "Cheer", "🎉"), TrickInfo("notify", "Notification", "🔔"),
@@ -267,6 +269,8 @@ val COSMO_INFO = CreatureInfo(
         TrickInfo("faster", "Spin him", "🌀"), TrickInfo("wave", "Wave", "👋"),
         TrickInfo("reach", "Reach a star", "✨"), TrickInfo("thumbs", "Thumbs up", "👍"), TrickInfo("stretch", "Stretch", "🙆"),
     ),
+    // Free Fall: the second astronaut, forever falling through space and slamming into the screen edges
+    styles = listOf("Cosmo", "Free Fall"),
 )
 
 val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES.filter { it.id !in RETIRED_CREATURES } + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + BOLT_INFO + GLOOP_INFO + SNOWY_INFO + COSMO_INFO }

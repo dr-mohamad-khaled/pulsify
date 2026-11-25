@@ -52,8 +52,11 @@ class AstroScene(private val context: Context) : Creature {
     private var lastMoveT = 0f; private var mvx = 0f; private var mvy = 0f
 
     private val stars = StarField()
+    /** "astro" = Cosmo drifting; "astro2" = Free Fall, the falling astronaut whose clips are falls and impacts. */
+    private var model = "astro"
+    private val faller get() = model == "astro2"
     override fun onSurfaceCreated() {
-        pet.create(); pet.load("astro"); cur = null
+        pet.create(); pet.load(model); cur = null
         prog = Gl.program(VERT, FRAG)
         stars.create()
         for (n in listOf("uRes", "uHalf", "uFall", "uSpeed", "uTime", "uPar", "uShake")) su[n] = GLES20.glGetUniformLocation(prog, n)
@@ -131,6 +134,7 @@ class AstroScene(private val context: Context) : Creature {
     override fun greet() { play("Wave") }
     override fun swiped(dir: Float, fast: Boolean) { if (fast) boost(1f) }
     override fun perform(trick: String): Boolean {
+        if (faller) { when (trick) { "faster" -> { boost(5f); play("Flail") }; "wave", "thumbs" -> play("Poke"); else -> play("Impact") }; return true }
         when (trick) {
             "faster" -> { boost(5f); play("Flail") }
             "wave" -> play("Wave"); "look", "curl" -> play("Stretch"); "reach", "swim" -> play("Reach")
@@ -143,6 +147,8 @@ class AstroScene(private val context: Context) : Creature {
     // ---------------------------------------------------------------- update
     override fun update(dt: Float, input: SceneInput) {
         time += dt
+        val want = if (input.style == 1) "astro2" else "astro"
+        if (want != model) { model = want; pet.load(want); cur = null; from = null; play("Idle") }
         // the warp: calm drift speed 1, kicked up by touches and the bass, settling back
         speed += (1f - speed) * min(1f, dt * 0.6f)
         if (input.audio.active) speed = max(speed, 1f + input.audio.bass * 2.5f)
@@ -175,7 +181,8 @@ class AstroScene(private val context: Context) : Creature {
         if (y > ty) { bumped = max(bumped, abs(vy)); y = ty; vy = -abs(vy) * 0.75f }
         if (bumped > 0.25f && time - bumpT > 0.6f) {
             bumpT = time; spinRate += (if (Random.nextBoolean()) 1f else -1f) * min(3f, bumped * 2f); shake = min(1f, shake + bumped * 0.4f)
-            if (cur?.name != "Poke") play(if (bumped > 0.7f) "Poke" else "Flail")
+            if (faller) { if (cur?.name != "Impact" && cur?.name != "Poke") play(if (bumped > 0.7f) "Impact" else "Poke") }
+            else if (cur?.name != "Poke") play(if (bumped > 0.7f) "Poke" else "Flail")
             if (bumped > 0.7f) listener?.onDiscovery("cosmo bonk")
         }
         // what he's doing
@@ -189,7 +196,7 @@ class AstroScene(private val context: Context) : Creature {
         nextLife -= dt
         if (nextLife <= 0f && cur?.name == "Idle") {
             nextLife = 6f + Random.nextFloat() * 6f
-            play(listOf("Wave", "Reach", "ThumbsUp", "Stretch").random())   // no LookAround: it warps the suit
+            play(if (faller) listOf("Poke", "Impact").random() else listOf("Wave", "Reach", "ThumbsUp", "Stretch").random())   // no LookAround: it warps the suit
         }
         advance(dt)
     }

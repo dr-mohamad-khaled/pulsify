@@ -99,7 +99,7 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
             val ctx = LocalContext.current
             val have = remember { (try { ctx.assets.list("thumbs") } catch (_: Exception) { null })?.toSet() ?: emptySet() }
             val cards = remember {
-                app.pulsify.engine.CREATURES.flatMap { cr ->
+                app.pulsify.engine.CREATURES.filter { it.id != 8 }.flatMap { cr ->
                     if (cr.styles.size <= 1) listOf(Triple(cr, -1, cr.name))
                     else cr.styles.mapIndexed { i, n -> Triple(cr, i, n) }
                 }
@@ -111,6 +111,18 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                         "thumbs/" + (if (i >= 0 && own in have) own else "creature_${cr.id}.jpg"), n, cr.line, Color(cr.accent),
                         live = state.isActive(cr.id, i),
                     ) { state.applyCharacter(cr.id); if (i >= 0) state.applyStyle(i); onOpenStudio() }
+                }
+            }
+        }
+        item {
+            // the five LED-face robots get a shelf of their own
+            val bolt = app.pulsify.engine.BOLT_INFO
+            Shelf("Bots", "Five little robots with LED faces. Tap, poke, pick one up.", Modifier.enter(3)) {
+                itemsIndexed(bolt.styles) { i, n ->
+                    PosterCard(
+                        "thumbs/creature_8_$i.jpg", n, bolt.line, Color(app.pulsify.engine.BOT_LOOKS[i].eye),
+                        live = state.isActive(bolt.id, i),
+                    ) { state.applyCharacter(bolt.id); state.applyStyle(i); onOpenStudio() }
                 }
             }
         }
