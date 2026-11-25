@@ -307,7 +307,7 @@ private fun EyeGlyph(col: Color) {
     }
 }
 
-/** Shown instead of the button once Pulsify is the wallpaper. */
+/** Shown instead of the button once Screenpals is the wallpaper. */
 @Composable
 private fun LiveBadge(modifier: Modifier) {
     val c = LocalPulse.current

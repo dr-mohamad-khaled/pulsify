@@ -137,7 +137,7 @@ fun SettingsScreen(state: AppState, onBack: () -> Unit) {
             GhostButton("Terms of Service", Modifier.weight(1f)) { legal = LegalDoc.TERMS }
         }
         Gap(20.dp)
-        Text("Pulsify ${app.pulsify.BuildConfig.VERSION_NAME}", style = T.small, color = c.faint)
+        Text("Screenpals ${app.pulsify.BuildConfig.VERSION_NAME}", style = T.small, color = c.faint)
         Box(Modifier.windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 24.dp))
     }
 }

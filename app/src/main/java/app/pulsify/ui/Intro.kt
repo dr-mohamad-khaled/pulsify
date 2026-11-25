@@ -89,7 +89,7 @@ import kotlin.random.Random
  * The intro: five pages on pure black. A parrot flies in and lands under the logo; a phantom finger
  * pokes the duckling; a spectrum dances around Mochi; the Pharaohs fly in one after another under
  * glowing gold marks; and the cast lines up so you pick your first friend.
- * (Browser preview: "Pulsify — New intro".)
+ * (Browser preview: "Screenpals — New intro".)
  */
 
 private val LAV = Color(0xFFCDB4FF); private val AMB = Color(0xFFFFB36B); private val VIO = Color(0xFF9D4EDD); private val MINT = Color(0xFF4ADE80)
@@ -231,7 +231,7 @@ private fun LogoStage(on: Boolean) {
     val t = clock()
     val bird = asset("intro/parrot.png", 420)
     val land = remember { Animatable(0f) }
-    val letters = remember { List(7) { Animatable(0f) } }
+    val letters = remember { List(10) { Animatable(0f) } }
     LaunchedEffect(on) {
         if (on) {
             letters.forEachIndexed { i, a -> launch { delay(i * 60L); a.animateTo(1f, spring(dampingRatio = .45f, stiffness = 220f)) } }
@@ -254,12 +254,12 @@ private fun LogoStage(on: Boolean) {
         }
         // logo letters spring in
         Row(Modifier.align(Alignment.TopCenter).padding(top = maxHeight * .1f)) {
-            "Pulsify".forEachIndexed { i, ch ->
+            "Screenpals".forEachIndexed { i, ch ->
                 val a = letters[i].value
-                Text(ch.toString(), style = T.hero.copy(fontSize = 46.sp), color = if (i == 1) LAV else Color.White,
+                Text(ch.toString(), style = T.hero.copy(fontSize = 38.sp), color = if (i >= 6) LAV else Color.White,
                     modifier = Modifier.graphicsLayer { alpha = a.coerceIn(0f, 1f); translationY = (1 - a) * 60f; scaleX = .6f + .4f * a; scaleY = .6f + .4f * a })
             }
-            Box(Modifier.padding(top = 34.dp).size(8.dp).graphicsLayer { alpha = letters[6].value.coerceIn(0f, 1f) }.clip(CircleShape).background(AMB))
+            Box(Modifier.padding(top = 34.dp).size(8.dp).graphicsLayer { alpha = letters[9].value.coerceIn(0f, 1f) }.clip(CircleShape).background(AMB))
         }
         // the parrot flies in from the upper right and lands, then breathes
         if (bird != null) {

@@ -58,7 +58,7 @@ object PhotoWorld {
         Pulse.prefs.bumpUserBg(character, style)
         true
     } catch (t: Throwable) {
-        android.util.Log.w("Pulsify", "photo import failed", t); false
+        android.util.Log.w("Screenpals", "photo import failed", t); false
     }
 
     fun has(ctx: Context, character: Int, style: Int): Boolean = File(ctx.filesDir, Pulse.prefs.userBgFile(character, style)).exists()

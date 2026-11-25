@@ -168,7 +168,7 @@ private fun Header(onSettings: () -> Unit, modifier: Modifier) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         OrbLogo(28.dp)
         Spacer(Modifier.width(10.dp))
-        Text("Pulsify", style = T.name.copy(fontSize = 24.sp), color = c.text)
+        Text("Screenpals", style = T.name.copy(fontSize = 24.sp), color = c.text)
         Spacer(Modifier.weight(1f))
         Box(
             Modifier.size(42.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.06f)).border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape).pressable(onClick = onSettings),
@@ -411,7 +411,7 @@ private fun CrashCard() {
         Column(Modifier.padding(16.dp)) {
             MicroLabel("Sorry about that", color = c.amber)
             Gap(4.dp)
-            Text("Pulsify closed unexpectedly last time", style = T.heading, color = c.text)
+            Text("Screenpals closed unexpectedly last time", style = T.heading, color = c.text)
             Gap(4.dp)
             Text(r.lines().firstOrNull { it.contains("Exception") || it.contains("Error") || it.contains("crash") || it.contains("ANR") } ?: "Unknown error", style = T.small, color = c.sub, maxLines = 3)
             Gap(4.dp)

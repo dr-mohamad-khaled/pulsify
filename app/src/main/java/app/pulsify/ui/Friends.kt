@@ -198,7 +198,7 @@ fun FriendsScreen(state: AppState, onBack: () -> Unit) {
             Column(Modifier.padding(horizontal = 22.dp)) {
                 val name = info?.name ?: "Friend"
                 GlowButton("Add $name to home screen", Modifier.fillMaxWidth()) {
-                    if (!pinWidget(ctx, addId, addCoat)) state.toast = AppState.Toast("Long-press your home screen", "Widgets → Pulsify → Pulsify friend")
+                    if (!pinWidget(ctx, addId, addCoat)) state.toast = AppState.Toast("Long-press your home screen", "Widgets → Screenpals → Screenpals friend")
                 }
                 if (!ours) {
                     Gap(12.dp)
@@ -207,7 +207,7 @@ fun FriendsScreen(state: AppState, onBack: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text("Friends come alive with Pulsify as your wallpaper", style = T.bodyStrong, color = c.text)
+                            Text("Friends come alive with Screenpals as your wallpaper", style = T.bodyStrong, color = c.text)
                             Gap(3.dp)
                             Text("Until then the widget shows their picture.", style = T.small, color = c.sub)
                         }
@@ -222,7 +222,7 @@ fun FriendsScreen(state: AppState, onBack: () -> Unit) {
             Column(Modifier.padding(horizontal = 22.dp)) {
                 Text("How they find their spot", style = T.title, color = c.text)
                 Gap(14.dp)
-                Step(1, "Add the widget", "From here, or long-press your home screen → Widgets → Pulsify.")
+                Step(1, "Add the widget", "From here, or long-press your home screen → Widgets → Screenpals.")
                 Step(2, "Tap it once", "That's how it learns where it lives. Moved it? Tap it again.")
                 Step(3, "Swipe away and back", "Every arrival gets a different reaction.")
                 Gap(30.dp)
@@ -339,7 +339,7 @@ private fun PlacedRow(s: BuddySlot, ours: Boolean) {
             Gap(2.dp)
             Text(
                 when {
-                    !ours -> "Showing a picture (Pulsify isn't your wallpaper)"
+                    !ours -> "Showing a picture (Screenpals isn't your wallpaper)"
                     s.placed -> "Lives on home-screen page ${s.page + 1}"
                     else -> "Waiting for a tap so it can find its spot"
                 },

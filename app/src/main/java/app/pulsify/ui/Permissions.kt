@@ -64,7 +64,7 @@ object Perms {
 
     val isXiaomi: Boolean get() = Build.MANUFACTURER.lowercase().let { it.contains("xiaomi") || it.contains("redmi") || it.contains("poco") }
 
-    /** The system dialog "Let Pulsify run in the background?"; falls back to the battery optimisation list. */
+    /** The system dialog "Let Screenpals run in the background?"; falls back to the battery optimisation list. */
     @SuppressLint("BatteryLife")
     fun askBattery(ctx: Context) {
         val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + ctx.packageName))
@@ -74,7 +74,7 @@ object Perms {
     /** Xiaomi's own battery saver for this app (set it to "No restrictions"), else the app's info page. */
     fun askXiaomi(ctx: Context) {
         val miui = Intent().setComponent(ComponentName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity"))
-            .putExtra("package_name", ctx.packageName).putExtra("package_label", "Pulsify")
+            .putExtra("package_name", ctx.packageName).putExtra("package_label", "Screenpals")
         if (!start(ctx, miui)) start(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + ctx.packageName)))
     }
 
@@ -117,16 +117,16 @@ fun PermissionsScreen(onDone: () -> Unit) {
         ) {
             Text("Before you start", style = T.title, color = c.text)
             Gap(8.dp)
-            Text("Pulsify needs a few things to work as a live wallpaper. Here's what each one is for.", style = T.body, color = c.sub)
+            Text("Screenpals needs a few things to work as a live wallpaper. Here's what each one is for.", style = T.body, color = c.sub)
             Gap(22.dp)
-            PermCard("Music reaction", "So creatures dance and wallpapers pulse with the music your phone plays. Pulsify only reads the beat of the sound that's playing. It never records you and nothing leaves your phone.",
+            PermCard("Music reaction", "So creatures dance and wallpapers pulse with the music your phone plays. Screenpals only reads the beat of the sound that's playing. It never records you and nothing leaves your phone.",
                 audioOk, if (audioOk) null else { { mic.launch(Manifest.permission.RECORD_AUDIO) } })
             Gap(12.dp)
-            PermCard("Keep running", "Lets Pulsify keep your wallpaper alive in the background, so Android doesn't close it and leave a blank screen. A live wallpaper only draws while it's on screen, so it stays light on battery.",
+            PermCard("Keep running", "Lets Screenpals keep your wallpaper alive in the background, so Android doesn't close it and leave a blank screen. A live wallpaper only draws while it's on screen, so it stays light on battery.",
                 batteryOk, if (batteryOk) null else { { Perms.askBattery(ctx) } })
             if (Perms.isXiaomi) {
                 Gap(12.dp)
-                PermCard("Xiaomi battery saver", "Xiaomi, Redmi and Poco phones add their own battery saver on top. On the screen that opens, set Battery saver to \"No restrictions\" for Pulsify.",
+                PermCard("Xiaomi battery saver", "Xiaomi, Redmi and Poco phones add their own battery saver on top. On the screen that opens, set Battery saver to \"No restrictions\" for Screenpals.",
                     xiaomiOpened, { askXiaomi() }, doneLabel = "Opened")
             }
             Gap(140.dp)
