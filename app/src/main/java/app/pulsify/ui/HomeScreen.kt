@@ -95,12 +95,22 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
             Gap(36.dp)
         }
         item {
-            Shelf("Creatures", "${app.pulsify.engine.CREATURES.size} friends who live on your home screen", Modifier.enter(3)) {
-                items(app.pulsify.engine.CREATURES) { cr ->
+            // one card per look: a creature with several looks gets a card for each, so every one shows
+            val ctx = LocalContext.current
+            val have = remember { (try { ctx.assets.list("thumbs") } catch (_: Exception) { null })?.toSet() ?: emptySet() }
+            val cards = remember {
+                app.pulsify.engine.CREATURES.flatMap { cr ->
+                    if (cr.styles.size <= 1) listOf(Triple(cr, -1, cr.name))
+                    else cr.styles.mapIndexed { i, n -> Triple(cr, i, n) }
+                }
+            }
+            Shelf("Creatures", "${cards.size} friends who live on your home screen", Modifier.enter(3)) {
+                items(cards) { (cr, i, n) ->
+                    val own = "creature_${cr.id}_$i.jpg"
                     PosterCard(
-                        "thumbs/creature_${cr.id}.jpg", cr.name, cr.line, Color(cr.accent),
-                        live = state.isActive(cr.id),
-                    ) { openCreature(cr.id) }
+                        "thumbs/" + (if (i >= 0 && own in have) own else "creature_${cr.id}.jpg"), n, cr.line, Color(cr.accent),
+                        live = state.isActive(cr.id, i),
+                    ) { state.applyCharacter(cr.id); if (i >= 0) state.applyStyle(i); onOpenStudio() }
                 }
             }
         }
