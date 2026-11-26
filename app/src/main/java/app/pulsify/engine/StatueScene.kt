@@ -36,7 +36,9 @@ class StatueLook(val name: String, val file: String, val env: Float, val lock: S
                  /** The same bird sitting (a perched twin): the Studio offers Perched / Flying / Shuffle. */
                  val perch: StatueLook? = null,
                  /** How far the camera pulls back in the middle of a swipe (1 = the statues' drone move). */
-                 val swipePull: Float = 1f)
+                 val swipePull: Float = 1f,
+                 /** A scene drawn in code instead of a model file ("asteroids", "nebula": see [SpaceFx]). */
+                 val proc: String = "")
 
 /** A sitting twin for a flying bird: perched-bird shots and the perch animator. */
 private fun perched(name: String, file: String, d: Float, headY: Float) = StatueLook(name, file, 0.55f, Shot(0f, 6f, d, 0.05f),
@@ -51,7 +53,7 @@ data class Shot(val az: Float, val el: Float, val d: Float, val y: Float = 0f, v
 val STATUE_GROUPS = listOf(
     "Pharaohs" to "Gold, stone and gods in the dark. Unlock it, swipe your pages, play music.",
     "Birds" to "Birds in flight that never land. Swipe and they power up.",
-    "Planets" to "Worlds turning in the dark while the camera circles them.",
+    "Space" to "Moons, nebulae and asteroid storms. The camera flies through them as you swipe.",
 )
 
 val STATUE_LOOKS = listOf(
@@ -74,7 +76,7 @@ val STATUE_LOOKS = listOf(
         listOf(Shot(-30f, -8f, 4.0f), Shot(16f, 2f, 3.0f, 0.12f), Shot(-85f, 4f, 3.8f), Shot(58f, 12f, 4.2f), Shot(170f, 10f, 4.5f))),
     // the moon turns slowly on its own while the drone circles it
     StatueLook("Cratered Moon", "moon", 0.5f, Shot(0f, 4f, 5.6f),
-        listOf(Shot(-30f, -6f, 4.6f), Shot(18f, 4f, 3.6f), Shot(-80f, 10f, 4.4f), Shot(60f, 16f, 4.8f), Shot(170f, 8f, 5.0f)), spin = 5f, group = "Planets"),
+        listOf(Shot(-30f, -6f, 4.6f), Shot(18f, 4f, 3.6f), Shot(-80f, 10f, 4.4f), Shot(60f, 16f, 4.8f), Shot(170f, 8f, 5.0f)), spin = 5f, group = "Space"),
     // a living crow standing on the spot (STA2 --crow): it looks around and hops round to face each new camera
     StatueLook("Midnight Sentinel", "crow", 0.55f, Shot(0f, 6f, 3.7f, 0.05f),
         listOf(Shot(-38f, 10f, 3.4f, 0.05f), Shot(24f, -5f, 2.7f, 0.22f), Shot(82f, 7f, 3.3f, 0.05f), Shot(-112f, 16f, 3.6f, 0.05f), Shot(158f, 11f, 3.7f, 0.05f)),
@@ -89,6 +91,14 @@ val STATUE_LOOKS = listOf(
         group = "Birds", wingBias = 0.16f, flapAmp = 0.95f, rig = "fly"),
     // the budgie ("love bird"), sitting only
     perched("Budgie", "budgie", 4.4f, 0.6f),
+    // code-drawn space scenes (SpaceFx): two asteroids smash into each other again and again; tap to make them clash
+    StatueLook("Asteroid Clash", "proc_asteroids", 0f, Shot(0f, 8f, 6.2f),
+        listOf(Shot(-34f, 12f, 5.6f), Shot(20f, -6f, 4.6f), Shot(-95f, 18f, 5.8f), Shot(70f, 24f, 6.2f), Shot(165f, 10f, 5.4f)),
+        group = "Space", headY = 0f, proc = "asteroids"),
+    // a glowing nebula around a cluster of young stars; the clouds slide past each other as the camera circles
+    StatueLook("Nebula", "proc_nebula", 0f, Shot(0f, 6f, 5.4f),
+        listOf(Shot(-40f, 10f, 4.6f), Shot(25f, -8f, 3.6f), Shot(-110f, 20f, 5.2f), Shot(80f, 28f, 5.6f), Shot(170f, 12f, 4.2f)),
+        group = "Space", headY = 0f, proc = "nebula"),
 )
 
 /**
@@ -115,6 +125,8 @@ class StatueScene(private val context: Context) : Creature {
         return when (pose) { 0 -> p; 2 -> if (shuffleSit) p else b; else -> b }
     }
     private val flyer = StatueBird()
+    /** The code-drawn space looks. */
+    private val space = SpaceFx(context)
     private val crow = StatueCrow()
     /** The animator for rigged looks: the crow stands and lives, the others fly. */
     private val bird: StatueRig get() = look.let { l ->
@@ -164,9 +176,9 @@ class StatueScene(private val context: Context) : Creature {
      *  facing the screen, in the lock framing. */
     private fun shotWake() {
         val L = look.lock; val tz = L.az
-        val headY = if (!look.headY.isNaN()) look.headY else when (look.group) { "Birds" -> 0.06f; "Planets" -> 0.1f; else -> 0.48f }
+        val headY = if (!look.headY.isNaN()) look.headY else when (look.group) { "Birds" -> 0.06f; "Space" -> 0.1f; else -> 0.48f }
         val side = if ((wakeN++ and 1) == 0) 1f else -1f
-        az = tz + side * 62f; el = L.el + 24f; dist = 1.05f; ty = headY; roll = side * 16f
+        az = tz + side * 62f; el = L.el + 24f; dist = if (look.proc.isNotEmpty()) 2.2f else 1.05f; ty = headY; roll = side * 16f
         fly(listOf(current(),
             Shot(tz + side * 40f, L.el + 15f, 1.6f, headY * 0.85f, side * 10f),
             Shot(tz + side * 16f, L.el + 6f, L.d * 0.8f, L.y + headY * 0.25f, side * 3f),
@@ -278,7 +290,7 @@ class StatueScene(private val context: Context) : Creature {
     override fun touchDown(nx: Float, ny: Float): Boolean { tiltTX = nx - .5f; tiltTY = ny - .5f; bird.touch(tiltTX, tiltTY, true); return false }
     override fun touchMove(nx: Float, ny: Float): Boolean { tiltTX = nx - .5f; tiltTY = ny - .5f; bird.touch(tiltTX, tiltTY, true); return false }
     override fun touchUp(): Boolean { tiltTX = 0f; tiltTY = 0f; bird.touch(0f, 0f, false); return false }
-    override fun tapAt(nx: Float, ny: Float): Boolean = false
+    override fun tapAt(nx: Float, ny: Float): Boolean { if (look.proc.isEmpty()) return false; space.tap(); return true }
     override fun longPressAt(nx: Float, ny: Float): Boolean = false
 
     private var pagesKnown = false
@@ -305,6 +317,7 @@ class StatueScene(private val context: Context) : Creature {
         } ?: stepSpring(dt)
         val music0 = input.audio.source != AudioFrame.Source.NONE
         bird.update(dt, time, if (music0) input.audio.bass else 0f)
+        if (look.proc.isNotEmpty()) space.update(dt, look.proc, if (music0) input.audio.bass else 0f)
         // where the camera will settle: the end of the flight, or the spring's target
         bird.rest((flight?.keys?.last()?.az ?: tAz) * D2R, if (locked) 0f else (flight?.keys?.last()?.d ?: tD))   // on the lock screen it stays in the middle
         tiltX += (tiltTX - tiltX) * min(1f, dt * 5f); tiltY += (tiltTY - tiltY) * min(1f, dt * 5f)
@@ -352,6 +365,7 @@ class StatueScene(private val context: Context) : Creature {
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, quadVbo); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, 32, fb, GLES20.GL_STATIC_DRAW)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         loaded = ""; fbW = 0; glyphTex = 0
+        space.onSurfaceCreated()
     }
 
     override fun onSurfaceChanged(width: Int, height: Int) { w = max(1, width); h = max(1, height) }
@@ -359,6 +373,7 @@ class StatueScene(private val context: Context) : Creature {
     private fun ensureModel() {
         if (loaded == look.file) return
         freeModel()
+        if (look.proc.isNotEmpty()) { pivX = 0f; pivY = 0f; pivZ = 0f; loaded = look.file; return }
         val bytes = context.assets.open("statues/${look.file}.sta").use { it.readBytes() }
         val bb = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
         check(bytes[0] == 'S'.code.toByte() && (bytes[3] == '1'.code.toByte() || bytes[3] == '2'.code.toByte())) { "bad statue file" }
@@ -474,7 +489,7 @@ class StatueScene(private val context: Context) : Creature {
         val vw = max(1, vpBuf[2]); val vh = max(1, vpBuf[3])
         // supersampling: the model is drawn at twice the size and filtered down, so edges, feathers and fur
         // stay crisp (no jaggies), capped so the buffer never gets bigger than a 1440p phone at 2x
-        val ss = if (vw * vh * 4 <= 1440 * 3200 * 4) 2 else 1
+        val ss = if (look.proc.isEmpty() && vw * vh * 4 <= 1440 * 3200 * 4) 2 else 1
         ensureFbo(vw * ss, vh * ss)
 
         // ---- camera ----
@@ -494,6 +509,15 @@ class StatueScene(private val context: Context) : Creature {
         val upx = sin(r) * cos(a); val upy = cos(r); val upz = -sin(r) * sin(a)
         Matrix.setLookAtM(view, 0, cx, cy, cz, pivX, pivY + ty, pivZ, upx, upy, upz)
         Matrix.multiplyMM(mvp, 0, proj, 0, view, 0)
+
+        if (look.proc.isNotEmpty()) {
+            // code-drawn space scene into the same texture, then the usual composite below
+            space.draw(look.proc, view, proj, cx, cy, cz, fovY, aspect, fbo, fbW, fbH, lightK * dim)
+            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
+            GLES20.glViewport(vpBuf[0], vpBuf[1], vpBuf[2], vpBuf[3])
+            composite(vw, vh)
+            return
+        }
 
         // ---- statue into its own depth-buffered texture ----
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
@@ -548,12 +572,16 @@ class StatueScene(private val context: Context) : Creature {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, Gl.target)
         GLES20.glViewport(vpBuf[0], vpBuf[1], vpBuf[2], vpBuf[3])
 
-        // ---- composite: glyphs behind, then the statue over them ----
+        composite(vw, vh)
+    }
+
+    /** Glyphs behind, then the statue (or space scene) texture over them, onto the screen. */
+    private fun composite(vw: Int, vh: Int) {
         GLES20.glUseProgram(compProg)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, quadVbo)
         GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-        if (glyphVis > 0.01f) {
+        if (glyphVis > 0.01f && look.proc.isEmpty()) {
             drawGlyphs(vw, vh)
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, glyphTex)
             GLES20.glUniform1i(cu("uTex"), 0); GLES20.glUniform1f(cu("uMode"), 1f); GLES20.glUniform1f(cu("uAlpha"), 1f)
@@ -620,7 +648,7 @@ class StatueScene(private val context: Context) : Creature {
     }
 
     override fun release() {
-        freeModel(); freeFbo()
+        freeModel(); freeFbo(); space.release()
         if (prog != 0) GLES20.glDeleteProgram(prog); if (compProg != 0) GLES20.glDeleteProgram(compProg)
         if (quadVbo != 0) GLES20.glDeleteBuffers(1, intArrayOf(quadVbo), 0)
         if (glyphTex != 0) GLES20.glDeleteTextures(1, intArrayOf(glyphTex), 0)
