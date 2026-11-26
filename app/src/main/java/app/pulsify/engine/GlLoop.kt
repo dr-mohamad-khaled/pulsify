@@ -571,9 +571,11 @@ class GlLoop(
         // Render on a fixed whole number of vsyncs so the rhythm is even.
         val hz = 1e9f / vsyncNs
         val every = if (targetFps >= 60) maxOf(1, (hz / 60f + 0.15f).toInt()) else maxOf(1, Math.round(hz / targetFps))
-        if (input.video < 0 && lastFrameNs != 0L && vsyncsSinceRender < every) return
+        if (!FrameCapture.on && input.video < 0 && lastFrameNs != 0L && vsyncsSinceRender < every) return
         vsyncsSinceRender = 0
-        val dt = if (lastFrameNs == 0L) 1f / 60f else min(0.05f, (now - lastFrameNs) / 1e9f)
+        // frame capture (debug): a fixed step per frame, so the saved video plays at true speed
+        val dt = if (FrameCapture.on) 1f / FrameCapture.fps else if (lastFrameNs == 0L) 1f / 60f else min(0.05f, (now - lastFrameNs) / 1e9f)
+        FrameCapture.trickNow()?.let { active?.perform(it) }
         lastFrameNs = now
 
         val t0 = System.nanoTime()
@@ -638,6 +640,7 @@ class GlLoop(
             GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
             GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
         }
+        if (FrameCapture.on) FrameCapture.grab(surfW, surfH)
         EGL14.eglSwapBuffers(display, eglSurface)
         val work = (System.nanoTime() - t0).toFloat()
 
@@ -655,7 +658,7 @@ class GlLoop(
         workAvgNs = if (workAvgNs == 0f) work else workAvgNs * 0.9f + work * 0.1f
         val budget = vsyncNs * every
         if (work > budget * 1.1f) slowFrames++ else if (slowFrames > 0) slowFrames--
-        if (maxScale - minScale < 0.01f || input.video >= 0) return
+        if (maxScale - minScale < 0.01f || input.video >= 0 || FrameCapture.on) return
         if ((workAvgNs > budget * 0.6f || slowFrames > 6) && scale > minScale + 0.01f && now - lastScaleChangeNs > 1_500_000_000L) {
             scale = maxOf(minScale, scale - 0.1f); lastScaleChangeNs = now; slowFrames = 0
             setupTarget()

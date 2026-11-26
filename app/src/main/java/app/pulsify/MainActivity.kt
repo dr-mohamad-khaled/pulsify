@@ -117,6 +117,9 @@ class MainActivity : ComponentActivity() {
             if (next >= 0) android.os.Handler(mainLooper).postDelayed({ Pulse.prefs.video = next }, 5000)
             // --ez demo true: walk through the camera moves (page flights, wake, unlock) for the store recordings
             val demo = i.getBooleanExtra("demo", false)
+            // --ei capture N [--ei capfps 30] [--es capscript "110:next;200:next"]: save N frames, smooth at any speed
+            if (i.hasExtra("capture")) app.pulsify.engine.FrameCapture.start(java.io.File(getExternalFilesDir(null), "cap"),
+                i.getIntExtra("capture", 300), i.getIntExtra("capfps", 30), i.getStringExtra("capscript"))
             setContent {
                 app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true, fpsCap = 0, onLoop = { loop ->
                     if (demo) {

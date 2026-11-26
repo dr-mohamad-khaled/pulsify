@@ -282,6 +282,7 @@ class StatueScene(private val context: Context) : Creature {
             "next" -> { if (locked) greet(); page = (page + 1) % 5; pageMove(1f) }
             "prev" -> { if (locked) greet(); page = (page + 4) % 5; pageMove(-1f) }
             "fly" -> shotEntrance()
+            "tap" -> { if (look.proc.isEmpty()) return false; space.tap() }
             else -> return false
         }
         return true
