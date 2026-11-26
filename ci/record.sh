@@ -15,7 +15,8 @@ adb install -r -g pulsify-v3.apk > $OUT/install.txt 2>&1
 adb shell wm size 720x1600; adb shell wm density 300
 adb shell dumpsys battery unplug; adb shell dumpsys battery set level 80
 names=(tutankhamun nefertiti anubis horus motmot solar-queen bastet temple-guardian moon crow ringneck cockatiel budgie)
-for i in "${!names[@]}"; do
+# only the looks the website shows (the demo extra flies the camera through its moves)
+for i in 0 1 2 8 9 10 11; do
   n=${names[$i]}
   echo "== $i $n"
   adb shell am force-stop $PKG; sleep 1
@@ -23,17 +24,8 @@ for i in "${!names[@]}"; do
   sleep 10
   adb shell screenrecord --time-limit 75 --bit-rate 10000000 /sdcard/$n.mp4 &
   rec=$!
-<<<<<<< HEAD:ci/record.sh
-  sleep 12; adb shell input swipe 600 800 100 800 450
-  sleep 14; adb shell input tap 360 733
-  sleep 14; adb shell input swipe 100 867 633 867 450
-  sleep 14; adb shell input swipe 360 1133 363 400 500
-=======
-  sleep 16; adb shell input tap 360 733
-  sleep 12; adb shell input tap 360 900
-  sleep 30; adb shell input tap 360 800
-  sleep 14
->>>>>>> 546b257 (Debug preview: demo extra that walks the drone camera through its moves):ci/record-space.sh
+  sleep 30; adb shell input tap 360 733
+  sleep 40
   wait $rec
   sleep 1
   adb pull /sdcard/$n.mp4 $OUT/$n.mp4 > /dev/null 2>&1 || true
