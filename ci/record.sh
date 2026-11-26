@@ -19,14 +19,21 @@ for i in "${!names[@]}"; do
   n=${names[$i]}
   echo "== $i $n"
   adb shell am force-stop $PKG; sleep 1
-  adb shell am start -W -n $PKG/app.pulsify.MainActivity --ei portrait 1 --ei char 14 --ei style $i > /dev/null 2>&1
+  adb shell am start -W -n $PKG/app.pulsify.MainActivity --ei portrait 1 --ei char 14 --ei style $i --ez demo true > /dev/null 2>&1
   sleep 10
   adb shell screenrecord --time-limit 75 --bit-rate 10000000 /sdcard/$n.mp4 &
   rec=$!
+<<<<<<< HEAD:ci/record.sh
   sleep 12; adb shell input swipe 600 800 100 800 450
   sleep 14; adb shell input tap 360 733
   sleep 14; adb shell input swipe 100 867 633 867 450
   sleep 14; adb shell input swipe 360 1133 363 400 500
+=======
+  sleep 16; adb shell input tap 360 733
+  sleep 12; adb shell input tap 360 900
+  sleep 30; adb shell input tap 360 800
+  sleep 14
+>>>>>>> 546b257 (Debug preview: demo extra that walks the drone camera through its moves):ci/record-space.sh
   wait $rec
   sleep 1
   adb pull /sdcard/$n.mp4 $OUT/$n.mp4 > /dev/null 2>&1 || true
