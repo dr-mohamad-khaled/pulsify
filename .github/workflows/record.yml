@@ -5,6 +5,9 @@ on:
     branches: [site-recordings]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   record:
     runs-on: ubuntu-latest
@@ -49,3 +52,13 @@ jobs:
         with:
           name: super-wallpaper-recordings
           path: rec-out
+
+      - name: Push recordings to a branch
+        if: always()
+        run: |
+          git config user.name "ci"; git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan site-recordings-out
+          git rm -rfq --cached . >/dev/null
+          git add -f rec-out
+          git commit -qm "recordings ${{ github.run_number }}"
+          git push -f origin site-recordings-out
