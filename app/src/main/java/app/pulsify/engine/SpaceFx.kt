@@ -91,7 +91,7 @@ class SpaceFx(private val context: Context) {
         if (phase >= T_END) newCycle(first = false)
         if (!impacted && phase >= T_IMPACT) impact()
         flash = max(0f, flash - dt * 2.6f)
-        if (shockAge >= 0f) { shockAge += dt; if (shockAge > 2.4f) shockAge = -1f }
+        if (shockAge >= 0f) { shockAge += dt; if (shockAge > 1.7f) shockAge = -1f }
         if (!impacted) {
             // the pair falls towards each other faster and faster (no slowing down before the hit)
             val u = (phase / T_IMPACT).coerceIn(0f, 1f)
@@ -103,7 +103,7 @@ class SpaceFx(private val context: Context) {
         }
         for (r in pieces) if (r.alive) {
             for (i in 0..2) { r.p[i] += r.v[i] * dt; r.v[i] *= (1f - 0.04f * dt) }
-            r.heat *= exp(-dt / 1.9f)
+            r.heat *= exp(-dt / 1.3f)
         }
         for (r in arrayOf(bigA, bigB)) if (r.alive) r.ang += r.spin * dt
         for (r in pieces) if (r.alive) r.ang += r.spin * dt
@@ -155,8 +155,8 @@ class SpaceFx(private val context: Context) {
         }
         // each big rock breaks into two halves that tumble away across the hit, still glowing
         val pa = bigA.p.copyOf(); val pb = bigB.p.copyOf()
-        repeat(2) { spawn(pa, bigA.scale * (0.55f + rnd.nextFloat() * .12f), 0.32f + rnd.nextFloat() * .2f, 0.75f, 0.25f, 0.12f) }
-        repeat(2) { spawn(pb, bigB.scale * (0.55f + rnd.nextFloat() * .12f), 0.32f + rnd.nextFloat() * .2f, 0.75f, 0.25f, -0.12f) }
+        repeat(2) { spawn(pa, bigA.scale * (0.55f + rnd.nextFloat() * .12f), 0.32f + rnd.nextFloat() * .2f, 0.55f, 0.25f, 0.12f) }
+        repeat(2) { spawn(pb, bigB.scale * (0.55f + rnd.nextFloat() * .12f), 0.32f + rnd.nextFloat() * .2f, 0.55f, 0.25f, -0.12f) }
         // and a storm of small burning fragments out of the middle
         val c = floatArrayOf(0f, 0f, 0f)
         while (n < pieces.size) spawn(c, 0.035f + rnd.nextFloat() * rnd.nextFloat() * 0.13f, 0.5f + rnd.nextFloat() * 1.5f, 1f, 0.45f, 0f)
@@ -197,10 +197,10 @@ class SpaceFx(private val context: Context) {
             g.a = 0.09f + rnd.nextFloat() * 0.14f; g.atlas = rnd.nextInt(4); g.rot = rnd.nextFloat() * 6.28f; g.spin = (rnd.nextFloat() - .5f) * 0.08f
         }
         for ((i, s) in core.withIndex()) {
-            if (i == 0) { s.size = 1.5f } else {
+            if (i == 0) { s.size = 0.75f } else {
                 val th = rnd.nextFloat() * 6.28f; val rr = 0.25f + rnd.nextFloat() * 0.6f
                 s.p[0] = cos(th) * rr; s.p[2] = sin(th) * rr; s.p[1] = (rnd.nextFloat() - .5f) * 0.4f
-                s.size = 0.25f + rnd.nextFloat() * 0.45f
+                s.size = 0.14f + rnd.nextFloat() * 0.26f
             }
             s.ph = rnd.nextFloat() * 6.28f
         }
@@ -211,7 +211,8 @@ class SpaceFx(private val context: Context) {
     private val ur = HashMap<String, Int>(); private val us = HashMap<String, Int>(); private val up = HashMap<String, Int>()
     private val uk = HashMap<String, Int>(); private val upn = HashMap<String, Int>(); private val uc = HashMap<String, Int>()
     private var quadVbo = 0
-    private val meshVbo = IntArray(MESHES); private val meshIbo = IntArray(MESHES); private var meshIdx = 0
+    // rock shapes: MESHES shapes, each in a light (small rocks) and a fine (big rocks) version
+    private val meshVbo = IntArray(MESHES * 2); private val meshIbo = IntArray(MESHES * 2); private val meshIdx = IntArray(2)
     private var starVbo = 0; private var starCount = 0
     private var sparkVbo = 0; private var sparkBuf: FloatBuffer? = null
     private var rockTex = 0; private var atlasTex = 0; private var cubeTex = 0; private var cubeKind = ""
@@ -246,9 +247,11 @@ class SpaceFx(private val context: Context) {
     private fun fbuf(a: FloatArray): FloatBuffer = ByteBuffer.allocateDirect(a.size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer().put(a).also { it.position(0) }
 
     /** Lumpy rocks: an icosphere pushed in and out by noise, with a few craters pressed in. */
-    private fun buildMeshes() {
-        val (verts, tris) = icosphere(3)
-        meshIdx = tris.size
+    private fun buildMeshes() { buildMeshes(0, 3); buildMeshes(1, 4) }
+
+    private fun buildMeshes(lod: Int, levels: Int) {
+        val (verts, tris) = icosphere(levels)
+        meshIdx[lod] = tris.size
         val ib = ByteBuffer.allocateDirect(tris.size * 2).order(ByteOrder.nativeOrder()).asShortBuffer()
         for (t in tris) ib.put(t.toShort()); ib.position(0)
         val nv = verts.size / 3
@@ -289,9 +292,10 @@ class SpaceFx(private val context: Context) {
                 data[i * 6] = pos[i * 3]; data[i * 6 + 1] = pos[i * 3 + 1]; data[i * 6 + 2] = pos[i * 3 + 2]
                 data[i * 6 + 3] = nx; data[i * 6 + 4] = ny; data[i * 6 + 5] = nz
             }
-            val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); meshVbo[m] = ids[0]; meshIbo[m] = ids[1]
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, meshVbo[m]); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, data.size * 4, fbuf(data), GLES20.GL_STATIC_DRAW)
-            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, meshIbo[m]); GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, tris.size * 2, ib, GLES20.GL_STATIC_DRAW)
+            val k = lod * MESHES + m
+            val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); meshVbo[k] = ids[0]; meshIbo[k] = ids[1]
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, meshVbo[k]); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, data.size * 4, fbuf(data), GLES20.GL_STATIC_DRAW)
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, meshIbo[k]); GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, tris.size * 2, ib, GLES20.GL_STATIC_DRAW)
         }
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0)
     }
@@ -499,7 +503,7 @@ class SpaceFx(private val context: Context) {
             val tw = 0.85f + 0.15f * sin(time * (1.3f + i * .37f) + st.ph)
             val k = (if (i == 0) 1f + bass * 0.35f + (gain - 1f) * 0.4f else 1f) * tw * light
             val cool = if (i % 3 == 1) floatArrayOf(1f, .8f, .65f) else floatArrayOf(.75f, .85f, 1f)
-            sprite(x, st.p[1], z, st.size * k, 0.3f + i * 0.4f, cool[0], cool[1], cool[2], (if (i == 0) 1.1f else 0.85f), 1)
+            sprite(x, st.p[1], z, st.size * k, 0.3f + i * 0.4f, cool[0], cool[1], cool[2], (if (i == 0) 0.75f else 0.7f), 1)
         }
         if (ripple >= 0f) {
             val u = ripple / 2.2f
@@ -518,8 +522,8 @@ class SpaceFx(private val context: Context) {
         }
         // the shock ring spreads in the plane across the hit
         if (shockAge >= 0f) {
-            val u = shockAge / 2.4f
-            sprite(0f, 0f, 0f, 0.2f + (1f - (1f - u).pow(3f)) * 4.2f, 0f, 1f, .62f, .35f, (1f - u).pow(1.6f) * 1.2f * light, 2, ax = perpU, ay = perpV)
+            val u = shockAge / 1.7f
+            sprite(0f, 0f, 0f, 0.2f + (1f - (1f - u).pow(3f)) * 4.2f, 0f, 1f, .62f, .35f, (1f - u).pow(2f) * 0.8f * light, 2, ax = perpU, ay = perpV)
             sprite(0f, 0f, 0f, 0.2f + (1f - (1f - u).pow(3f)) * 3.2f, 0f, .55f, .5f, 1f, (1f - u).pow(2f) * 0.6f * light, 2, ax = perpU, ay = perpV)
         }
         if (flash > 0f) {
@@ -537,7 +541,7 @@ class SpaceFx(private val context: Context) {
         GLES20.glUniform3f(ur["uKey"]!!, kd[0], kd[1], kd[2])
         GLES20.glUniform3f(ur["uKeyCol"]!!, 2.4f * light, 2.25f * light, 2.05f * light)
         val rd = floatArrayOf(0.7f, 0.2f, -0.7f); norm(rd)
-        GLES20.glUniform3f(ur["uRimDir"]!!, rd[0], rd[1], rd[2]); GLES20.glUniform3f(ur["uRimCol"]!!, 0.35f * light, 0.25f * light, 0.75f * light)
+        GLES20.glUniform3f(ur["uRimDir"]!!, rd[0], rd[1], rd[2]); GLES20.glUniform3f(ur["uRimCol"]!!, 0.16f * light, 0.12f * light, 0.36f * light)
         val f = flash.pow(1.5f) * 9f + (if (impacted && phase - T_IMPACT < 3f) exp(-(phase - T_IMPACT) * 1.4f) * 1.5f else 0f)
         GLES20.glUniform3f(ur["uHit"]!!, 0f, 0f, 0f); GLES20.glUniform3f(ur["uHitCol"]!!, 1.6f * f, 0.8f * f, 0.35f * f)
         GLES20.glUniform1f(ur["uTexS"]!!, 0.38f)
@@ -546,9 +550,10 @@ class SpaceFx(private val context: Context) {
         var bound = -1
         fun one(r: Rock, x: Float, y: Float, z: Float, dim: Float) {
             if (dim <= 0.01f) return
-            if (bound != r.mesh) {
-                bound = r.mesh
-                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, meshVbo[r.mesh]); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, meshIbo[r.mesh])
+            val lod = if (r.scale > 0.2f) 1 else 0; val key = lod * MESHES + r.mesh
+            if (bound != key) {
+                bound = key
+                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, meshVbo[key]); GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, meshIbo[key])
                 GLES20.glVertexAttribPointer(0, 3, GLES20.GL_FLOAT, false, 24, 0)
                 if (aNrmLoc >= 0) GLES20.glVertexAttribPointer(aNrmLoc, 3, GLES20.GL_FLOAT, false, 24, 12)
             }
@@ -557,7 +562,7 @@ class SpaceFx(private val context: Context) {
             Matrix.scaleM(model, 0, r.scale, r.scale, r.scale)
             GLES20.glUniformMatrix4fv(ur["uM"]!!, 1, false, model, 0)
             GLES20.glUniform1f(ur["uHeat"]!!, (r.heat * (1f + bass * 0.4f)).coerceAtMost(1.3f)); GLES20.glUniform1f(ur["uDim"]!!, dim)
-            GLES20.glDrawElements(GLES20.GL_TRIANGLES, meshIdx, GLES20.GL_UNSIGNED_SHORT, 0)
+            GLES20.glDrawElements(GLES20.GL_TRIANGLES, meshIdx[lod], GLES20.GL_UNSIGNED_SHORT, 0)
         }
         // the far ring of rocks, slowly orbiting on a tilted plane
         val tilt = 0.32f; val ct = cos(tilt); val stl = sin(tilt)
@@ -808,28 +813,30 @@ void main() {
   vW = w.xyz; vN = (uM * vec4(aNrm, 0.0)).xyz; vO = aPos; vON = aNrm;
   gl_Position = uVP * w;
 }"""
-        const val ROCK_FS = PREC + """
+        const val ROCK_FS = PREC + NOISE + """
 uniform sampler2D uTex; uniform vec3 uCam; uniform vec3 uKey; uniform vec3 uKeyCol; uniform vec3 uRimDir; uniform vec3 uRimCol;
 uniform vec3 uHit; uniform vec3 uHitCol; uniform float uHeat; uniform float uDim; uniform float uTexS;
 varying vec3 vW; varying vec3 vN; varying vec3 vO; varying vec3 vON;
-vec3 tri(vec3 p, vec3 n) {
-  vec3 b = pow(abs(n), vec3(4.0)); b /= (b.x + b.y + b.z);
-  return texture2D(uTex, p.yz * uTexS).rgb * b.x + texture2D(uTex, p.xz * uTexS + 0.37).rgb * b.y + texture2D(uTex, p.xy * uTexS + 0.71).rgb * b.z;
-}
+float fbm4(vec3 p) { float a = 0.5; float s = 0.0; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.07 + vec3(3.1, 7.7, 1.3); a *= 0.5; } return s / 0.9375; }
 void main() {
   vec3 N = normalize(vN); vec3 V = normalize(uCam - vW);
-  vec3 tex = tri(vO, normalize(vON));
-  vec3 alb = pow(tex, vec3(2.2)) * vec3(0.92, 0.84, 0.76) * 1.25;
+  // stone in code: grey-brown with darker patches, fine grit and pale dust in the hollows
+  float n = fbm4(vO * 2.3);
+  float grit = vnoise(vO * 11.0);
+  vec3 alb = mix(vec3(0.075, 0.068, 0.062), vec3(0.24, 0.215, 0.19), smoothstep(0.25, 0.75, n)) * (0.8 + 0.4 * grit);
+  alb *= 0.85 + 0.3 * texture2D(uTex, vO.xy * uTexS + vO.z * 0.21).r;
   float k = max(dot(N, uKey), 0.0);
-  vec3 c = alb * uKeyCol * k + alb * vec3(0.025, 0.028, 0.05);
-  vec3 H = normalize(uKey + V); c += uKeyCol * 0.08 * pow(max(dot(N, H), 0.0), 20.0) * k;
+  vec3 c = alb * uKeyCol * k + alb * vec3(0.03, 0.032, 0.05);
+  vec3 H = normalize(uKey + V); c += uKeyCol * 0.05 * pow(max(dot(N, H), 0.0), 16.0) * k;
   float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0); c += uRimCol * rim * (0.35 + 0.65 * max(dot(N, uRimDir), 0.0));
-  vec3 Lh = uHit - vW; float dh = max(length(Lh), 1e-3); c += alb * uHitCol * max(dot(N, Lh / dh), 0.0) / (1.0 + dh * dh * 1.2);
-  // heat: the dark cracks glow first, the whole surface when it is very hot
-  float lum = dot(tex, vec3(0.33));
-  float cracks = smoothstep(0.42, 0.18, lum);
-  vec3 hot = mix(vec3(0.9, 0.18, 0.02), vec3(1.0, 0.75, 0.35), clamp(uHeat, 0.0, 1.0));
-  c += hot * uHeat * (0.15 + cracks * 2.2) * 1.4;
+  vec3 Lh = uHit - vW; float dh = max(length(Lh), 1e-3); c += alb * 3.0 * uHitCol * max(dot(N, Lh / dh), 0.0) / (1.0 + dh * dh * 1.2);
+  // heat: thin glowing veins (ridges of a noise field), the whole face only when it is very hot
+  if (uHeat > 0.01) {
+    float ridge = 1.0 - abs(2.0 * fbm4(vO * 3.2 + 5.0) - 1.0);
+    float vein = smoothstep(0.84, 0.97, ridge);
+    vec3 hot = mix(vec3(0.85, 0.16, 0.02), vec3(1.0, 0.72, 0.32), clamp(uHeat, 0.0, 1.0));
+    c += hot * uHeat * (vein * 3.2 + 0.12 * uHeat * uHeat);
+  }
   c *= uDim;
   c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
   gl_FragColor = vec4(pow(c, vec3(1.0 / 2.2)), 1.0);

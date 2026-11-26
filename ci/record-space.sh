@@ -13,6 +13,8 @@ adb install -r -g pulsify-v3.apk > $OUT/install.txt 2>&1
 # Smaller logical display so the software GPU renders faster. The engine caps each
 # frame step at 50 ms, so slow frames become slow motion that we re-time to 20 fps later.
 adb shell wm size 720x1600; adb shell wm density 300
+# the busy software GPU makes the launcher look frozen: no 'not responding' dialogs over the recording
+adb shell settings put global hide_error_dialogs 1
 adb shell dumpsys battery unplug; adb shell dumpsys battery set level 80
 names=(asteroids nebula); styles=(13 14)
 for k in "${!names[@]}"; do
