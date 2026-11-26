@@ -10,6 +10,9 @@ adb shell settings put global window_animation_scale 0
 adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
 adb install -r -g pulsify-v3.apk > $OUT/install.txt 2>&1
+# Smaller logical display so the software GPU renders faster. The engine caps each
+# frame step at 50 ms, so slow frames become slow motion that we re-time to 20 fps later.
+adb shell wm size 720x1600; adb shell wm density 300
 adb shell dumpsys battery unplug; adb shell dumpsys battery set level 80
 names=(tutankhamun nefertiti anubis horus motmot solar-queen bastet temple-guardian moon crow ringneck cockatiel budgie)
 for i in "${!names[@]}"; do
@@ -18,12 +21,12 @@ for i in "${!names[@]}"; do
   adb shell am force-stop $PKG; sleep 1
   adb shell am start -W -n $PKG/app.pulsify.MainActivity --ei portrait 1 --ei char 14 --ei style $i > /dev/null 2>&1
   sleep 10
-  adb shell screenrecord --time-limit 16 --size 720x1600 --bit-rate 8000000 /sdcard/$n.mp4 &
+  adb shell screenrecord --time-limit 75 --bit-rate 10000000 /sdcard/$n.mp4 &
   rec=$!
-  sleep 3; adb shell input swipe 900 1200 150 1200 450
-  sleep 3; adb shell input tap 540 1100
-  sleep 2; adb shell input swipe 150 1300 950 1300 450
-  sleep 3; adb shell input swipe 540 1700 545 600 500
+  sleep 12; adb shell input swipe 600 800 100 800 450
+  sleep 14; adb shell input tap 360 733
+  sleep 14; adb shell input swipe 100 867 633 867 450
+  sleep 14; adb shell input swipe 360 1133 363 400 500
   wait $rec
   sleep 1
   adb pull /sdcard/$n.mp4 $OUT/$n.mp4 > /dev/null 2>&1 || true
