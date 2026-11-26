@@ -539,7 +539,7 @@ class SpaceFx(private val context: Context) {
         GLES20.glUniform3f(ur["uCam"]!!, cx, cy, cz)
         val kd = floatArrayOf(-0.62f, 0.45f, 0.64f); norm(kd)
         GLES20.glUniform3f(ur["uKey"]!!, kd[0], kd[1], kd[2])
-        GLES20.glUniform3f(ur["uKeyCol"]!!, 2.4f * light, 2.25f * light, 2.05f * light)
+        GLES20.glUniform3f(ur["uKeyCol"]!!, 1.7f * light, 1.6f * light, 1.45f * light)
         val rd = floatArrayOf(0.7f, 0.2f, -0.7f); norm(rd)
         GLES20.glUniform3f(ur["uRimDir"]!!, rd[0], rd[1], rd[2]); GLES20.glUniform3f(ur["uRimCol"]!!, 0.16f * light, 0.12f * light, 0.36f * light)
         val f = flash.pow(1.5f) * 9f + (if (impacted && phase - T_IMPACT < 3f) exp(-(phase - T_IMPACT) * 1.4f) * 1.5f else 0f)
@@ -833,7 +833,7 @@ void main() {
   // heat: thin glowing veins (ridges of a noise field), the whole face only when it is very hot
   if (uHeat > 0.01) {
     float ridge = 1.0 - abs(2.0 * fbm4(vO * 3.2 + 5.0) - 1.0);
-    float vein = smoothstep(0.84, 0.97, ridge);
+    float vein = smoothstep(0.88, 0.98, ridge);
     vec3 hot = mix(vec3(0.85, 0.16, 0.02), vec3(1.0, 0.72, 0.32), clamp(uHeat, 0.0, 1.0));
     c += hot * uHeat * (vein * 3.2 + 0.12 * uHeat * uHeat);
   }
