@@ -115,7 +115,17 @@ class MainActivity : ComponentActivity() {
             }
             val next = i.getIntExtra("video2", -1)
             if (next >= 0) android.os.Handler(mainLooper).postDelayed({ Pulse.prefs.video = next }, 5000)
-            setContent { app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true, fpsCap = 0) }
+            // --ez demo true: walk through the camera moves (page flights, wake, unlock) for the store recordings
+            val demo = i.getBooleanExtra("demo", false)
+            setContent {
+                app.pulsify.ui.LiveSky(Modifier.fillMaxSize(), renderScale = 1f, interactive = true, fpsCap = 0, onLoop = { loop ->
+                    if (demo) {
+                        val h = android.os.Handler(mainLooper)
+                        listOf(5 to "next", 13 to "next", 21 to "next", 33 to "prev", 41 to "wake", 47 to "unlock", 55 to "next", 63 to "next")
+                            .forEach { (s, t) -> h.postDelayed({ loop.perform(t) }, s * 1000L) }
+                    }
+                })
+            }
             return
         }
         Pulse.forceCalm = false
