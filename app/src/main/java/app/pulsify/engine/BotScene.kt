@@ -160,7 +160,8 @@ class BotScene(private val transparent: Boolean = false) : Creature {
         val dt = min(dt0, .05f); time += dt; val B = look
         if (lastLook !== B) { lastLook = B; air = .5f; vy = 0f; falling = true; dropAir = 0f; act = null; tx = null; parts.clear(); doAct("hello") }
         // audio + the sound timeline: a new sound = startled look-up; still going after 4 s = music -> dance
-        val a0 = input.audio; val lvl = if (a0.active) a0.level else 0f
+        // music = the phone reports something playing (not the loudness: quiet bars used to stop the dance)
+        val a0 = input.audio; val lvl = if (a0.active) 1f else 0f
         // a live wallpaper only learns THAT music plays: every move and light below runs on the robot's own rhythm
         bass *= exp(-dt * 7); treble *= exp(-dt * 7); pump *= exp(-dt * 6)
         if (lvl > .02f) { if (time - sndLast > .8f) { sndStart = time; reacted = false }; sndLast = time }
@@ -261,7 +262,10 @@ class BotScene(private val transparent: Boolean = false) : Creature {
                 2 -> { sqT = 1 - .08f * pm; tAL = 1.6f + 1f * (if (alt > 0) pm else 0f); tAR = 1.6f + 1f * (if (alt < 0) pm else 0f); tEL = .8f; tER = .8f; tiltT = .1f * sw; ex = "star" }  // fist pump
                 3 -> { val up = (bn / 2) % 2 == 0; tAL = if (up) 2.9f else .1f; tAR = if (up) .1f else 2.9f; tEL = .05f; tER = .05f; tiltT = if (up) -.12f else .12f; hTilt = if (up) .18f else -.18f
                     lookTX = if (up) -.8f else .8f; lookTY = .6f; ex = "wink"; sqT = 1 + .04f * pm }                                       // disco point
-                4 -> { spinT = (bn % 8 + beat) / 8f * 2f * PI.toFloat() * 2f; tAL = 1.7f; tAR = 1.7f; tEL = .2f; tER = .2f; ex = "dizzy".takeIf { bn % 8 == 7 } ?: "happy" }   // spin
+                4 -> { val st = if ((bn / 2) % 2 == 0) 1f else -1f                                                                     // shuffle: side steps, arms swinging
+                    x = clamp(x + st * .22f * dt, -W / 2 / U + .45f, W / 2 / U - .45f); tiltT = -st * .07f
+                    tAL = 1.1f + .5f * sw; tAR = 1.1f - .5f * sw; tEL = .9f; tER = .9f; hTilt = .1f * sw; lookTX = st * .5f; ex = "happy"
+                    if (B.loco == "walk" || B.loco == "tripod") { footL[1] = .04f * max(0f, sw); footR[1] = .04f * max(0f, -sw) } }
                 5 -> { tAL = 2.7f; tAR = 2.7f; tEL = .1f; tER = .1f; ex = "star"
                     if (onCount && bn % 4 == 0 && air <= 0 && B.loco != "hover") { vy = 2.1f; sq.v -= 4 } else if (onCount && bn % 4 == 0) hov += .12f
                     sqT = if (air > 0) 1.06f else 1 - .1f * pm }                                                                            // jump split

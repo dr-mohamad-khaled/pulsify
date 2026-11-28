@@ -188,13 +188,19 @@ class AudioEngine(private val context: Context, private val prefs: Prefs) {
     // ---- Render thread ----
 
     /** Fills [out] with smoothed values. [dt] in seconds. */
+    private var lastPlayingAt = 0L
+
     fun sample(out: AudioFrame, dt: Float) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastActiveCheck > 1000) {
             lastActiveCheck = now
             musicActive = audioManager.isMusicActive
+            if (musicActive) lastPlayingAt = now
         }
-        val liveFft = visualizer != null && now - lastFftAt < 500 && musicActive
+        // the phone said music is playing: keep treating it as playing for 3 s more, so a gap between songs or a
+        // short glitch in the system flag doesn't stop the dance
+        val playing = musicActive || (lastPlayingAt > 0 && now - lastPlayingAt < 3000)
+        val liveFft = visualizer != null && now - lastFftAt < 500 && playing
         var tb = 0f; var tm = 0f; var tt = 0f
         var beatNow = false
 
@@ -208,7 +214,7 @@ class AudioEngine(private val context: Context, private val prefs: Prefs) {
                     for (i in 0 until 32) out.spectrum[i] += (rawSpectrum[i] - out.spectrum[i]) * min(1f, dt * 18f)
                 }
             }
-            demo || musicActive -> {
+            demo || playing -> {
                 // Demo groove, or a gentle groove when music plays but we may not read it.
                 val bpm = if (demo) 112.0 else 96.0
                 val gain = if (demo) 1f else 0.45f
