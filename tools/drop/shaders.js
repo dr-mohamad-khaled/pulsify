@@ -15,6 +15,8 @@ uniform vec4 uEye;            // look x, y, open, big
 uniform vec4 uExpr;           // happy, squish, smile, mouth O
 uniform vec2 uPct;            // percent, alpha
 uniform float uFloor; uniform float uBass;
+uniform vec4 uIcon;          // battery icon: centre x, y, size, alpha
+uniform vec2 uSlosh;         // its liquid tilt and wave
 float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -42,20 +44,19 @@ float digit(vec2 p, float n){
   if (s6 > 0.5) d = min(d, seg(p, vec2(-0.4, 0.0), vec2(0.4, 0.0)));
   return d;
 }
-void main(){
-  vec2 p = (vUv - 0.5) * 2.0 * uHalf;                       // uv units, y up
+vec4 liquid(vec2 p, vec2 uv, float mirror){
   float px = 2.0 * uHalf.y / uRes.y;                          // one screen pixel in uv units
-  float F = texture2D(uField, vUv).r * 4.0;
+  float F = texture2D(uField, uv).r * 4.0;
   vec2 c = uBody.xy; float R = uBody.z; vec2 rel = p - c; float rl = length(rel);
   // the floor shadow under the body
   float shadow = 0.0;
   { float hgt = max(0.0, c.y - R * 0.82 - uFloor); vec2 q = (p - vec2(c.x, uFloor)) / vec2(R * (1.1 + hgt * 1.5), R * 0.16);
     shadow = exp(-dot(q, q) * 2.0) * 0.45 / (1.0 + hgt * 6.0) * step(p.y, uFloor + R * 0.1); }
-  if (F < 0.02 && rl > R * 2.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * 0.85); return; }
+  if (F < 0.02 && rl > R * 2.0) return vec4(0.0, 0.0, 0.0, shadow * 0.85 * (1.0 - mirror));
   // distance to the liquid: the body outline, melted together with the beads
   float dB = rl > R * 2.2 ? rl - R : rl - bodyR(atan(rel.y, rel.x));
-  float fx = (texture2D(uField, vUv + vec2(uTexel.x, 0.0)).r - texture2D(uField, vUv - vec2(uTexel.x, 0.0)).r) * 4.0;
-  float fy = (texture2D(uField, vUv + vec2(0.0, uTexel.y)).r - texture2D(uField, vUv - vec2(0.0, uTexel.y)).r) * 4.0;
+  float fx = (texture2D(uField, uv + vec2(uTexel.x, 0.0)).r - texture2D(uField, uv - vec2(uTexel.x, 0.0)).r) * 4.0;
+  float fy = (texture2D(uField, uv + vec2(0.0, uTexel.y)).r - texture2D(uField, uv - vec2(0.0, uTexel.y)).r) * 4.0;
   vec2 gF = vec2(fx, fy) / (2.0 * uTexel * 2.0 * uHalf);      // field gradient per uv unit
   float dF = (0.5 - F) / max(length(gF), 1e-3);
   float k = R * 0.35;
@@ -66,7 +67,7 @@ void main(){
   int L = int(uLiq + 0.5);
   float glow = 0.0;
   if (L == 2 || L == 5) glow = exp(-max(D, 0.0) / (R * 0.18)) * (L == 2 ? 0.55 + 0.35 * uBass : 0.35);
-  if (a <= 0.0 && glow < 0.004) { gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * 0.85); return; }
+  if (a <= 0.0 && glow < 0.004) return vec4(0.0, 0.0, 0.0, shadow * 0.85 * (1.0 - mirror));
   // a dome: steep at the rim, flat on top
   float thick = mix(clamp(-dF / 0.05, 0.0, 1.0), clamp(-D / (R * 0.75), 0.0, 1.0), h);
   float s = sqrt(1.0 - (1.0 - thick) * (1.0 - thick));
@@ -79,9 +80,9 @@ void main(){
   vec2 lq = rel / R;                                             // body space
   vec3 col; float alpha;
   if (L == 0) {          // water: clear, blue at the rim, bright glints, a caustic on the floor side
-    col = mix(vec3(0.1, 0.42, 0.85), vec3(0.6, 0.9, 1.0), fres) * (0.55 + 0.45 * fres) + vec3(0.5, 0.85, 1.0) * pow(max(0.0, 1.0 - length(lq - vec2(0.12, -0.5)) * 1.9), 2.0) * 0.5 * h;
+    col = mix(vec3(0.16, 0.56, 1.0), vec3(0.7, 0.95, 1.0), fres) * (0.75 + 0.35 * fres) + vec3(0.5, 0.85, 1.0) * pow(max(0.0, 1.0 - length(lq - vec2(0.12, -0.5)) * 1.9), 2.0) * 0.5 * h;
     col += vec3(0.2, 0.55, 1.0) * (1.0 - s) * 0.25;
-    alpha = 0.5 + 0.45 * fres;
+    alpha = 0.62 + 0.35 * fres;
   } else if (L == 1) {   // honey: deep amber, glowing inside
     col = mix(vec3(0.75, 0.35, 0.02), vec3(1.0, 0.72, 0.2), s * 0.8 + 0.2 * diff) + vec3(1.0, 0.85, 0.4) * pow(s, 3.0) * 0.25;
     col *= 0.85 + 0.15 * noise(lq * 6.0 + uTime * 0.2); alpha = 0.92;
@@ -107,6 +108,13 @@ void main(){
     col += vec3(0.6, 0.4, 1.0) * fres * 0.6; alpha = 0.95;
   }
   col += vec3(1.0) * (spec * (L == 4 ? 0.6 : 1.1) + spec2);
+  // reflection of the room: a bright window up and to the left, a soft horizon band; stronger at the rim
+  { vec3 rv = reflect(-V, N);
+    float win = smoothstep(0.1, 0.0, abs(rv.x + 0.35) - 0.16) * smoothstep(0.1, 0.0, abs(rv.y - 0.45) - 0.12);
+    float bar = smoothstep(0.02, 0.0, abs(rv.x + 0.35)) * step(abs(rv.y - 0.45), 0.12);
+    float hor = smoothstep(0.25, 0.0, abs(rv.y + 0.05)) * 0.35;
+    float refl = (win * (1.0 - bar) * 0.55 + hor * 0.25) * (0.35 + 0.65 * fres) * h;
+    col += (L == 2 ? vec3(1.0, 0.8, 0.6) : vec3(0.9, 0.95, 1.0)) * refl * (L == 4 ? 1.4 : 1.0); }
   // the face (body only)
   if (uFaceKind < 2.5 && h > 0.5) {
     float big = uEye.w; vec2 look = uEye.xy * 0.08;
@@ -165,5 +173,56 @@ void main(){
   vec3 gc = L == 2 ? vec3(1.0, 0.35, 0.05) : vec3(0.55, 0.3, 1.0);
   float A = alpha * a;
   vec3 outc = col * A + gc * glow * (1.0 - a);
-  gl_FragColor = vec4(outc, max(A, shadow * 0.85 * (1.0 - a)));
+  return vec4(outc, max(A, shadow * 0.85 * (1.0 - a) * (1.0 - mirror)));
+}
+// the battery as a little glass of the same liquid, the level = the charge, with the percentage beside it
+vec4 batteryIcon(vec2 p){
+  if (uIcon.w < 0.01) return vec4(0.0);
+  vec2 q = (p - uIcon.xy) / uIcon.z;
+  if (abs(q.x - 0.4) > 2.4 || abs(q.y) > 0.8) return vec4(0.0);
+  float px = 2.0 * uHalf.y / uRes.y / uIcon.z;
+  vec2 b = abs(q - vec2(-0.75, 0.0)) - vec2(0.48, 0.25);
+  float box = length(max(b, 0.0)) + min(max(b.x, b.y), 0.0) - 0.07;
+  vec2 cb = abs(q - vec2(-0.17, 0.0)) - vec2(0.04, 0.1); float cap = length(max(cb, 0.0)) + min(max(cb.x, cb.y), 0.0) - 0.03;
+  float shell = min(abs(box) - 0.035, cap);
+  float inside = smoothstep(px, -px, box + 0.06);
+  float lvl = uPct.x / 100.0;
+  float x01 = (q.x + 1.23) / 0.96;
+  float wave = 0.025 * sin(x01 * 9.0 + uTime * 4.0) * (0.4 + uSlosh.y) + uSlosh.x * (x01 - 0.5) * 0.25;
+  float fillY = -0.27 + lvl * 0.54 + wave;
+  float fill = inside * smoothstep(px, -px, q.y - fillY);
+  int L = int(uLiq + 0.5);
+  vec3 lc = L == 0 ? vec3(0.25, 0.68, 1.0) : L == 1 ? vec3(1.0, 0.68, 0.15) : L == 2 ? mix(vec3(1.0, 0.3, 0.03), vec3(1.0, 0.75, 0.2), noise(q * 6.0 + uTime)) :
+            L == 3 ? vec3(0.45, 1.0, 0.3) : L == 4 ? mix(vec3(0.35, 0.37, 0.42), vec3(0.95), smoothstep(-0.25, 0.2, q.y)) : vec3(0.45, 0.18, 0.85);
+  if (L == 5) lc += vec3(1.0) * step(0.93, h21(floor(q * 18.0))) * 0.8;
+  lc *= 0.75 + 0.35 * smoothstep(fillY - 0.2, fillY, q.y);
+  vec4 c = vec4(lc, 1.0) * fill * (lvl < 0.15 ? 0.7 + 0.3 * sin(uTime * 6.0) : 1.0);
+  float sh = smoothstep(px, -px, shell);
+  c = vec4(0.92, 0.95, 1.0, 1.0) * sh * 0.85 + c * (1.0 - sh * 0.85);
+  c += vec4(1.0) * smoothstep(0.03, 0.0, abs(q.y - 0.16)) * step(abs(q.x + 0.85), 0.25) * inside * 0.35;
+  vec2 dq = (q - vec2(0.55, 0.0)) / 0.22; float n = uPct.x;
+  float dd = n >= 100.0 ? min(min(digit(dq - vec2(-1.3, 0.0), 1.0), digit(dq, 0.0)), digit(dq - vec2(1.3, 0.0), 0.0))
+           : n < 10.0 ? digit(dq + vec2(0.65, 0.0), mod(n, 10.0)) : min(digit(dq, floor(n / 10.0)), digit(dq - vec2(1.3, 0.0), mod(n, 10.0)));
+  vec2 pq = dq - vec2(n >= 100.0 ? 2.9 : n < 10.0 ? 1.05 : 2.7, 0.0);
+  float pc = min(min(length(pq - vec2(-0.3, 0.55)) - 0.16, length(pq - vec2(0.3, -0.55)) - 0.16), seg(pq, vec2(-0.35, -0.8), vec2(0.35, 0.8)) - 0.02);
+  dd = min(dd, pc + 0.12);
+  float num = smoothstep(0.17 + px / 0.22, 0.17 - px / 0.22, dd);
+  c = vec4(mix(lc, vec3(1.0), 0.45), 1.0) * num + c * (1.0 - num);
+  return c * uIcon.w;
+}
+
+void main(){
+  vec2 p = (vUv - 0.5) * 2.0 * uHalf;                         // uv units, y up
+  vec4 c = liquid(p, vUv, 0.0);
+  // a glossy floor: under the floor line the drop is mirrored, faint and fading with depth (one more pass of the
+  // same function, only for the pixels below the floor that the drop does not cover)
+  if (p.y < uFloor && c.a < 0.99) {
+    vec2 m = vec2(p.x, 2.0 * uFloor - p.y);
+    vec4 r = liquid(m, m / (2.0 * uHalf) + 0.5, 1.0);
+    float k = 0.32 * exp(-(uFloor - p.y) / (uBody.z * 0.9));
+    c += r * k * (1.0 - c.a);
+  }
+  vec4 ic = batteryIcon(p);
+  c = ic + c * (1.0 - ic.a);
+  gl_FragColor = c;
 }`;

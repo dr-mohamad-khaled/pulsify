@@ -31,11 +31,11 @@ const DROP = (() => {
       this.lookX = 0; this.lookY = 0; this.tlx = 0; this.tly = 0; this.lookT = 0;
       this.blink = 0; this.nextBlink = 2; this.expr = 'normal'; this.exprT = 0;
       this.act = null; this.actT = 0; this.nextAct = 4; this.rainT = 0; this.pctT = -9;
-      this.bass = 0; this.music = 0; this.sndT = 0; this.beat = 0; this.squash = 0; this.wob = 0;
+      this.ix = 0; this.iy = .5; this.ivx = 0; this.ivy = 0; this.tilt = 0; this.bass = 0; this.music = 0; this.sndT = 0; this.beat = 0; this.squash = 0; this.wob = 0;
     }
     get L() { return LIQ[this.liq]; }
     // total liquid (area units): from the battery, 0% = a small bead, 100% = a big drop
-    get total() { const r = .075 + .2 * this.shown; return r * r; }
+    get total() { const r = .1 + .27 * this.shown; return r * r; }
     get splashed() { let s = 0; for (const p of this.drops) if (!p.rain) s += p.m; return s; }
     get R() { return Math.sqrt(Math.max(this.total * .15, this.total - this.splashed + this.bonus)); }
     resize(halfW, halfH, ground) { this.halfW = halfW; this.halfH = halfH; this.floor = isNaN(ground) ? -halfH * .5 : ground; }
@@ -128,13 +128,18 @@ const DROP = (() => {
       for (let i = 0; i < M; i++) {
         const a = i / M * TAU, cx = Math.cos(a), cy = Math.sin(a);
         const lap = this.d[(i + 1) % M] + this.d[(i + M - 1) % M] - 2 * this.d[i];
-        const inert = -(this.ax * cx + this.ay * cy) * .0035;
-        const tgt = squash * .35 * (cx * cx - cy * cy) + wob * Math.cos(2 * a + this.t * 3) + dance * cy * cy;
+        const inert = -(this.ax * cx + this.ay * cy) * .007;
+        // moving liquid is never a perfect circle: it stretches along its motion and trails a tail behind
+        const sp = Math.hypot(this.vx, this.vy), ux = sp > 1e-3 ? this.vx / sp : 0, uy = sp > 1e-3 ? this.vy / sp : 0;
+        const al = cx * ux + cy * uy, st = clamp(sp * .09, 0, .32);
+        const flow = st * (al * al - .5) + st * .9 * Math.pow(Math.max(0, -al), 3) - st * .35 * Math.pow(Math.max(0, al), 3)
+          + .05 * Math.min(1, sp) * Math.sin(3 * a + this.t * 9) + .035 * Math.min(1, sp) * Math.sin(5 * a - this.t * 13);
+        const tgt = squash * .35 * (cx * cx - cy * cy) + wob * Math.cos(2 * a + this.t * 3) + dance * cy * cy + flow;
         const acc = L.k * (tgt - this.d[i]) - L.damp * this.dv[i] + L.k * .6 * lap + inert * L.k;
         this.dv[i] += acc * dt;
       }
       let mean = 0;
-      for (let i = 0; i < M; i++) { this.d[i] += this.dv[i] * dt; this.d[i] = clamp(this.d[i], -.55, .7); mean += this.d[i]; }
+      for (let i = 0; i < M; i++) { this.d[i] += this.dv[i] * dt; this.d[i] = clamp(this.d[i], -.55, .85); mean += this.d[i]; }
       mean /= M; for (let i = 0; i < M; i++) this.d[i] -= mean;      // keep its area: squashed here, it bulges there
       for (let i = 0; i < M; i++) {
         const a = i / M * TAU, cx = Math.cos(a), cy = Math.sin(a); const r = R * (1 + this.d[i]);
@@ -202,6 +207,12 @@ const DROP = (() => {
       this.exprT -= dt;
       if (this.exprT <= 0) this.expr = dancing ? 'happy' : (this.battery < .15 && !this.charging) ? 'sleepy' : Math.hypot(this.vx, this.vy) > 1.6 ? 'surprised' : 'normal';
 
+      // the battery icon floats above its head on a soft spring; the liquid inside tilts as it swings
+      { const tx = clamp(this.x - .03, -hw + .16, hw - .3), ty = Math.min(this.y + this.R * 1.2 + .14, hh - .14);
+        if (this.t < .05) { this.ix = tx; this.iy = ty; }
+        const ax2 = (tx - this.ix) * 40 - this.ivx * 9, ay2 = (ty - this.iy) * 40 - this.ivy * 9;
+        this.ivx += ax2 * dt; this.ivy += ay2 * dt; this.ix += this.ivx * dt; this.iy += this.ivy * dt;
+        this.tilt += (clamp(-ax2 * .03, -1, 1) - this.tilt) * Math.min(1, dt * 6); }
       // tricks (at least three a minute)
       if (this.act) { this.actT += dt; if (this.actT > 1.6) this.act = null; }
       this.nextAct -= dt;

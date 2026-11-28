@@ -14,8 +14,27 @@ class DeviceState(private val context: Context) {
     @Volatile var batteryLevel = 1f; private set
     @Volatile var charging = false; private set
     private var lastPoll = 0L
+    private var listening = false
+
+    /** Plugging in / unplugging is heard at once (the 20 s poll alone made Droppy's rain start late). */
+    private fun listen() {
+        if (listening) return
+        listening = true
+        try {
+            val f = IntentFilter().apply { addAction(Intent.ACTION_POWER_CONNECTED); addAction(Intent.ACTION_POWER_DISCONNECTED) }
+            val r = object : android.content.BroadcastReceiver() {
+                override fun onReceive(c: Context?, i: Intent?) {
+                    charging = i?.action == Intent.ACTION_POWER_CONNECTED
+                    lastPoll = 0L
+                }
+            }
+            if (android.os.Build.VERSION.SDK_INT >= 33) context.applicationContext.registerReceiver(r, f, Context.RECEIVER_NOT_EXPORTED)
+            else context.applicationContext.registerReceiver(r, f)
+        } catch (_: Throwable) {}
+    }
 
     fun poll(force: Boolean = false) {
+        listen()
         val now = SystemClock.elapsedRealtime()
         if (!force && now - lastPoll < 20_000) return
         lastPoll = now

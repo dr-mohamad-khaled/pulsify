@@ -616,7 +616,10 @@ class GlLoop(
             swipePhysics(dt, c)
             val vw = if (offscreen) fbW else surfW; val vh = if (offscreen) fbH else surfH
             // Cosmo paints its own full-screen space: sliding the whole viewport would bare the screen edge
-            val px = if (c === astro) 0 else (lag * vw).toInt()
+            // scenes that paint the whole screen themselves (space, super wallpapers, Reaper worlds, the tank) never slide:
+            // sliding the viewport would bare a black strip at the screen edge during a swipe
+            val fills = c === astro || c === statue || c === shadow || c === aquarium || (c === orbit && orbit.worldIndex >= 0)
+            val px = if (fills) 0 else (lag * vw).toInt()
             if (px != 0) GLES20.glViewport(px, 0, vw, vh)
             c.draw(input)
             if (px != 0) GLES20.glViewport(0, 0, vw, vh)
