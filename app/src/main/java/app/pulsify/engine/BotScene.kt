@@ -76,6 +76,8 @@ class BotScene(private val transparent: Boolean = false) : Creature {
     private class Act(val n: String, val d: Float) { var t = 0f }
     private var act: Act? = null
     private var scanX = Float.NaN; private var scanY = 0f
+    /** Spin angle while it dances (drawn as a turn about its upright axis). */
+    private var spin = 0f
 
     private val FACES = listOf("happy", "heart", "wink", "star", "angry", "wow", "g:?", "g:n", "dizzy", "happy")
     private fun doAct(n: String) {
@@ -159,7 +161,8 @@ class BotScene(private val transparent: Boolean = false) : Creature {
         if (lastLook !== B) { lastLook = B; air = .5f; vy = 0f; falling = true; dropAir = 0f; act = null; tx = null; parts.clear(); doAct("hello") }
         // audio + the sound timeline: a new sound = startled look-up; still going after 4 s = music -> dance
         val a0 = input.audio; val lvl = if (a0.active) a0.level else 0f
-        bass = max(if (a0.active) a0.bass * a0.bass * 1.3f else 0f, bass * exp(-dt * 7)); treble = max(if (a0.active) a0.treble else 0f, treble * exp(-dt * 7)); pump = if (a0.active) a0.beat else pump * exp(-dt * 6)
+        // a live wallpaper only learns THAT music plays: every move and light below runs on the robot's own rhythm
+        bass *= exp(-dt * 7); treble *= exp(-dt * 7); pump *= exp(-dt * 6)
         if (lvl > .02f) { if (time - sndLast > .8f) { sndStart = time; reacted = false }; sndLast = time }
         val sndDur = if (time - sndLast < .8f) time - sndStart else 0f
         if (sndDur > 0 && !reacted) { reacted = true; if (notif == null) { notif = Notif(time, true); val p = botScreen(B.head + .35f); emit(BANG, p[0], p[1], 1, 0f) } }
@@ -244,20 +247,39 @@ class BotScene(private val transparent: Boolean = false) : Creature {
             if (rnd() < .35f) tx = clamp(x + (rnd() - .5f) * 2.2f, -W / 2 / U + .5f, W / 2 / U - .5f)
             else doAct(if (low) "nap" else listOf("wave", "scan", "faces", "look", "look", "jump", "glitch", if (rnd() < .15f) "nap" else "look")[Random.nextInt(8)])
         }
+        var spinT = 0f
         if (dancing && act == null) {
-            val sw = sin((bn + beat) * PI.toFloat()); val pm = max(pump, (1 - beat).pow(3) * .6f)
-            when (move) {
-                0 -> { sqT = 1 - .08f * pm; tAL = 1.6f + .9f * (if (alt > 0) pm else 0f); tAR = 1.6f + .9f * (if (alt < 0) pm else 0f); tEL = .8f; tER = .8f; tiltT = .1f * sw }
-                1 -> { tiltT = .16f * sw; tAL = 2.5f + .3f * sw; tAR = 2.5f - .3f * sw; hTilt = .15f * sw; lookTX = sw * .6f }
-                else -> { val k = bn % 4; tAL = floatArrayOf(.4f, 1.57f, 2.8f, 1.57f)[k]; tAR = floatArrayOf(2.8f, 1.57f, .4f, 1.57f)[k]; tEL = floatArrayOf(1.57f, 0f, .5f, 1.57f)[k]; tER = floatArrayOf(0f, 1.57f, .5f, 0f)[k]; tiltT = floatArrayOf(.12f, -.12f, .12f, -.12f)[k] * .6f; hTilt = floatArrayOf(-.15f, .15f, -.15f, .15f)[k] }
+            // eight routines of eight counts (120 BPM, the robot's own clock): pop-and-lock, wave, fist pump, disco point,
+            // spin, jump split, moonwalk, headbang. The LED face, notes and the room's light pulse with its own count.
+            val sw = sin((bn + beat) * PI.toFloat()); val pm = (1 - beat).pow(3)
+            pump = max(pump, pm); bass = max(bass, pm * .7f)
+            val dmove = (bn / 8) % 8; val k = bn % 4; val onCount = beat < dt * 2.2f
+            when (dmove) {
+                0 -> { tAL = floatArrayOf(.4f, 1.57f, 2.8f, 1.57f)[k]; tAR = floatArrayOf(2.8f, 1.57f, .4f, 1.57f)[k]; tEL = floatArrayOf(1.57f, 0f, .5f, 1.57f)[k]; tER = floatArrayOf(0f, 1.57f, .5f, 0f)[k]
+                    tiltT = floatArrayOf(.12f, -.12f, .12f, -.12f)[k] * .6f; hTilt = floatArrayOf(-.15f, .15f, -.15f, .15f)[k]; ex = "g:n" }            // pop and lock
+                1 -> { tiltT = .16f * sw; tAL = 2.5f + .35f * sin((bn + beat) * PI.toFloat() * 2); tAR = 2.5f - .35f * sin((bn + beat) * PI.toFloat() * 2 + 1f); tEL = .5f + .4f * sw; tER = .5f - .4f * sw; hTilt = .15f * sw; lookTX = sw * .6f; ex = "happy" }  // the wave
+                2 -> { sqT = 1 - .08f * pm; tAL = 1.6f + 1f * (if (alt > 0) pm else 0f); tAR = 1.6f + 1f * (if (alt < 0) pm else 0f); tEL = .8f; tER = .8f; tiltT = .1f * sw; ex = "star" }  // fist pump
+                3 -> { val up = (bn / 2) % 2 == 0; tAL = if (up) 2.9f else .1f; tAR = if (up) .1f else 2.9f; tEL = .05f; tER = .05f; tiltT = if (up) -.12f else .12f; hTilt = if (up) .18f else -.18f
+                    lookTX = if (up) -.8f else .8f; lookTY = .6f; ex = "wink"; sqT = 1 + .04f * pm }                                       // disco point
+                4 -> { spinT = (bn % 8 + beat) / 8f * 2f * PI.toFloat() * 2f; tAL = 1.7f; tAR = 1.7f; tEL = .2f; tER = .2f; ex = "dizzy".takeIf { bn % 8 == 7 } ?: "happy" }   // spin
+                5 -> { tAL = 2.7f; tAR = 2.7f; tEL = .1f; tER = .1f; ex = "star"
+                    if (onCount && bn % 4 == 0 && air <= 0 && B.loco != "hover") { vy = 2.1f; sq.v -= 4 } else if (onCount && bn % 4 == 0) hov += .12f
+                    sqT = if (air > 0) 1.06f else 1 - .1f * pm }                                                                            // jump split
+                6 -> { val d = if ((bn / 8) % 2 == 0) -1f else 1f; x = clamp(x + d * .35f * dt, -W / 2 / U + .45f, W / 2 / U - .45f); dir = -d
+                    tAL = .5f + .3f * sw; tAR = .5f - .3f * sw; tiltT = .06f * sw - d * .05f; lookTX = -d * .5f; ex = "g:*"
+                    if (B.loco == "walk" || B.loco == "tripod") { footL[0] = -d * .03f * sw; footR[0] = d * .03f * sw; footL[1] = .02f * max(0f, sw); footR[1] = .02f * max(0f, -sw) } }   // moonwalk
+                else -> { hTilt = .22f * sin((bn + beat) * PI.toFloat() * 2); tiltT = .08f * sin((bn + beat) * PI.toFloat() * 2); sqT = 1 - .1f * pm; tAL = 2.2f + .4f * pm; tAR = 2.2f + .4f * pm; tEL = 1.2f; tER = 1.2f; ex = "heart" }   // headbang
             }
-            if (B.loco == "hop" && air <= 0 && beat < .1f && bn % 2 == 0) { vy = 1.2f; sq.v -= 2.5f }
-            if (B.loco == "wheel") x += cos((bn + beat) * PI.toFloat() / 2) * .5f * dt
-            if (B.loco == "walk" || B.loco == "tripod") { footL[0] = 0f; footL[1] = if (alt > 0) .05f * pm else 0f; footR[0] = 0f; footR[1] = if (alt < 0) .05f * pm else 0f; footB[1] = .03f * pm }
+            if (dmove != 6 && B.loco == "hop" && air <= 0 && onCount && bn % 2 == 0 && dmove != 5) { vy = 1.2f; sq.v -= 2.5f }
+            if (dmove != 6 && B.loco == "wheel") x = clamp(x + cos((bn + beat) * PI.toFloat() / 2) * .5f * dt, -W / 2 / U + .45f, W / 2 / U - .45f)
+            if (dmove != 6 && (B.loco == "walk" || B.loco == "tripod")) { footL[0] = 0f; footL[1] = if (alt > 0) .05f * pm else 0f; footR[0] = 0f; footR[1] = if (alt < 0) .05f * pm else 0f; footB[1] = .03f * pm }
             bobT = .03f * pm * (if (B.loco == "hover") -1f else 1f) * (if (B.loco == "hop") 0f else 1f) - (if (B.loco == "walk") .03f * pm else 0f)
-            ex = listOf("g:n", "happy", "heart", "star")[(bn / 4) % 4]; talk = 1f
-            if (pm > .9f && rnd() < .5f) { val p = botScreen(B.head + .3f); emit(NOTE, p[0], p[1], 1, .6f) }
+            talk = 1f
+            if (onCount && bn % 2 == 0) { val p = botScreen(B.head + .3f); emit(NOTE, p[0], p[1], 1, .6f) }
+            if (onCount && bn % 8 == 0) { val p = botScreen(B.head * .5f); emit(SPARK, p[0], p[1], 6) }
         }
+        if (spinT > 0f) spin = spinT
+        else if (spin != 0f) { val tw = 2f * PI.toFloat(); val goal = Math.round(spin / tw) * tw; spin += (goal - spin) * min(1f, dt * 6f); if (abs(goal - spin) < .01f) spin = 0f }
         if (charging && !held) { if (act == null || act!!.n == "look") { ex = if (battery >= .995f) "heart" else "pct"; tAL = .15f; tAR = .15f }; if (rnd() < dt * 3) { val p = botScreen(.15f); emit(BOLT, p[0], p[1], 1, .3f) } }
         if (low && act == null && !dancing) { ex = "tired"; tAL = .05f; tAR = .05f; sqT = .95f }
         notif?.let { n -> if (!held) {
@@ -512,7 +534,7 @@ class BotScene(private val transparent: Boolean = false) : Creature {
         if (mirror) { cv.translate(CX + x * U, GY + air * U); cv.scale(U, U) } else { cv.translate(CX + x * U, GY - air * U); cv.scale(U, -U) }
         val piv = if (held) grabDy else when (look.loco) { "hover" -> .5f + hov; "wheel" -> .13f; "tripod" -> .3f; else -> 0f }
         cv.rotate(tilt.x * 57.3f, 0f, piv)
-        val s = sq.x; cv.scale(1 + (1 - s) * .7f, s)
+        val s = sq.x; cv.scale((1 + (1 - s) * .7f) * (if (spin != 0f) cos(spin).let { if (abs(it) < .12f) .12f * sign(it + 1e-4f) else it } else 1f), s)
         when (look.key) { "orbi" -> drawOrbi(cv); "pixel" -> drawPixel(cv); "sentinel" -> drawSentinel(cv); "bubble" -> drawBubble(cv); else -> drawTink(cv) }
         cv.restore()
     }
