@@ -1,0 +1,23 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Reaper worlds</title><style>html,body{margin:0;background:#000;height:100%;overflow:hidden;font-family:system-ui;color:#fff}
+canvas{position:fixed;inset:0;width:100%;height:100%}#ui{position:fixed;bottom:12px;left:0;right:0;display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+button{background:rgba(30,25,43,.75);color:#fff;border:1px solid rgba(205,180,255,.3);border-radius:99px;padding:7px 12px;font-size:12px}button.on{background:#CDB4FF;color:#0D0A14;font-weight:700}</style></head>
+<body><canvas id="c"></canvas><div id="ui"></div><script>
+const P=new URLSearchParams(location.search); const cv=document.getElementById('c'); const gl=cv.getContext('webgl');
+let env=+(P.get('env')||0), scale=+(P.get('scale')||1), yaw=+(P.get('yaw')||0), auto=P.get('still')?0:1;
+fetch(P.get('frag')||'orbit.frag').then(r=>r.text()).then(src=>{
+ const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)){console.log(gl.getShaderInfoLog(o));document.title='err';}return o;};
+ const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,'attribute vec2 aPos;void main(){gl_Position=vec4(aPos,0.,1.);}'));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,src));gl.linkProgram(pr);gl.useProgram(pr);
+ const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+ const U=n=>gl.getUniformLocation(pr,n);
+ const names=['Volcano','Moonlit graveyard','Crystal cavern','Frozen soul lake','Candy meadow'];
+ const ui=document.getElementById('ui');names.forEach((n,i)=>{const x=document.createElement('button');x.textContent=n;x.onclick=()=>{env=i;[...ui.children].forEach((c,j)=>c.classList.toggle('on',j==i));};if(i==env)x.classList.add('on');ui.appendChild(x);});
+ let t0=performance.now(), drag=null; cv.onpointerdown=e=>drag=e.clientX; cv.onpointermove=e=>{if(drag!=null){yaw+=(e.clientX-drag)*.006;drag=e.clientX;}}; cv.onpointerup=()=>drag=null;
+ function f(){const W=innerWidth,H=innerHeight,dpr=Math.min(2,devicePixelRatio||1);const w=Math.round(W*dpr*scale),h=Math.round(H*dpr*scale);if(cv.width!=w){cv.width=w;cv.height=h;}
+  gl.viewport(0,0,w,h);const t=(performance.now()-t0)/1000+(+(P.get('t')||3));const m=Math.min(W,H),halfW=.5*W/m,halfH=.5*H/m;const s0=Math.min(.7*halfH,halfW*1.25);
+  const D=6,tf=(1/D)/s0,feet=-halfH*.52,pitch=Math.atan(.12),camH=D*Math.tan(pitch-Math.atan(feet*tf));const y=yaw+(auto?t*.05:0);
+  gl.uniform2f(U('uRes'),w,h);gl.uniform1f(U('uYaw'),y);gl.uniform1f(U('uTime'),t);gl.uniform1f(U('uTanF'),tf);gl.uniform1f(U('uPitch'),pitch);
+  gl.uniform3f(U('uCam'),Math.sin(y)*D,camH,Math.cos(y)*D);gl.uniform2f(U('uTarget'),0,0);gl.uniform1f(U('uBass'),0);gl.uniform1f(U('uEnv'),env);gl.uniform4f(U('uFire'),0,.55,-.25,0);
+  gl.drawArrays(gl.TRIANGLES,0,3);requestAnimationFrame(f);}
+ f(); document.title='ready';});
+</script></body></html>

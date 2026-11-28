@@ -99,7 +99,7 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
             val ctx = LocalContext.current
             val have = remember { (try { ctx.assets.list("thumbs") } catch (_: Exception) { null })?.toSet() ?: emptySet() }
             val cards = remember {
-                app.pulsify.engine.CREATURES.filter { it.id != 8 }.flatMap { cr ->
+                app.pulsify.engine.CREATURES.filter { it.id != 8 && it.id != app.pulsify.engine.DROP_ID }.flatMap { cr ->
                     if (cr.styles.size <= 1) listOf(Triple(cr, -1, cr.name))
                     else cr.styles.mapIndexed { i, n -> Triple(cr, i, n) }
                 }
@@ -111,6 +111,18 @@ fun HomeScreen(state: AppState, onOpenStudio: () -> Unit, onSettings: () -> Unit
                         "thumbs/" + (if (i >= 0 && own in have) own else "creature_${cr.id}.jpg"), n, cr.line, Color(cr.accent),
                         live = state.isActive(cr.id, i),
                     ) { state.applyCharacter(cr.id); if (i >= 0) state.applyStyle(i); onOpenStudio() }
+                }
+            }
+        }
+        item {
+            // Droppy: one card per liquid
+            val dr = app.pulsify.engine.DROP_INFO
+            Shelf("Droppy", "A living drop as big as your battery. Fling it, watch it pull itself together.", Modifier.enter(3)) {
+                itemsIndexed(dr.styles) { i, n ->
+                    PosterCard(
+                        "thumbs/creature_${dr.id}_$i.jpg", n, dr.line, Color(DROP_CARD_COLORS[i % DROP_CARD_COLORS.size]),
+                        live = state.isActive(dr.id, i),
+                    ) { state.applyCharacter(dr.id); state.applyStyle(i); onOpenStudio() }
                 }
             }
         }
@@ -439,3 +451,6 @@ private fun CrashCard() {
         }
     }
 }
+
+/** Accent per Droppy liquid card: water, honey, lava, slime, mercury, galaxy. */
+private val DROP_CARD_COLORS = longArrayOf(0xFF6EC8FF, 0xFFFFB13B, 0xFFFF5A1F, 0xFF7CF25A, 0xFFD8DEE8, 0xFFB06BFF).map { it.toInt() }

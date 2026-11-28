@@ -17,6 +17,9 @@ import kotlin.random.Random
 class StarField {
     private var neb = 0; private var blit = 0; private var pts = 0; private var tri = 0; private var vbo = 0
     private var tex = 0; private var fbo = 0; private var n = 0; private var bw = 0; private var bh = 0
+    /** Free Fall: no Milky Way or dust, only distant stars on pure black, the brightest with a soft glow. */
+    @Volatile var plain = false
+    private var nNoBand = 0
     private val bu = HashMap<String, Int>(); private val pu = HashMap<String, Int>(); private var aStar = 1; private var aLook = 2
 
     fun create() {
@@ -48,7 +51,7 @@ class StarField {
             }
         }
         layer(46f, .55f, .75f, .25f, .7f, .7f, false); layer(90f, .45f, 1.05f, .5f, 1f, 1f, false)
-        layer(190f, .35f, 1.5f, 1f, 1.3f, 1.15f, false); layer(22f, .35f, .55f, .2f, .5f, .6f, true)
+        layer(190f, .35f, 1.5f, 1f, 1.3f, 1.15f, false); nNoBand = out.size / 10; layer(22f, .35f, .55f, .2f, .5f, .6f, true)
         n = out.size / 10; put(vbo, out.toFloatArray())
         // nebula: painted once at half resolution
         val w = max(1, W shr 1); val h = max(1, H shr 1)
@@ -68,18 +71,20 @@ class StarField {
         val vp = IntArray(4); GLES20.glGetIntegerv(GLES20.GL_VIEWPORT, vp, 0); val W = vp[2]; val H = vp[3]
         if (bw != W || bh != H) { build(W, H); GLES20.glViewport(vp[0], vp[1], vp[2], vp[3]) }
         GLES20.glDisable(GLES20.GL_BLEND)
+        if (plain) { GLES20.glClearColor(0f, 0f, 0f, 1f); GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT) } else {
         GLES20.glUseProgram(blit); GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, tex)
         GLES20.glUniform1i(bu["uTex"]!!, 0); GLES20.glUniform2f(bu["uRes"]!!, W.toFloat(), H.toFloat()); GLES20.glUniform1f(bu["uShake"]!!, shake)
-        GLES20.glUniform2f(GLES20.glGetUniformLocation(blit, "uOrg"), vp[0].toFloat(), vp[1].toFloat()); drawTri()
+        GLES20.glUniform2f(GLES20.glGetUniformLocation(blit, "uOrg"), vp[0].toFloat(), vp[1].toFloat()); drawTri() }
         GLES20.glUseProgram(pts)
         GLES20.glUniform2f(pu["uRes"]!!, W.toFloat(), H.toFloat()); GLES20.glUniform1f(pu["uFall"]!!, fall); GLES20.glUniform1f(pu["uTime"]!!, time)
         GLES20.glUniform1f(pu["uS"]!!, min(W, H) / 1080f); GLES20.glUniform1f(pu["uPar"]!!, par)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(pts, "uGlow"), if (plain) 1f else 0f)
         GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, vbo)
         GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 40, 0)
         GLES20.glEnableVertexAttribArray(aStar); GLES20.glVertexAttribPointer(aStar, 4, GLES20.GL_FLOAT, false, 40, 8)
         GLES20.glEnableVertexAttribArray(aLook); GLES20.glVertexAttribPointer(aLook, 4, GLES20.GL_FLOAT, false, 40, 24)
-        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, n)
+        GLES20.glDrawArrays(GLES20.GL_POINTS, 0, if (plain) nNoBand else n)
         GLES20.glDisableVertexAttribArray(aStar); GLES20.glDisableVertexAttribArray(aLook); GLES20.glDisable(GLES20.GL_BLEND)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
     }
@@ -107,19 +112,21 @@ void main(){
         private const val BLIT_FS = """precision mediump float; uniform sampler2D uTex; uniform vec2 uRes; uniform vec2 uOrg; uniform float uShake;
 void main(){ gl_FragColor = vec4(texture2D(uTex, (gl_FragCoord.xy - uOrg) / uRes).rgb + vec3(0.25, 0.35, 0.6) * uShake * 0.04, 1.0); }"""
         private const val STAR_VS = """attribute vec2 aPos; attribute vec4 aStar; attribute vec4 aLook;
-uniform vec2 uRes; uniform float uFall; uniform float uTime; uniform float uS; uniform float uPar;
-varying float vR; varying float vSize; varying vec3 vCol;
+uniform vec2 uRes; uniform float uFall; uniform float uTime; uniform float uS; uniform float uPar; uniform float uGlow;
+varying float vR; varying float vSize; varying vec3 vCol; varying float vHalo;
 void main(){
   vec2 p = aPos * uRes - vec2(uPar * 0.15 * uRes.x, uFall * 6.0) * aStar.x;
   p = mod(p, uRes);
   float m = aLook.y; float rr = aStar.y * uS * (0.6 + 0.9 * m * m);
   float t = 0.75 + 0.25 * sin(uTime * aStar.z + aStar.w);
   vec3 tint = mix(vec3(0.75, 0.85, 1.0), vec3(1.0, 0.86, 0.7), aLook.x);
-  vCol = tint * t * (0.35 + 0.65 * m) * aLook.z; vR = rr; vSize = rr * 5.0 + 2.0;
+  vCol = tint * t * (0.35 + 0.65 * m) * aLook.z * (1.0 + 0.25 * uGlow); vR = rr;
+  vHalo = 0.25 + uGlow * 0.3 * smoothstep(0.4, 0.9, m);          // the brightest stars light up a little halo
+  vSize = rr * (5.0 + uGlow * 4.0 * smoothstep(0.4, 0.9, m)) + 2.0;
   gl_PointSize = vSize; gl_Position = vec4(p / uRes * 2.0 - 1.0, 0.0, 1.0); }"""
-        private const val STAR_FS = """precision mediump float; varying float vR; varying float vSize; varying vec3 vCol;
+        private const val STAR_FS = """precision mediump float; varying float vR; varying float vSize; varying vec3 vCol; varying float vHalo;
 void main(){ float d = length(gl_PointCoord - 0.5) * vSize;
-  float a = clamp(vR + 0.5 - d, 0.0, 1.0) + exp(-d * d / (vR * vR * 6.0)) * 0.25;
+  float a = clamp(vR + 0.5 - d, 0.0, 1.0) + exp(-d * d / (vR * vR * 6.0)) * vHalo;
   gl_FragColor = vec4(vCol * a, 1.0); }"""
     }
 }

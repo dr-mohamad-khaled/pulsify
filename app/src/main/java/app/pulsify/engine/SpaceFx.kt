@@ -44,12 +44,14 @@ class SpaceFx(private val context: Context) {
         var mesh = 0; var scale = 1f
         val p = FloatArray(3); val v = FloatArray(3); val axis = FloatArray(3)
         var ang = 0f; var spin = 0f; var heat = 0f; var alive = false
+        /** Seconds it has been off the screen in a row (debris only dies out of sight). */
+        var out = 0f
     }
     private class Spark { val p = FloatArray(3); val v = FloatArray(3); var life = 0f; var age = 0f; var size = 1f }
     private class Cloud { val p = FloatArray(3); var age = 0f; var life = 3f; var size0 = .4f; var size1 = 2f; var atlas = 0; var rot = 0f; var warm = 1f }
 
     private val bigA = Rock(); private val bigB = Rock()
-    private val pieces = Array(36) { Rock() }
+    private val pieces = Array(84) { Rock() }
     private val belt = Array(64) { Rock() }
     private val beltR = FloatArray(64); private val beltTh = FloatArray(64); private val beltW = FloatArray(64); private val beltH = FloatArray(64)
     private val sparks = Array(MAX_SPARKS) { Spark() }
@@ -60,6 +62,10 @@ class SpaceFx(private val context: Context) {
     private var shockAge = -1f
     private val dirA = FloatArray(3); private val perpU = FloatArray(3); private val perpV = FloatArray(3)
     private var startD = 3.2f
+    /** A new pair waits for the camera: its course is set across the view and it starts outside the screen. */
+    private var aimPending = true
+    private var rush = false
+    private val back = FloatArray(3)
 
     // ---------------------------------------------------------------- nebula
     private class Gas { val p = FloatArray(3); var size = 1f; var r = 1f; var g = 1f; var b = 1f; var a = .15f; var atlas = 0; var rot = 0f; var spin = 0f }
@@ -72,7 +78,7 @@ class SpaceFx(private val context: Context) {
     // ---------------------------------------------------------------- events
     fun tap() {
         when (kind) {
-            "asteroids" -> if (!impacted && phase < T_IMPACT - 0.35f) phase = T_IMPACT - 0.35f
+            "asteroids" -> if (!impacted && !aimPending) rush = true   // the pair speeds up (no jump), the clash comes sooner
             "nebula" -> { ripple = 0f; gain = 1.9f }
         }
     }
@@ -87,23 +93,24 @@ class SpaceFx(private val context: Context) {
     }
 
     private fun stepClash(dt: Float) {
-        phase += dt
+        phase += dt * (if (rush && !impacted) 3.5f else 1f)
         if (phase >= T_END) newCycle(first = false)
         if (!impacted && phase >= T_IMPACT) impact()
         flash = max(0f, flash - dt * 2.6f)
         if (shockAge >= 0f) { shockAge += dt; if (shockAge > 1.7f) shockAge = -1f }
+        if (aimPending) phase = 0f          // the clock starts once the pair has been placed outside the view
         if (!impacted) {
             // the pair falls towards each other faster and faster (no slowing down before the hit)
             val u = (phase / T_IMPACT).coerceIn(0f, 1f)
             val k = 1f - u.pow(1.8f)
             place(bigA, dirA, bigA.scale * 0.92f + startD * k)
-            val back = FloatArray(3) { -dirA[it] + perpU[it] * 0.16f }
-            norm(back)
             place(bigB, back, bigB.scale * 0.92f + startD * k)
         }
         for (r in pieces) if (r.alive) {
-            for (i in 0..2) { r.p[i] += r.v[i] * dt; r.v[i] *= (1f - 0.04f * dt) }
+            for (i in 0..2) { r.p[i] += r.v[i] * dt; r.v[i] *= (1f - 0.02f * dt) }
             r.heat *= exp(-dt / 1.3f)
+            // debris is only taken away once it has left the screen (see cull()), or when it is very far off
+            if (r.p[0] * r.p[0] + r.p[1] * r.p[1] + r.p[2] * r.p[2] > 45f * 45f) r.alive = false
         }
         for (r in arrayOf(bigA, bigB)) if (r.alive) r.ang += r.spin * dt
         for (r in pieces) if (r.alive) r.ang += r.spin * dt
@@ -118,32 +125,73 @@ class SpaceFx(private val context: Context) {
     private fun place(r: Rock, d: FloatArray, dist: Float) { for (i in 0..2) r.p[i] = d[i] * dist }
 
     private fun newCycle(first: Boolean) {
-        phase = if (first) 1.2f else 0f
-        impacted = false; flash = 0f; shockAge = -1f
-        // a new collision axis: mostly sideways on screen, a little up or down, a new heading each time
-        val th = rnd.nextFloat() * 2f * PI.toFloat(); val ph = (rnd.nextFloat() - .5f) * 0.6f
-        dirA[0] = cos(th) * cos(ph); dirA[1] = sin(ph); dirA[2] = sin(th) * cos(ph)
-        // two axes across it: the plane the debris fans out in
-        val up = floatArrayOf(0f, 1f, 0f)
-        cross(dirA, up, perpU); norm(perpU); cross(dirA, perpU, perpV); norm(perpV)
-        startD = 3.0f + rnd.nextFloat() * 0.6f
+        phase = 0f
+        impacted = false; flash = 0f; shockAge = -1f; rush = false
+        if (first) for (r in pieces) r.alive = false
         for ((i, r) in arrayOf(bigA, bigB).withIndex()) {
             r.alive = true; r.mesh = rnd.nextInt(MESHES); r.scale = if (i == 0) 0.62f + rnd.nextFloat() * .1f else 0.5f + rnd.nextFloat() * .1f
             randAxis(r.axis); r.ang = rnd.nextFloat() * 6.28f; r.spin = 0.25f + rnd.nextFloat() * 0.35f; r.heat = 0f
         }
-        for (r in pieces) r.alive = false
-        for (s in sparks) s.life = 0f
-        for (c in clouds) c.age = c.life
+        // the course is chosen in aim(), against the camera, on the next frame drawn
+        aimPending = true
+    }
+
+    /**
+     * Sets the new pair's course across the current view (mostly sideways on screen, a little up or down and
+     * in depth) and pushes their start out until both rocks are fully outside the screen, so they always fly in.
+     */
+    private fun aim(proj: FloatArray) {
+        val th = (rnd.nextFloat() - .5f) * 0.9f + (if (rnd.nextBoolean()) 0f else PI.toFloat())
+        val ph = (rnd.nextFloat() - .5f) * 0.7f
+        for (i in 0..2) dirA[i] = right[i] * cos(th) * cos(ph) + upv[i] * sin(ph) + fwd[i] * sin(th) * cos(ph) * 0.8f
+        norm(dirA)
+        val up = floatArrayOf(0f, 1f, 0f)
+        cross(dirA, up, perpU); norm(perpU); cross(dirA, perpU, perpV); norm(perpV)
+        for (i in 0..2) back[i] = -dirA[i] + perpU[i] * 0.16f
+        norm(back)
+        var d = 2.2f
+        val pa = FloatArray(3); val pb = FloatArray(3)
+        while (d < 30f) {
+            for (i in 0..2) { pa[i] = dirA[i] * (bigA.scale * 0.92f + d); pb[i] = back[i] * (bigB.scale * 0.92f + d) }
+            if (!onScreen(pa, bigA.scale * 1.45f, proj) && !onScreen(pb, bigB.scale * 1.45f, proj)) break
+            d += 0.2f
+        }
+        startD = d + 0.5f
+        aimPending = false; phase = 0f
+    }
+
+    /** Is a sphere (centre, radius) on the screen, at least partly? Uses the last frame's view-projection. */
+    private val clipTmp = FloatArray(4); private val posTmp = FloatArray(4)
+    private fun onScreen(c: FloatArray, rad: Float, proj: FloatArray): Boolean {
+        posTmp[0] = c[0]; posTmp[1] = c[1]; posTmp[2] = c[2]; posTmp[3] = 1f
+        Matrix.multiplyMV(clipTmp, 0, vp, 0, posTmp, 0)
+        val w = clipTmp[3]
+        if (w < -rad) return false                       // behind the camera
+        val ww = max(w, 0.05f)
+        val rx = rad * abs(proj[0]) / ww; val ry = rad * abs(proj[5]) / ww
+        val x = clipTmp[0] / ww; val y = clipTmp[1] / ww
+        return x - rx < 1f && x + rx > -1f && y - ry < 1f && y + ry > -1f
+    }
+
+    /** Debris that has been off the screen for a moment (and is flying away) is retired, never in plain sight. */
+    private fun cull(proj: FloatArray, dt: Float) {
+        for (r in pieces) if (r.alive) {
+            if (onScreen(r.p, r.scale * 1.45f, proj)) r.out = 0f else {
+                r.out += dt
+                val away = r.p[0] * r.v[0] + r.p[1] * r.v[1] + r.p[2] * r.v[2] > 0f
+                if (r.out > 0.6f && away) r.alive = false
+            }
+        }
     }
 
     private fun impact() {
         impacted = true; flash = 1f; shockAge = 0f
         bigA.alive = false; bigB.alive = false
-        var n = 0
+        var made = 0
         fun spawn(from: FloatArray, scale: Float, speed: Float, heat: Float, spread: Float, push: Float) {
-            if (n >= pieces.size) return
-            val r = pieces[n++]
-            r.alive = true; r.mesh = rnd.nextInt(MESHES); r.scale = scale; r.heat = heat
+            val r = pieces.firstOrNull { !it.alive } ?: return
+            made++
+            r.alive = true; r.out = 0f; r.mesh = rnd.nextInt(MESHES); r.scale = scale; r.heat = heat
             randAxis(r.axis); r.ang = rnd.nextFloat() * 6.28f; r.spin = 0.6f + rnd.nextFloat() * 2.2f * (0.3f / max(scale, 0.1f)).coerceAtMost(3f)
             val a = rnd.nextFloat() * 2f * PI.toFloat()
             val g = (rnd.nextGaussian() * spread).toFloat()
@@ -159,7 +207,7 @@ class SpaceFx(private val context: Context) {
         repeat(2) { spawn(pb, bigB.scale * (0.55f + rnd.nextFloat() * .12f), 0.32f + rnd.nextFloat() * .2f, 0.55f, 0.25f, -0.12f) }
         // and a storm of small burning fragments out of the middle
         val c = floatArrayOf(0f, 0f, 0f)
-        while (n < pieces.size) spawn(c, 0.035f + rnd.nextFloat() * rnd.nextFloat() * 0.13f, 0.5f + rnd.nextFloat() * 1.5f, 1f, 0.45f, 0f)
+        repeat(32) { spawn(c, 0.035f + rnd.nextFloat() * rnd.nextFloat() * 0.13f, 0.5f + rnd.nextFloat() * 1.5f, 1f, 0.45f, 0f) }
         for (s in sparks) {
             val a = rnd.nextFloat() * 2f * PI.toFloat(); val g = (rnd.nextGaussian() * 0.6).toFloat()
             val sp = 1.0f + rnd.nextFloat() * rnd.nextFloat() * 4.5f
@@ -220,8 +268,9 @@ class SpaceFx(private val context: Context) {
     private var aNrmLoc = 1; private var aColLoc = 1
 
     fun onSurfaceCreated() {
-        rockProg = Gl.program(ROCK_VS, ROCK_FS); aNrmLoc = GLES20.glGetAttribLocation(rockProg, "aNrm")
-        for (n in listOf("uVP", "uM", "uTex", "uCam", "uKey", "uKeyCol", "uRimDir", "uRimCol", "uHit", "uHitCol", "uHeat", "uDim", "uTexS")) ur[n] = GLES20.glGetUniformLocation(rockProg, n)
+        // detailed stone (bump from screen-space derivatives); the plain shader where the GPU lacks them
+        rockProg = try { Gl.program(ROCK_VS, ROCK_FS) } catch (_: Throwable) { Gl.program(ROCK_VS, ROCK_FS_PLAIN) }; aNrmLoc = GLES20.glGetAttribLocation(rockProg, "aNrm")
+        for (n in listOf("uVP", "uM", "uTex", "uCam", "uKey", "uKeyCol", "uRimDir", "uRimCol", "uHit", "uHitCol", "uHeat", "uDim", "uTexS", "uScale")) ur[n] = GLES20.glGetUniformLocation(rockProg, n)
         spriteProg = Gl.program(SPRITE_VS, SPRITE_FS)
         for (n in listOf("uVP", "uCenter", "uRight", "uUp", "uSize", "uRot", "uTex", "uCol", "uMode", "uAtlas")) us[n] = GLES20.glGetUniformLocation(spriteProg, n)
         pointProg = Gl.program(POINT_VS, POINT_FS); aColLoc = GLES20.glGetAttribLocation(pointProg, "aCol")
@@ -412,6 +461,7 @@ class SpaceFx(private val context: Context) {
     // ---------------------------------------------------------------- draw
     private val vp = FloatArray(16); private val model = FloatArray(16)
     private val right = FloatArray(3); private val upv = FloatArray(3); private val fwd = FloatArray(3)
+    private var lastCull = -1f
 
     /**
      * Draws the look into [targetFbo] ([w] × [h], with a depth buffer), replacing its contents.
@@ -426,6 +476,10 @@ class SpaceFx(private val context: Context) {
         upv[0] = view[1]; upv[1] = view[5]; upv[2] = view[9]
         fwd[0] = -view[2]; fwd[1] = -view[6]; fwd[2] = -view[10]
         val tanY = tan(fovY * PI.toFloat() / 360f)
+        if (look == "asteroids") {
+            if (aimPending) aim(proj)
+            val now = time; cull(proj, if (lastCull < 0f) 0f else (now - lastCull).coerceIn(0f, 0.1f)); lastCull = now
+        }
 
         // ---- soft layer at half resolution: sky, gas, flares, dust, shock ring ----
         val gw = max(16, w / 2); val gh = max(16, h / 2)
@@ -561,6 +615,7 @@ class SpaceFx(private val context: Context) {
             Matrix.rotateM(model, 0, r.ang * 57.29578f, r.axis[0], r.axis[1], r.axis[2])
             Matrix.scaleM(model, 0, r.scale, r.scale, r.scale)
             GLES20.glUniformMatrix4fv(ur["uM"]!!, 1, false, model, 0)
+            GLES20.glUniform1f(ur["uScale"]!!, r.scale)
             GLES20.glUniform1f(ur["uHeat"]!!, (r.heat * (1f + bass * 0.4f)).coerceAtMost(1.3f)); GLES20.glUniform1f(ur["uDim"]!!, dim)
             GLES20.glDrawElements(GLES20.GL_TRIANGLES, meshIdx[lod], GLES20.GL_UNSIGNED_SHORT, 0)
         }
@@ -572,10 +627,9 @@ class SpaceFx(private val context: Context) {
             val x = cos(th) * beltR[i]; val z0 = sin(th) * beltR[i]; val y0 = beltH[i]
             one(r, x, y0 * ct - z0 * stl, y0 * stl + z0 * ct, 0.75f)
         }
-        // fade the whole clash in at the start of a cycle and out at the end
-        val fadeIn = (phase / 0.9f).coerceIn(0f, 1f); val fadeOut = ((T_END - phase) / 1.5f).coerceIn(0f, 1f)
-        for (r in arrayOf(bigA, bigB)) if (r.alive) one(r, r.p[0], r.p[1], r.p[2], fadeIn)
-        for (r in pieces) if (r.alive) one(r, r.p[0], r.p[1], r.p[2], fadeOut)
+        // no fading: the pair flies in from outside the screen, the debris flies out of it
+        if (!aimPending) for (r in arrayOf(bigA, bigB)) if (r.alive) one(r, r.p[0], r.p[1], r.p[2], 1f)
+        for (r in pieces) if (r.alive) one(r, r.p[0], r.p[1], r.p[2], 1f)
         GLES20.glDisableVertexAttribArray(0); if (aNrmLoc >= 0) GLES20.glDisableVertexAttribArray(aNrmLoc)
     }
 
@@ -813,9 +867,80 @@ void main() {
   vW = w.xyz; vN = (uM * vec4(aNrm, 0.0)).xyz; vO = aPos; vON = aNrm;
   gl_Position = uVP * w;
 }"""
-        const val ROCK_FS = PREC + NOISE + """
+        /**
+         * Stone with real surface detail: a height field (craters with raised rims, pits, rough grit) bumps the
+         * normal per pixel through screen-space derivatives, so the rock stays crisp at any distance instead of
+         * the soft, smudged look of colour noise alone. Texture detail is triplanar (no stretching on the sides).
+         */
+        const val ROCK_FS = "#extension GL_OES_standard_derivatives : enable\n" + PREC + NOISE + """
 uniform sampler2D uTex; uniform vec3 uCam; uniform vec3 uKey; uniform vec3 uKeyCol; uniform vec3 uRimDir; uniform vec3 uRimCol;
-uniform vec3 uHit; uniform vec3 uHitCol; uniform float uHeat; uniform float uDim; uniform float uTexS;
+uniform vec3 uHit; uniform vec3 uHitCol; uniform float uHeat; uniform float uDim; uniform float uTexS; uniform float uScale;
+varying vec3 vW; varying vec3 vN; varying vec3 vO; varying vec3 vON;
+vec3 hash33(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.xxy + p.yxx) * p.zyx); }
+float fbm3(vec3 p) { float a = 0.5; float s = 0.0; for (int i = 0; i < 3; i++) { s += a * vnoise(p); p = p * 2.13 + vec3(3.1, 7.7, 1.3); a *= 0.5; } return s / 0.875; }
+// craters: a bowl, a raised rim, then flat; about half the cells hold one
+float craters(vec3 p) {
+  vec3 i = floor(p); vec3 f = fract(p); float h = 0.0;
+  for (int z = -1; z <= 1; z++) for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec3 g = vec3(float(x), float(y), float(z)); vec3 o = hash33(i + g);
+    float R = 0.22 + 0.3 * o.x;
+    float t = length(g + o - f) / R;
+    float on = step(0.68, o.y);
+    float bowl = t < 1.0 ? (t * t - 1.0) : 0.0;
+    float rim = exp(-(t - 1.0) * (t - 1.0) * 18.0) * 0.32;
+    h += (bowl * 0.75 + rim) * R * on;
+  }
+  return h;
+}
+vec3 tri(vec3 p, vec3 n) {
+  vec3 w = pow(abs(n), vec3(4.0)); w /= (w.x + w.y + w.z);
+  return texture2D(uTex, p.yz).rgb * w.x + texture2D(uTex, p.zx).rgb * w.y + texture2D(uTex, p.xy).rgb * w.z;
+}
+void main() {
+  vec3 N = normalize(vN); vec3 V = normalize(uCam - vW); vec3 N0 = N;
+  vec3 p = vO;
+  float big = craters(p * 1.9);
+  float small = craters(p * 5.3 + 11.0);
+  float rough = fbm3(p * 7.0);
+  float grit = vnoise(p * 34.0);
+  float h = big * 0.55 + small * 0.2 + rough * 0.05 + grit * 0.012;
+#ifdef GL_OES_standard_derivatives
+  // bump: surface gradient of the height (object units times the rock's scale = world units)
+  float hw = h * uScale;
+  vec3 dpx = dFdx(vW); vec3 dpy = dFdy(vW);
+  vec3 r1 = cross(dpy, N); vec3 r2 = cross(N, dpx);
+  float det = dot(dpx, r1);
+  vec3 sg = sign(det) * (dFdx(hw) * r1 + dFdy(hw) * r2);
+  N = normalize(abs(det) * N - sg * 1.0);
+#endif
+  // colour: dark basalt and paler dust, darker crater floors, light rims, a few bright mineral flecks
+  float m = fbm3(p * 1.7 + 4.0);
+  vec3 alb = mix(vec3(0.085, 0.079, 0.074), vec3(0.27, 0.245, 0.215), smoothstep(0.3, 0.72, m));
+  alb *= 0.78 + 0.45 * rough;
+  alb *= 0.8 + 0.5 * tri(p * 0.9, normalize(vON)).r;
+  alb *= clamp(1.0 + big * 1.6, 0.55, 1.25);
+  float fleck = step(0.985, hash3(floor(p * 70.0)));
+  alb += vec3(0.25, 0.24, 0.22) * fleck * smoothstep(0.4, 0.7, m);
+  float ao = clamp(1.0 + (big + small * 0.6) * 2.2, 0.4, 1.0);
+  float k = max(dot(N, uKey), 0.0);
+  vec3 c = alb * uKeyCol * k + alb * vec3(0.035, 0.037, 0.055) * ao;
+  vec3 H = normalize(uKey + V); c += uKeyCol * 0.06 * pow(max(dot(N, H), 0.0), 24.0) * k * (0.5 + rough);
+  float rim = pow(1.0 - max(dot(N0, V), 0.0), 3.0); c += uRimCol * rim * (0.35 + 0.65 * max(dot(N0, uRimDir), 0.0));   // rim from the smooth shape, not the bumps
+  vec3 Lh = uHit - vW; float dh = max(length(Lh), 1e-3); c += alb * 3.0 * uHitCol * max(dot(N, Lh / dh), 0.0) / (1.0 + dh * dh * 1.2);
+  if (uHeat > 0.01) {
+    float ridge = 1.0 - abs(2.0 * fbm3(p * 3.2 + 5.0) - 1.0);
+    float vein = smoothstep(0.955, 0.995, ridge);
+    vec3 hot = mix(vec3(0.8, 0.12, 0.015), vec3(1.0, 0.5, 0.12), clamp(uHeat, 0.0, 1.0));
+    c += hot * uHeat * (vein * 2.2 + 0.08 * uHeat * uHeat + max(-big, 0.0) * 1.2 * uHeat);
+  }
+  c *= uDim;
+  c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
+  gl_FragColor = vec4(pow(c, vec3(1.0 / 2.2)), 1.0);
+}"""
+
+        const val ROCK_FS_PLAIN = PREC + NOISE + """
+uniform sampler2D uTex; uniform vec3 uCam; uniform vec3 uKey; uniform vec3 uKeyCol; uniform vec3 uRimDir; uniform vec3 uRimCol;
+uniform vec3 uHit; uniform vec3 uHitCol; uniform float uHeat; uniform float uDim; uniform float uTexS; uniform float uScale;
 varying vec3 vW; varying vec3 vN; varying vec3 vO; varying vec3 vON;
 float fbm4(vec3 p) { float a = 0.5; float s = 0.0; for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.07 + vec3(3.1, 7.7, 1.3); a *= 0.5; } return s / 0.9375; }
 void main() {

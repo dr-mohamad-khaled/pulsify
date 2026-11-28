@@ -110,7 +110,7 @@ class AppState {
             if (video >= 0) return false
             val info = app.pulsify.engine.creatureInfo(character) ?: return true
             if (info.id == 11 || app.pulsify.engine.petSpeciesFor(character, style, coat) != null) return false
-            if (info.id == 4) return true
+            if (info.id == 4) return false     // Kiwi (the painted ringneck): the glow colour changes nothing
             return (app.pulsify.engine.envsFor(info, style).getOrNull(env)?.world ?: 0) < 0
         }
 

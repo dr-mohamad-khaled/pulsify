@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Free Fall — preview</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#fff;touch-action:none}
+#wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+#phone{position:relative;height:min(100vh,100vw*2.1);aspect-ratio:9/19.5;max-width:100vw;background:#000;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+#ui{position:absolute;left:0;right:0;bottom:0;padding:10px 10px 14px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;background:linear-gradient(transparent,rgba(0,0,0,.75))}
+#ui button{background:rgba(30,25,43,.72);color:#fff;border:1px solid rgba(205,180,255,.25);border-radius:999px;padding:7px 12px;font-size:12px;cursor:pointer}
+#ui button.on{background:#CDB4FF;color:#0D0A14;font-weight:700}
+#hint{position:absolute;top:10px;left:0;right:0;text-align:center;font-size:11px;color:#9E96B0;letter-spacing:.08em}
+#load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9E96B0;font-size:13px}
+</style></head><body>
+<div id="wrap"><div id="phone">
+<canvas id="sky"></canvas><canvas id="gl"></canvas>
+<div id="hint">TAP HIM: HE FALLS HARDER · TAP SPACE: A PUSH · SWIPE: FLING · HOLD: FREE-FALL BOOST</div>
+<div id="load">Loading the astronaut…</div>
+<div id="ui"></div>
+</div></div>
+<script src="freefall.js"></script>
+<script>const params = new URLSearchParams(location.search);</script>
+<script>
+'use strict';
+const phone = document.getElementById('phone'), sky = document.getElementById('sky'), cv = document.getElementById('gl');
+const sx = sky.getContext('2d');
+const gl = cv.getContext('webgl', { alpha: true, premultipliedAlpha: true, antialias: true });
+gl.getExtension('OES_element_index_uint');
+let W = 1, H = 1, DPR = Math.min(2, devicePixelRatio || 1);
+function resize() { const r = phone.getBoundingClientRect(); W = r.width; H = r.height; for (const c of [sky, cv]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); } buildStars(); }
+addEventListener('resize', resize);
+
+// ---------------------------------------------------------------- stars: distant only, glowing, drifting up as he falls
+let stars = [];
+function buildStars() {
+  stars = []; let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const n = Math.round(W * H / 900);
+  for (let i = 0; i < n; i++) {
+    const m = Math.pow(rnd(), 3.2);
+    stars.push({ x: rnd(), y: rnd(), k: .25 + .75 * rnd() * rnd(), r: .45 + m * 1.9, m, tw: .5 + rnd() * 2.2, ph: rnd() * 40, warm: rnd() });
+  }
+}
+let fallY = 0;
+function drawSky(t, speed) {
+  sx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  sx.fillStyle = '#000'; sx.fillRect(0, 0, W, H);
+  sx.globalCompositeOperation = 'lighter';
+  const s = Math.min(W, H) / 400, streak = Math.max(0, speed - 1.6) * 3;
+  for (const st of stars) {
+    const y = ((st.y * H - fallY * st.k * H) % H + H) % H, x = st.x * W;
+    const tw = .72 + .28 * Math.sin(t * st.tw + st.ph);
+    const a = (.3 + .7 * st.m) * tw, r = st.r * s;
+    const c = st.warm < .25 ? [255, 222, 190] : st.warm < .4 ? [190, 210, 255] : [225, 232, 255];
+    if (st.m > .18) { // the bright ones light up a soft halo
+      const g = sx.createRadialGradient(x, y, 0, x, y, r * 7);
+      g.addColorStop(0, `rgba(${c},${.35 * a})`); g.addColorStop(1, `rgba(${c},0)`);
+      sx.fillStyle = g; sx.fillRect(x - r * 7, y - r * 7, r * 14, r * 14);
+    }
+    sx.fillStyle = `rgba(${c},${a})`;
+    if (streak > .05) { sx.fillRect(x - r * .5, y, r, r * (1 + streak * st.k * 6)); }
+    else { sx.beginPath(); sx.arc(x, y, r, 0, 6.283); sx.fill(); }
+  }
+  sx.globalCompositeOperation = 'source-over';
+}
+
+// ---------------------------------------------------------------- the model (PET3)
+const VS = `attribute vec3 aPos; attribute vec4 aNrm; attribute vec2 aUv; attribute vec4 aBone; attribute vec4 aW;
+uniform vec4 uQ[44]; uniform mat4 uM; uniform mat3 uN; varying vec2 vUv; varying vec3 vN; varying vec3 vP;
+void main(){
+  vec4 q0 = uQ[int(aBone.x)*2], d0 = uQ[int(aBone.x)*2+1];
+  vec4 q = q0*aW.x, d = d0*aW.x;
+  for (int k=1;k<4;k++){ float b = k==1?aBone.y:k==2?aBone.z:aBone.w; float w = k==1?aW.y:k==2?aW.z:aW.w;
+    vec4 qq = uQ[int(b)*2], dd = uQ[int(b)*2+1]; float s = dot(qq,q0)<0.0?-1.0:1.0; q += qq*w*s; d += dd*w*s; }
+  float l = length(q); q/=l; d/=l;
+  vec3 p = aPos + 2.0*cross(q.xyz, cross(q.xyz, aPos) + q.w*aPos) + 2.0*(q.w*d.xyz - d.w*q.xyz + cross(q.xyz, d.xyz));
+  vec3 n = aNrm.xyz; n = n + 2.0*cross(q.xyz, cross(q.xyz, n) + q.w*n);
+  vec4 w = uM * vec4(p, 1.0); vP = w.xyz; vN = normalize(uN * n); vUv = aUv;
+  gl_Position = w;
+}`;
+const FS = `precision mediump float; uniform sampler2D uTex; varying vec2 vUv; varying vec3 vN; varying vec3 vP;
+void main(){
+  vec3 a = texture2D(uTex, vec2(vUv.x, 1.0 - vUv.y)).rgb; vec3 N = normalize(vN); if (!gl_FrontFacing) N = -N;
+  vec3 L = normalize(vec3(0.45, 0.65, 0.62)); float k = max(dot(N, L), 0.0);
+  vec3 V = vec3(0.0, 0.0, 1.0); vec3 Hh = normalize(L + V);
+  float rim = pow(1.0 - max(N.z, 0.0), 3.0);
+  vec3 c = a * (0.16 + 1.05 * k) + vec3(0.9) * 0.18 * pow(max(dot(N, Hh), 0.0), 40.0) + vec3(0.35, 0.45, 0.8) * rim * 0.35;
+  gl_FragColor = vec4(c, 1.0);
+}`;
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
+const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog);
+const U = n => gl.getUniformLocation(prog, n);
+let model = null;
+async function load() {
+  const buf = await (await fetch('astro2.pet')).arrayBuffer(); const dv = new DataView(buf);
+  const nv = dv.getUint32(4, true), ni = dv.getUint32(8, true);
+  const vOff = 4 + 36 + 24;
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(buf, vOff, nv * 40), gl.STATIC_DRAW);
+  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(buf.slice(vOff + nv * 40, vOff + nv * 40 + ni * 4)), gl.STATIC_DRAW);
+  const img = new Image(); img.src = 'astro2.jpg'; await img.decode();
+  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+  gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  model = { vb, ib, ni, tex };
+  document.getElementById('load').remove();
+}
+// rigid 3x4 matrix -> dual quaternion
+const dqs = new Float32Array(44 * 4);
+function toDQ(m, n) {
+  for (let i = 0; i < n; i++) {
+    const o = i * 12, r00 = m[o], r01 = m[o + 1], r02 = m[o + 2], r10 = m[o + 4], r11 = m[o + 5], r12 = m[o + 6], r20 = m[o + 8], r21 = m[o + 9], r22 = m[o + 10];
+    let x, y, z, w; const tr = r00 + r11 + r22;
+    if (tr > 0) { const s = Math.sqrt(tr + 1) * 2; w = .25 * s; x = (r21 - r12) / s; y = (r02 - r20) / s; z = (r10 - r01) / s; }
+    else if (r00 > r11 && r00 > r22) { const s = Math.sqrt(1 + r00 - r11 - r22) * 2; w = (r21 - r12) / s; x = .25 * s; y = (r01 + r10) / s; z = (r02 + r20) / s; }
+    else if (r11 > r22) { const s = Math.sqrt(1 + r11 - r00 - r22) * 2; w = (r02 - r20) / s; x = (r01 + r10) / s; y = .25 * s; z = (r12 + r21) / s; }
+    else { const s = Math.sqrt(1 + r22 - r00 - r11) * 2; w = (r10 - r01) / s; x = (r02 + r20) / s; y = (r12 + r21) / s; z = .25 * s; }
+    const tx = m[o + 3], ty = m[o + 7], tz = m[o + 11];
+    const q = i * 8; dqs[q] = x; dqs[q + 1] = y; dqs[q + 2] = z; dqs[q + 3] = w;
+    dqs[q + 4] = .5 * (tx * w + ty * z - tz * y); dqs[q + 5] = .5 * (-tx * z + ty * w + tz * x); dqs[q + 6] = .5 * (tx * y - ty * x + tz * w); dqs[q + 7] = -.5 * (tx * x + ty * y + tz * z);
+  }
+}
+
+// ---------------------------------------------------------------- the scene (mirrors AstroScene, Free Fall look)
+const rig = new FF.Rig();
+const S = { x: 0, y: 0, vx: .05, vy: .03, spin: 0, spinRate: .25, yawPh: 0, speed: 1, t: 0, next: 5, trickT: 0, splatT: -9, shake: 0, forced: null };
+const halfW = () => .5 * W / Math.min(W, H), halfH = () => .5 * H / Math.min(W, H);
+const DBG = new URLSearchParams(location.search).get('debug');
+const size = () => DBG ? 1.5 * halfW() : Math.min(.4 * halfH(), halfW() * .8);
+function boost(k) { S.speed = Math.min(9, S.speed + k); S.spinRate += (Math.random() < .5 ? 1 : -1) * k * .5; }
+function trick(n, len) { rig.set(n, n === 'flail' ? 13 : 7); S.trickT = len; }
+function step(dt) {
+  S.t += dt;
+  S.speed += (1 - S.speed) * Math.min(1, dt * .6);
+  fallY += dt * (.04 + .05 * S.speed * S.speed * .25);
+  S.spinRate += ((S.spinRate >= 0 ? .2 : -.2) - S.spinRate) * Math.min(1, dt * .5);
+  if (rig.mode === 'curl') S.spinRate += Math.sign(S.spinRate || 1) * dt * 1.2;
+  S.spin += S.spinRate * dt; S.yawPh += dt * (.25 + S.speed * .05);
+  S.vx += Math.sin(S.t * .31 + 1.3) * .02 * dt; S.vy += Math.cos(S.t * .27) * .02 * dt;
+  S.vx *= Math.exp(-dt * .12); S.vy *= Math.exp(-dt * .12);
+  const sp = Math.hypot(S.vx, S.vy); if (sp > 2.5) { S.vx *= 2.5 / sp; S.vy *= 2.5 / sp; }
+  S.x += S.vx * dt; S.y += S.vy * dt;
+  const r = size() * .42, lx = -halfW() + r, rx = halfW() - r, by = -halfH() + r, ty = halfH() - r * 1.1;
+  let bump = 0;
+  if (S.x < lx) { bump = Math.abs(S.vx); S.x = lx; S.vx = Math.abs(S.vx) * .75; }
+  if (S.x > rx) { bump = Math.max(bump, Math.abs(S.vx)); S.x = rx; S.vx = -Math.abs(S.vx) * .75; }
+  if (S.y < by) { bump = Math.max(bump, Math.abs(S.vy)); S.y = by; S.vy = Math.abs(S.vy) * .75; }
+  if (S.y > ty) { bump = Math.max(bump, Math.abs(S.vy)); S.y = ty; S.vy = -Math.abs(S.vy) * .75; }
+  if (bump > .25 && S.t - S.splatT > .6) {
+    S.splatT = S.t; S.shake = Math.min(1, S.shake + bump * .5); S.spinRate += (Math.random() < .5 ? 1 : -1) * Math.min(2.5, bump * 1.6);
+    rig.jolt(Math.min(14, 6 + bump * 6));
+    if (bump > .6) { trick('splat', .45); S.after = 'flail'; } else trick('flail', 1.4);
+  }
+  S.shake *= Math.exp(-dt * 3);
+  // what he is doing
+  S.trickT -= dt;
+  if (S.trickT <= 0 && rig.mode !== 'arch') {
+    if (S.after) { trick(S.after, 1.3); S.after = null; } else if (!S.forced) rig.set('arch', 6);
+  }
+  if (rig.mode === 'flail' && S.speed > 2.2) S.trickT = Math.max(S.trickT, .3);
+  S.next -= dt;
+  if (S.next <= 0 && rig.mode === 'arch' && !S.forced) {
+    S.next = 5 + Math.random() * 6;
+    const n = ['reach', 'wave', 'thumbs', 'swim', 'curl', 'flail'][Math.floor(Math.random() * 6)];
+    trick(n, n === 'curl' ? 3.2 : n === 'swim' ? 3.5 : 2.6);
+  }
+  if (S.forced) { rig.set(S.forced, S.forced === 'flail' ? 13 : 7); }
+  rig.update(dt, 0);
+}
+function draw() {
+  drawSky(S.t, S.speed);
+  gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  if (!model) return;
+  gl.enable(gl.DEPTH_TEST); gl.useProgram(prog);
+  // model (Blender, z up) -> view: centre on the body, yaw, lean, scale to his size, spin on screen, move
+  const m = Math.min(W, H), k = size() / .93 * 2 * m / H;     // NDC per model unit (vertical)
+  let yaw = Math.sin(S.yawPh) * 1.0 + S.t * .12, lean = Math.sin(S.yawPh * .7 + 1) * .45;
+  if (DBG) { yaw = +(params.get('yaw') || 0); lean = +(params.get('lean') || 0); S.spin = 0; S.x = 0; S.y = 0; S.vx = 0; S.vy = 0; }
+  const cyw = Math.cos(yaw), syw = Math.sin(yaw), cl = Math.cos(lean), sl = Math.sin(lean), cs = Math.cos(S.spin), ss = Math.sin(S.spin);
+  const ax = H / W;
+  // build 3x3: Rspin(z) * Rlean(x) * Ryaw(y) * conv(x, z, -y)
+  const conv = [[1, 0, 0], [0, 0, 1], [0, -1, 0]];
+  const Ry = [[cyw, 0, syw], [0, 1, 0], [-syw, 0, cyw]], Rx = [[1, 0, 0], [0, cl, -sl], [0, sl, cl]], Rz = [[cs, -ss, 0], [ss, cs, 0], [0, 0, 1]];
+  const mul = (A, B) => A.map((r, i) => [0, 1, 2].map(j => r[0] * B[0][j] + r[1] * B[1][j] + r[2] * B[2][j]));
+  const M3 = mul(Rz, mul(Rx, mul(Ry, conv)));
+  const shx = (Math.random() - .5) * S.shake * .02, shy = (Math.random() - .5) * S.shake * .02;
+  const tx = (S.x + shx) * 2 * m / W, ty = (S.y + shy) * 2 * m / H;
+  // translation so the body centre (z = .5) sits at (tx, ty)
+  const c = [0, 0, .5]; const cc = [0, 1, 2].map(i => M3[i][0] * c[0] + M3[i][1] * c[1] + M3[i][2] * c[2]);
+  const M = new Float32Array([
+    M3[0][0] * k * ax, M3[1][0] * k, -M3[2][0] * k * .5, 0,
+    M3[0][1] * k * ax, M3[1][1] * k, -M3[2][1] * k * .5, 0,
+    M3[0][2] * k * ax, M3[1][2] * k, -M3[2][2] * k * .5, 0,
+    tx - cc[0] * k * ax, ty - cc[1] * k, cc[2] * k * .5, 1]);
+  gl.uniformMatrix4fv(U('uM'), false, M);
+  gl.uniformMatrix3fv(U('uN'), false, new Float32Array([M3[0][0], M3[1][0], M3[2][0], M3[0][1], M3[1][1], M3[2][1], M3[0][2], M3[1][2], M3[2][2]]));
+  toDQ(rig.mats, FF.NB); gl.uniform4fv(U('uQ'), dqs);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, model.tex); gl.uniform1i(U('uTex'), 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, model.vb); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, model.ib);
+  const at = (n, sz, ty, nm, off) => { const l = gl.getAttribLocation(prog, n); if (l < 0) return; gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, sz, ty, nm, 40, off); };
+  at('aPos', 3, gl.FLOAT, false, 0); at('aNrm', 4, gl.BYTE, true, 12); at('aUv', 2, gl.UNSIGNED_SHORT, true, 16); at('aBone', 4, gl.UNSIGNED_BYTE, false, 24); at('aW', 4, gl.UNSIGNED_BYTE, true, 28);
+  gl.drawElements(gl.TRIANGLES, model.ni, gl.UNSIGNED_INT, 0);
+}
+
+// ---------------------------------------------------------------- input
+let down = null;
+function nxy(e) { const r = phone.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height]; }
+function hit(nx, ny) { const ux = (nx - .5) * 2 * halfW(), uy = (.5 - ny) * 2 * halfH(); return Math.hypot(ux - S.x, uy - S.y) < size() * .6; }
+cv.addEventListener('pointerdown', e => { const [x, y] = nxy(e); down = { x, y, t: performance.now(), lx: x, ly: y, lt: performance.now(), vx: 0, vy: 0, hold: setTimeout(() => { boost(4); trick('flail', 2.5); down && (down.held = true); }, 550) }; });
+cv.addEventListener('pointermove', e => { if (!down) return; const [x, y] = nxy(e); const now = performance.now(), dt = Math.max(8, now - down.lt) / 1000; down.vx = down.vx * .5 + (x - down.lx) / dt * .5; down.vy = down.vy * .5 + (y - down.ly) / dt * .5; down.lx = x; down.ly = y; down.lt = now; if (Math.hypot(x - down.x, y - down.y) > .03) clearTimeout(down.hold); });
+cv.addEventListener('pointerup', e => {
+  if (!down) return; clearTimeout(down.hold); const d = down; down = null; if (d.held) return;
+  const dist = Math.hypot(d.lx - d.x, d.ly - d.y);
+  if (dist > .12 && Math.abs(d.vx) > .6) { S.vx = Math.max(-2.4, Math.min(2.4, d.vx * 2 * halfW() * .35)); S.vy = Math.max(-2.4, Math.min(2.4, -d.vy * 2 * halfH() * .35)); S.spinRate += Math.sign(d.vx) * 2; boost(1.5); trick('flail', 1.6); return; }
+  const on = hit(d.x, d.y); boost(on ? 3.2 : 1.2); rig.jolt(on ? 9 : 3); trick('flail', on ? 1.8 : 1);
+  const ux = (d.x - .5) * 2 * halfW(), uy = (.5 - d.y) * 2 * halfH(), dx = S.x - ux, dy = S.y - uy, dd = Math.max(.05, Math.hypot(dx, dy)), kk = (on ? 1.1 : .5) / (.4 + dd);
+  S.vx += dx / dd * kk; S.vy += dy / dd * kk;
+});
+const ui = document.getElementById('ui');
+const btns = {};
+for (const n of ['auto', ...FF.POSES]) {
+  const b = document.createElement('button'); b.textContent = n === 'auto' ? 'Auto' : n[0].toUpperCase() + n.slice(1); btns[n] = b;
+  b.onclick = () => { S.forced = n === 'auto' ? null : n; if (n === 'splat') { rig.jolt(10); } for (const k in btns) btns[k].classList.toggle('on', k === n); if (n === 'auto') rig.set('arch', 6); };
+  ui.appendChild(b);
+}
+btns.auto.classList.add('on');
+if (params.get('pose')) S.forced = params.get('pose');
+
+resize();
+let last = performance.now();
+function frame(now) { const dt = Math.min(.05, (now - last) / 1000); last = now; step(dt); draw(); requestAnimationFrame(frame); }
+load().then(() => { document.title = 'ready'; });
+requestAnimationFrame(frame);
+</script></body></html>

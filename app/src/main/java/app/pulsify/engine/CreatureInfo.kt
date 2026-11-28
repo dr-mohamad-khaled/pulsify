@@ -136,6 +136,7 @@ fun coatMatters(info: CreatureInfo, style: Int): Boolean {
         1, 5 -> style == 0               // Jelly Bean, Lantern
         4 -> false                       // Kiwi: the painted ringneck is one bird
         9 -> true                        // Gloop Gang: how many
+        DROP_ID -> true                  // Droppy: its face
         else -> false
     }
 }
@@ -273,7 +274,21 @@ val COSMO_INFO = CreatureInfo(
     styles = listOf("Cosmo", "Free Fall"),
 )
 
-val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES.filter { it.id !in RETIRED_CREATURES } + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + BOLT_INFO + GLOOP_INFO + SNOWY_INFO + COSMO_INFO }
+val CREATURES: List<CreatureInfo> by lazy { BASE_CREATURES.filter { it.id !in RETIRED_CREATURES } + KIWI_INFO + GLOWY_INFO + GROMBLE_INFO + BOLT_INFO + GLOOP_INFO + SNOWY_INFO + COSMO_INFO + DROP_INFO }
+
+/** Droppy: a living drop of liquid, as big as the battery is full. Looks = liquids, coats = faces. */
+val DROP_INFO = CreatureInfo(
+    DROP_ID, "Droppy", "A drop of liquid as big as your battery. Splashes, then pulls itself together.",
+    "Drag it: it follows your finger. Fling it at an edge: it splashes and the beads crawl back. Charge your phone: it rains.",
+    0xFF6EC8FF.toInt(),
+    listOf(CoatInfo("Cute face", 0xFF6EC8FF.toInt(), 0xFFFFFFFF.toInt()), CoatInfo("Cool shades", 0xFF15121E.toInt(), 0xFF6EC8FF.toInt()), CoatInfo("No face", 0xFF2A6FB0.toInt(), 0xFF9DE6FF.toInt())),
+    listOf(PLAIN_ENV, PHOTO_ENV),
+    listOf(
+        TrickInfo("hop", "Hop", ""), TrickInfo("wobble", "Wobble", ""), TrickInfo("split", "Split", ""),
+        TrickInfo("splat", "Splat!", ""), TrickInfo("tickle", "Tickle", ""), TrickInfo("rain", "Rain", ""),
+    ),
+    styles = LIQUIDS.map { it.name },
+)
 
 /** Creatures that can also live in a home-screen widget (the 2D friends). */
 val BUDDY_CREATURES: List<CreatureInfo> by lazy { CREATURES.filter { it.id != SNOWY_ID && it.id != COSMO_ID && it.id != LEO_ID && it.id != 6 } }

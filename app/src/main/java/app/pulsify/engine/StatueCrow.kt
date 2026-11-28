@@ -91,6 +91,8 @@ class StatueCrow : StatueRig {
     private var startle = 0f
     // a finger on the screen: the head turns a little towards it
     private var touching = false; private var touchX = 0f; private var touchY = 0f
+    /** Parrots: a rigid turn and tilt of the whole bird towards the finger (the face never bends, so it never warps). */
+    private var lookYaw = 0f; private var lookPitch = 0f
     override fun touch(x: Float, y: Float, down: Boolean) {
         if (down && !touching) holdT = 0f
         touching = down; if (down) { touchX = x; touchY = y }
@@ -198,7 +200,8 @@ class StatueCrow : StatueRig {
         if (moving) { tgY = restAz; tgP = 0f; tgR = 0f; snap = 26f }
         else if (touching && act == Act.NONE) {
             // subtle: at most ~17 degrees sideways and ~11 up/down, spread over the neck
-            tgY = restAz + touchX * 0.6f; tgP = touchY * 0.4f; tgR = -touchX * 0.1f; snap = 10f; glances = 0
+            if (parrot) { tgY = restAz + touchX * 0.5f; tgP = touchY * 0.3f; tgR = -touchX * 0.15f; snap = 12f; glances = 0 }
+            else { tgY = restAz + touchX * 0.6f; tgP = touchY * 0.4f; tgR = -touchX * 0.1f; snap = 10f; glances = 0 }
         } else if (act == Act.NONE && holdT <= 0f) {
             if (glances > 0) {
                 glances--
@@ -213,6 +216,11 @@ class StatueCrow : StatueRig {
         }
         val k = 1f - exp(-snap * dt)
         gY += wrap(tgY - gY) * k; gP += (tgP - gP) * k; gR += (tgR - gR) * k
+        // parrots: the whole bird swivels on its feet towards the finger (up to ~40 degrees) and leans to look up/down
+        val wantLY = if (parrot && touching && !moving) (touchX * 1.45f).coerceIn(-0.72f, 0.72f) else 0f
+        val wantLP = if (parrot && touching && !moving) (touchY * 0.36f).coerceIn(-0.17f, 0.17f) else 0f
+        val kl = 1f - exp(-(if (touching) 7f else 4f) * dt)
+        lookYaw += (wantLY - lookYaw) * kl; lookPitch += (wantLP - lookPitch) * kl
 
         // idle actions
         if (act != Act.NONE) {
@@ -341,10 +349,10 @@ class StatueCrow : StatueRig {
         if (bass > 0.02f) { neckFwd += 0.1f * bass; headP += 0.12f * bass }
 
         // ---- the head: world gaze minus the body's yaw, shared over neck and head ----
-        setRot(0, 0f, by, 0f)
+        setRot(0, lookPitch, by + lookYaw, 0f)
         // parrots: everything above the shoulders at [headAmp] so the small head never warps
         val ha = headAmp
-        val rel = (wrap(gY - by) * ha).coerceIn(-1.75f * ha, 1.75f * ha)
+        val rel = (wrap(gY - by - lookYaw * 0.55f) * ha).coerceIn(-1.75f * ha, 1.75f * ha)
         neckFwd *= ha; headP *= ha; headR *= ha
         val gp = gP * ha; val gr = gR * ha
         setRot(4, neckFwd * 0.5f + gp * 0.15f, rel * 0.2f, 0f)

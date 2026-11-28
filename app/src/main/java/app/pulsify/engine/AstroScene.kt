@@ -55,6 +55,10 @@ class AstroScene(private val context: Context) : Creature {
     /** "astro" = Cosmo drifting; "astro2" = Free Fall, the falling astronaut whose clips are falls and impacts. */
     private var model = "astro"
     private val faller get() = model == "astro2"
+    // Free Fall: procedural joints (no clips), a trick timer and what comes after it
+    private val rig = FreeFallRig()
+    private var ffT = 0f; private var ffAfter: FreeFallRig.Mode? = null
+    private fun ff(m: FreeFallRig.Mode, len: Float) { rig.set(m, if (m == FreeFallRig.Mode.FLAIL) 13f else 7f); ffT = len }
     override fun onSurfaceCreated() {
         pet.create(); pet.load(model); cur = null
         prog = Gl.program(VERT, FRAG)
@@ -108,8 +112,8 @@ class AstroScene(private val context: Context) : Creature {
             // a swipe: fling him off sideways toward the next page
             vx = (mvx * 2f * halfW * 0.35f).coerceIn(-2.4f, 2.4f)
             vy = (-mvy * 2f * halfH * 0.35f).coerceIn(-2.4f, 2.4f)
-            spinRate += sign(mvx) * 3f
-            play("Flail"); boost(1.5f)
+            spinRate += sign(mvx) * (if (faller) 2f else 3f)
+            if (faller) ff(FreeFallRig.Mode.FLAIL, 1.6f) else play("Flail"); boost(1.5f)
             if (!flung) { flung = true; listener?.onDiscovery("cosmo fling") }
             return true
         }
@@ -118,7 +122,7 @@ class AstroScene(private val context: Context) : Creature {
     override fun tapAt(nx: Float, ny: Float): Boolean {
         val onHim = hit(nx, ny)
         boost(if (onHim) 3.2f else 1.2f)
-        play(if (onHim) "Poke" else "Flail")
+        if (faller) { rig.jolt(if (onHim) 9f else 3f); ff(FreeFallRig.Mode.FLAIL, if (onHim) 1.8f else 1f) } else play(if (onHim) "Poke" else "Flail")
         // pushed away from the finger, harder the closer it was
         val ux = (nx - 0.5f) * 2f * halfW; val uy = (0.5f - ny) * 2f * halfH
         val dx = x - ux; val dy = y - uy; val d = max(0.05f, hypot(dx, dy))
@@ -126,15 +130,23 @@ class AstroScene(private val context: Context) : Creature {
         vx += dx / d * k; vy += dy / d * k
         return true
     }
-    override fun longPressAt(nx: Float, ny: Float): Boolean { boost(4f); play("Flail"); return true }
+    override fun longPressAt(nx: Float, ny: Float): Boolean { boost(4f); if (faller) ff(FreeFallRig.Mode.FLAIL, 2.5f) else play("Flail"); return true }
     private fun boost(k: Float) {
         speed = min(9f, speed + k); spinRate += (if (Random.nextBoolean()) 1f else -1f) * k * 0.9f; shake = min(1f, shake + 0.25f * k)
     }
 
-    override fun greet() { play("Wave") }
+    override fun greet() { if (faller) ff(FreeFallRig.Mode.WAVE, 2.6f) else play("Wave") }
     override fun swiped(dir: Float, fast: Boolean) { if (fast) boost(1f) }
     override fun perform(trick: String): Boolean {
-        if (faller) { when (trick) { "faster" -> { boost(5f); play("Flail") }; "wave", "thumbs" -> play("Poke"); else -> play("Impact") }; return true }
+        if (faller) {
+            when (trick) {
+                "faster" -> { boost(5f); ff(FreeFallRig.Mode.FLAIL, 2f) }
+                "wave" -> ff(FreeFallRig.Mode.WAVE, 2.6f); "thumbs" -> ff(FreeFallRig.Mode.THUMBS, 2.4f)
+                "reach" -> ff(FreeFallRig.Mode.REACH, 2.6f); "swim" -> ff(FreeFallRig.Mode.SWIM, 3.5f)
+                "curl", "look" -> ff(FreeFallRig.Mode.CURL, 3.2f); else -> ff(FreeFallRig.Mode.ARCH, .1f)
+            }
+            return true
+        }
         when (trick) {
             "faster" -> { boost(5f); play("Flail") }
             "wave" -> play("Wave"); "look", "curl" -> play("Stretch"); "reach", "swim" -> play("Reach")
@@ -148,7 +160,7 @@ class AstroScene(private val context: Context) : Creature {
     override fun update(dt: Float, input: SceneInput) {
         time += dt
         val want = if (input.style == 1) "astro2" else "astro"
-        if (want != model) { model = want; pet.load(want); cur = null; from = null; play("Idle") }
+        if (want != model) { model = want; pet.load(want); cur = null; from = null; play("Idle"); rig.set(FreeFallRig.Mode.ARCH, 6f) }
         // the warp: calm drift speed 1, kicked up by touches and the bass, settling back
         speed += (1f - speed) * min(1f, dt * 0.6f)
         if (input.audio.active) speed = max(speed, 1f + input.audio.bass * 2.5f)
@@ -156,6 +168,7 @@ class AstroScene(private val context: Context) : Creature {
         shake *= exp(-dt * 3f)
         // tumble: always turning slowly, faster after a knock
         spinRate += ((if (spinRate >= 0f) 0.22f else -0.22f) - spinRate) * min(1f, dt * 0.4f)
+        if (faller && rig.mode == FreeFallRig.Mode.CURL) spinRate += (if (spinRate >= 0f) 1f else -1f) * dt * 1.2f   // a tucked ball tumbles
         spin += spinRate * dt
         yawPh += dt * (0.22f + speed * 0.04f)
         // page scrolling moves the world under him: the screen edge comes along and knocks him back in
@@ -181,9 +194,35 @@ class AstroScene(private val context: Context) : Creature {
         if (y > ty) { bumped = max(bumped, abs(vy)); y = ty; vy = -abs(vy) * 0.75f }
         if (bumped > 0.25f && time - bumpT > 0.6f) {
             bumpT = time; spinRate += (if (Random.nextBoolean()) 1f else -1f) * min(3f, bumped * 2f); shake = min(1f, shake + bumped * 0.4f)
-            if (faller) { if (cur?.name != "Impact" && cur?.name != "Poke") play(if (bumped > 0.7f) "Impact" else "Poke") }
+            if (faller) {
+                rig.jolt(min(14f, 6f + bumped * 6f))
+                if (bumped > 0.6f) { ff(FreeFallRig.Mode.SPLAT, .45f); ffAfter = FreeFallRig.Mode.FLAIL } else ff(FreeFallRig.Mode.FLAIL, 1.4f)
+            }
             else if (cur?.name != "Poke") play(if (bumped > 0.7f) "Poke" else "Flail")
             if (bumped > 0.7f) listener?.onDiscovery("cosmo bonk")
+        }
+        if (faller) {
+            // Free Fall: tricks run on a timer, then he settles back into the stable arch
+            ffT -= dt
+            if (ffT <= 0f && rig.mode != FreeFallRig.Mode.ARCH) {
+                val a = ffAfter
+                if (a != null) { ff(a, 1.3f); ffAfter = null } else rig.set(FreeFallRig.Mode.ARCH, 6f)
+            }
+            if (rig.mode == FreeFallRig.Mode.FLAIL && speed > 2.2f) ffT = max(ffT, .3f)
+            nextLife -= dt
+            if (nextLife <= 0f && rig.mode == FreeFallRig.Mode.ARCH) {
+                nextLife = 5f + Random.nextFloat() * 6f
+                when (Random.nextInt(6)) {
+                    0 -> ff(FreeFallRig.Mode.REACH, 2.6f); 1 -> ff(FreeFallRig.Mode.WAVE, 2.6f); 2 -> ff(FreeFallRig.Mode.THUMBS, 2.6f)
+                    3 -> ff(FreeFallRig.Mode.SWIM, 3.5f); 4 -> ff(FreeFallRig.Mode.CURL, 3.2f); else -> ff(FreeFallRig.Mode.FLAIL, 2f)
+                }
+            }
+            rig.update(dt, if (input.audio.active) input.audio.bass else 0f)
+            System.arraycopy(rig.mats, 0, pet.pose, 0, min(rig.mats.size, pet.nBones * 12))
+            pet.pivot = 0.5f
+            pet.yaw = sin(yawPh) * 1.0f + time * 0.12f * sign(spinRate)
+            pet.lean = sin(yawPh * 0.7f + 1f) * 0.45f
+            return
         }
         // what he's doing
         val c = cur
@@ -220,7 +259,9 @@ class AstroScene(private val context: Context) : Creature {
     // ---------------------------------------------------------------- draw
     override fun draw(input: SceneInput) {
         // stars: one point-sprite draw over a nebula painted once (was a heavy per-pixel shader)
-        stars.draw(fall % 1000f, time % 1000f, shake, pagePos)
+        // Free Fall: only distant stars on black, rising past him as he falls
+        stars.plain = faller
+        stars.draw(if (faller) -(fall % 1000f) else fall % 1000f, time % 1000f, shake, pagePos)
         GLES20.glDisableVertexAttribArray(0)
         val m = min(w, h)
         val k = size / pet.height

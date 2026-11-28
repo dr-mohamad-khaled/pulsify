@@ -447,7 +447,7 @@ class OrbitScene(private val context: Context) : Creature {
         if (worldIndex >= 0) {
         ensureBg(bw, bh)
         val moving = abs(camYaw - bgYaw) > .002f || abs(camX - bgCx) > .002f || abs(camZ - bgCz) > .002f || env != bgEnv
-        if (bgDirty || moving || time - bgT > 1f / 24f) {
+        if (bgDirty || moving || time - bgT > 1f / 20f) {
             bgDirty = false; bgT = time; bgYaw = camYaw; bgCx = camX; bgCz = camZ; bgEnv = env
             GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, bgFbo); GLES20.glViewport(0, 0, bw, bh)
             GLES20.glUseProgram(bgProg)
@@ -522,7 +522,7 @@ class OrbitScene(private val context: Context) : Creature {
     companion object {
         private const val PAGES = 5
         /** The code-drawn world is the expensive part: render it at this fraction of the screen. */
-        private const val BG_SCALE = .42f
+        private const val BG_SCALE = .56f
         private const val BLIT_VS = "attribute vec2 aPos; varying vec2 vUv; void main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }"
         private const val BLIT_FS = "precision mediump float; varying vec2 vUv; uniform sampler2D uTex; void main(){ gl_FragColor = vec4(texture2D(uTex, vUv).rgb, 1.0); }"
         private const val FULL_VS = "attribute vec2 aPos;\nvoid main(){ gl_Position = vec4(aPos, 0.0, 1.0); }\n"

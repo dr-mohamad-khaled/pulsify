@@ -99,6 +99,8 @@ class BotScene(private val transparent: Boolean = false) : Creature {
     override fun setHomeX(x: Float) { if (x == homeX) return; homeX = x; if (bw > 2) CX = W / 2 + homeX * W }
     /** Over a picture or a coloured background the robot is drawn with alpha; over true black it stays opaque. */
     @Volatile var overWorld = false
+    /** The Bot Room world: a dark room with a glossy grid floor and the robot's reflection (drawn here, over black). */
+    @Volatile var room = false
     private val alpha get() = transparent || overWorld
     private var W = 1f; private var H = 1f; private var U = 1f; private var GY = 1f; private var CX = .5f; private var bw = 2; private var bh = 2
     private fun botScreen(ly: Float, out: FloatArray = tmp2): FloatArray { out[0] = CX + x * U; out[1] = GY - (air + ly + (if (look.loco == "hover") hov - .1f else 0f)) * U; return out }
@@ -504,6 +506,41 @@ class BotScene(private val transparent: Boolean = false) : Creature {
         arm2(cv, .19f, by - .02f, 1f, aR.x, eR.x, .07f, .065f, .036f, 0xFF3A3150.toInt(), "mitt")
     }
 
+    /** The robot (robot units, y up, origin at its feet); [mirror] = its reflection on the glossy floor. */
+    private fun drawRobot(cv: Canvas, mirror: Boolean) {
+        cv.save()
+        if (mirror) { cv.translate(CX + x * U, GY + air * U); cv.scale(U, U) } else { cv.translate(CX + x * U, GY - air * U); cv.scale(U, -U) }
+        val piv = if (held) grabDy else when (look.loco) { "hover" -> .5f + hov; "wheel" -> .13f; "tripod" -> .3f; else -> 0f }
+        cv.rotate(tilt.x * 57.3f, 0f, piv)
+        val s = sq.x; cv.scale(1 + (1 - s) * .7f, s)
+        when (look.key) { "orbi" -> drawOrbi(cv); "pixel" -> drawPixel(cv); "sentinel" -> drawSentinel(cv); "bubble" -> drawBubble(cv); else -> drawTink(cv) }
+        cv.restore()
+    }
+    /** Bot Room: violet haze behind the robot, a perspective grid floor that breathes with the bass, a soft horizon line. */
+    private fun drawRoom(cv: Canvas) {
+        val cx = CX + x * U * .3f
+        circle(cv, cx, GY - U * .2f, W * .85f, shaded(rg(cx, GY - U * .2f, W * .85f, intArrayOf(Color.argb((40 + 50 * bass).roundToInt(), 157, 78, 221), Color.argb(14, 60, 30, 90), Color.argb(0, 0, 0, 0)), floatArrayOf(0f, .5f, 1f))))
+        cv.save(); cv.clipRect(0f, GY, W, H)
+        val ln = stroke(MINT, max(1f, U / 260f))
+        for (i in -14..14) { val k = 1 - abs(i) / 15f; val gx = CX + i * U * .35f
+            ln.alpha = (255 * (.09f * k + .04f * bass * k)).roundToInt(); cv.drawLine(CX + (gx - CX) * .25f, GY, gx + (gx - CX) * 1.6f, H, ln) }
+        val drift = (time * .12f) % 1f
+        for (j in 0 until 10) { val f = ((j + drift) / 10f); val gy = GY + Math.pow(f.toDouble(), 1.8).toFloat() * (H - GY)
+            ln.alpha = (255 * ((.07f + .03f * bass) * sm(f * 6f) * (.4f + .6f * f))).roundToInt(); cv.drawLine(0f, gy, W, gy, ln) }
+        // floor sheen fading away from the robot
+        cv.drawRect(0f, GY, W, H, shaded(lg(0f, GY, 0f, H, Color.argb(30, 45, 212, 191), Color.argb(0, 0, 0, 0))))
+        cv.restore()
+        cv.drawRect(0f, GY - 1f, W, GY + 1f, shaded(lg(0f, 0f, W, 0f, Color.argb(0, 205, 180, 255), Color.argb(70, 205, 180, 255), Color.argb(0, 205, 180, 255))))
+    }
+    /** A soft contact shadow (and the hover glow) under the robot, smaller the higher it is. */
+    private fun drawShadow(cv: Canvas) {
+        val lift = air + (if (look.loco == "hover") hov else 0f); val k = 1f / (1f + lift * 2.5f); val bx = CX + x * U; val r = U * .4f * k
+        cv.save(); cv.translate(bx, GY); cv.scale(1f, .2f)
+        circle(cv, 0f, 0f, r, shaded(rg(0f, 0f, r, intArrayOf(Color.argb(217, 0, 0, 0), Color.argb(0, 0, 0, 0)))))
+        if (look.loco == "hover") { val p = shaded(rg(0f, 0f, r * .9f, intArrayOf(aCol(MINT, .25f * (.5f + thrust)), aCol(MINT, 0f)))); p.xfermode = addMode; circle(cv, 0f, 0f, r * .9f, p); p.xfermode = null }
+        cv.restore()
+    }
+
     // ---------------------------------------------------------------- screen-space extras
     private fun drawCable(cv: Canvas) {
         if (!charging) return
@@ -584,14 +621,10 @@ class BotScene(private val transparent: Boolean = false) : Creature {
         if (b == null || b.width != bw || b.height != bh) { b?.recycle(); b = Bitmap.createBitmap(bw, bh, Bitmap.Config.ARGB_8888); bmp = b; cvs = Canvas(b); if (tex != 0) GLES20.glDeleteTextures(1, intArrayOf(tex), 0); tex = 0 }
         val cv = cvs!!
         cv.drawColor(if (alpha) Color.TRANSPARENT else Color.BLACK, PorterDuff.Mode.SRC)
+        val inRoom = room && !alpha
+        if (inRoom) { drawRoom(cv); cv.save(); cv.clipRect(0f, GY, W, H); val l = cv.saveLayerAlpha(0f, GY, W, H, 34); drawRobot(cv, true); cv.restoreToCount(l); cv.restore(); drawShadow(cv) }
         drawCable(cv); drawScan(cv)
-        // the robot (robot units, y up, origin at its feet)
-        cv.save(); cv.translate(CX + x * U, GY - air * U); cv.scale(U, -U)
-        val piv = if (held) grabDy else when (look.loco) { "hover" -> .5f + hov; "wheel" -> .13f; "tripod" -> .3f; else -> 0f }
-        cv.rotate(tilt.x * 57.3f, 0f, piv)
-        val s = sq.x; cv.scale(1 + (1 - s) * .7f, s)
-        when (look.key) { "orbi" -> drawOrbi(cv); "pixel" -> drawPixel(cv); "sentinel" -> drawSentinel(cv); "bubble" -> drawBubble(cv); else -> drawTink(cv) }
-        cv.restore()
+        drawRobot(cv, false)
         if (glitch > .05f) { val p = botScreen(.5f, FloatArray(2)); for (i in 0 until 4) {
             val y = (p[1] - U * .6f + rnd() * U * 1.1f).toInt().coerceIn(0, bh - 1); val hh = (4 + rnd() * 16).toInt().coerceAtMost(bh - y); val dx = ((rnd() - .5f) * 40 * glitch).toInt(); if (hh <= 0) continue
             val row = IntArray(bw * hh); b.getPixels(row, 0, bw, 0, y, bw, hh); val out = IntArray(bw * hh)

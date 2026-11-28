@@ -79,9 +79,11 @@ class GlLoop(
     val bots = BotScene()
     /** Pharaohs: Tutankhamun, Nefertiti and Anubis as super wallpapers. */
     val statue = StatueScene(context)
+    /** Droppy, the living drop of liquid. */
+    val drop = DropScene()
     /** By character id - 1 (Kitty, id 3, is retired; Bolt, id 8, is the robots in [bots]). */
     private val creatures: List<Creature?> = listOf(mochi, null, null, kiwi, glowy, null, null, null, gloop)
-    private val allCreatures: List<Creature> = creatures.filterNotNull() + pet3d + astro + fish + aquarium + orbit + peachy + shadow + bots + statue + duck
+    private val allCreatures: List<Creature> = creatures.filterNotNull() + pet3d + astro + fish + aquarium + orbit + peachy + shadow + bots + statue + duck + drop
     /** The creature this frame wants: by character id, and for Kitty by style (1.. = 3D shapes). */
     private fun pick(): Creature? {
         if (input.character == 8) { bots.look = BOT_LOOKS[input.style.coerceIn(0, BOT_LOOKS.size - 1)]; return bots }
@@ -91,6 +93,7 @@ class GlLoop(
         // Gromble is only its 3D looks now: 0 Reaper, 1 Mischief (2 = Mischief as saved by older versions)
         if (input.character == 6) { orbit.species = if (input.style >= 1) ORBIT_IMP else ORBIT_REAPER; return orbit }
         if (input.character == SNOWY_ID) return duck
+        if (input.character == DROP_ID) return drop
         petSpeciesFor(input.character, input.style, input.coat)?.let { pet3d.species = it; return pet3d }
         if (input.character == COSMO_ID) return astro
         if (input.character == 5 && input.style == 3) return aquarium
@@ -589,6 +592,7 @@ class GlLoop(
         // Gromble paints its own 3D world (when one of those is picked); Shadows lives on pure black.
         orbit.worldIndex = if (input.world >= ORBIT_WORLD0) input.world - ORBIT_WORLD0 else -1
         aquarium.tankWorld = if (input.world >= AQUA_WORLD0 && input.world < ORBIT_WORLD0) input.world - AQUA_WORLD0 else -1
+        bots.room = input.world == BOT_ROOM_WORLD
         bots.overWorld = input.world != BOT_ROOM_WORLD && !(input.world == SOLID_WORLD && (input.bgColor and 0xFFFFFF) == 0)
         val ownWorld = showMainCreature && ((active === orbit && orbit.worldIndex >= 0) || active === shadow)
         if (input.video >= 0) {

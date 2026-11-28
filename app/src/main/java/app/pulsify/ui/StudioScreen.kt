@@ -387,7 +387,8 @@ private fun LookPanel(state: AppState) {
     val c = LocalPulse.current
     val info = app.pulsify.engine.creatureInfo(state.character)
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Bottom) {
-        if (info != null && info.styles.isNotEmpty()) {
+        // a single style is no choice at all (Kiwi): the row only shows when there is something to pick
+        if (info != null && info.styles.size > 1) {
             PanelTitle("Style", info.styles.getOrNull(state.style) ?: "")
             LazyRow(contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // super wallpapers only list their own section (pharaohs, birds or planets)
@@ -412,7 +413,7 @@ private fun LookPanel(state: AppState) {
         if (info != null && info.id == 5 && state.style == 3) {
             AquariumPanel()
         } else if (info != null && app.pulsify.engine.coatMatters(info, state.style)) {
-            PanelTitle(when (info.id) { 4 -> "Species"; 5 -> "Fish"; 8 -> "Paint job"; 9 -> "How many"; else -> "Coat" }, info.coats.getOrNull(state.coat)?.name ?: "")
+            PanelTitle(when (info.id) { 4 -> "Species"; 5 -> "Fish"; 8 -> "Paint job"; 9 -> "How many"; app.pulsify.engine.DROP_ID -> "Face"; else -> "Coat" }, info.coats.getOrNull(state.coat)?.name ?: "")
             OrbRow(info.coats.map { Color(it.base) to Color(it.rim) }, state.coat) { state.applyCoat(it) }
             Gap(10.dp)
         }
