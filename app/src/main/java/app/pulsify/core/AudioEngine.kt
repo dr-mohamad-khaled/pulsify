@@ -192,7 +192,7 @@ class AudioEngine(private val context: Context, private val prefs: Prefs) {
 
     fun sample(out: AudioFrame, dt: Float) {
         val now = SystemClock.elapsedRealtime()
-        if (now - lastActiveCheck > 1000) {
+        if (now - lastActiveCheck > 250) {
             lastActiveCheck = now
             musicActive = audioManager.isMusicActive
             if (musicActive) lastPlayingAt = now

@@ -167,7 +167,7 @@ class BotScene(private val transparent: Boolean = false) : Creature {
         if (lvl > .02f) { if (time - sndLast > .8f) { sndStart = time; reacted = false }; sndLast = time }
         val sndDur = if (time - sndLast < .8f) time - sndStart else 0f
         if (sndDur > 0 && !reacted) { reacted = true; if (notif == null) { notif = Notif(time, true); val p = botScreen(B.head + .35f); emit(BANG, p[0], p[1], 1, 0f) } }
-        music = sndDur > 4f
+        music = sndDur > 1.2f     // a quick glance up, then straight into the dance
         if (input.charging && !charging) { plugT = time; wake(); doAct("cheer"); val p = botScreen(.3f); emit(SPARK, p[0], p[1], 8) }
         charging = input.charging; battery = input.battery.coerceIn(0f, 1f); low = input.lowBattery && !charging
         act?.let { it.t += dt; if (it.t >= it.d) act = null }

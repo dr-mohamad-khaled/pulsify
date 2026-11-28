@@ -166,7 +166,7 @@ class DropScene : Creature {
         val music = input.audio.active
         // a sound: look up for the first 3 s, dance after 4 s
         if (music) sndT += dt else sndT = 0f
-        val dancing = sndT > 4f
+        val dancing = sndT > 1.2f     // a quick glance up, then straight into the dance
         // the dance runs on its own rhythm: a live wallpaper only learns THAT music is playing, not how it sounds
         if (dancing && !held) { if (dT == 0f) { danceX = x; lastCi = -1 }; dT += dt } else dT = 0f
         val cnt = dT / BEAT; val ci = cnt.toInt(); val ph = cnt - ci; val mv = (ci / 8) % 6
@@ -286,7 +286,7 @@ class DropScene : Creature {
         lookT -= dt
         if (held) { tlx = fx - x; tly = fy - y }
         else if (charging) { tlx = (rnd() - .5f) * .02f; tly = 1f }
-        else if (sndT > 0f && sndT < 3f) { tlx = 0f; tly = 1f }
+        else if (sndT > 0f && sndT < 1.2f) { tlx = 0f; tly = 1f }
         else if (lookT <= 0f) { lookT = 1f + rnd() * 2.5f; val r0 = rnd(); tlx = if (r0 < .5f) 0f else (rnd() - .5f) * 2f; tly = if (r0 < .5f) 0f else rnd() - .3f }
         val ll = hypot(tlx, tly).let { if (it < 1e-5f) 1f else it }; val lk = min(1f, ll / .15f)
         lookX += (tlx / ll * lk - lookX) * min(1f, dt * 10f); lookY += (tly / ll * lk - lookY) * min(1f, dt * 10f)
