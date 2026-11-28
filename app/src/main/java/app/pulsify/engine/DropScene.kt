@@ -297,7 +297,7 @@ class DropScene : Creature {
 
     // ------------------------------------------------------------------ GL
     private var pField = 0; private var pDrop = 0; private var tri = 0; private var qVbo = 0
-    private var fTex = 0; private var fFbo = 0; private var fw = 0; private var fh = 0
+    private var nTex = 0; private var fTex = 0; private var fFbo = 0; private var fw = 0; private var fh = 0
     private val uf = HashMap<String, Int>(); private val ud = HashMap<String, Int>()
     private val qBuf: FloatBuffer = ByteBuffer.allocateDirect(MAX * 24 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
     private val qArr = FloatArray(MAX * 24)
@@ -307,13 +307,24 @@ class DropScene : Creature {
     override fun onSurfaceCreated() {
         pField = Gl.program(FIELD_VS, FIELD_FS); pDrop = Gl.program(VS, FS)
         uf["uHalf"] = GLES20.glGetUniformLocation(pField, "uHalf")
-        for (n in listOf("uField", "uTexel", "uHalf", "uRes", "uBody", "uRad", "uLiq", "uFaceKind", "uTime", "uEye", "uExpr", "uPct", "uFloor", "uBass", "uIcon", "uSlosh"))
+        for (n in listOf("uField", "uTexel", "uHalf", "uRes", "uBody", "uRad", "uLiq", "uFaceKind", "uTime", "uEye", "uExpr", "uPct", "uFloor", "uBass", "uIcon", "uSlosh", "uNoise"))
             ud[n] = GLES20.glGetUniformLocation(pDrop, if (n == "uRad") "uRad[0]" else n)
         val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); tri = ids[0]; qVbo = ids[1]
         val tb = ByteBuffer.allocateDirect(24).order(ByteOrder.nativeOrder()).asFloatBuffer().put(floatArrayOf(-1f, -1f, 3f, -1f, -1f, 3f)); tb.position(0)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, tri); GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, 24, tb, GLES20.GL_STATIC_DRAW)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0)
         fw = 0; fh = 0
+        // 64 x 64 random bytes, linear + repeat: the value noise the liquids are painted with
+        val nb = ByteBuffer.allocateDirect(64 * 64); var sd = 9L
+        for (i in 0 until 64 * 64) { sd = (sd * 16807L) % 2147483647L; nb.put((sd and 255L).toByte()) }
+        nb.position(0)
+        val nt = IntArray(1); GLES20.glGenTextures(1, nt, 0); nTex = nt[0]
+        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nTex)
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
+        GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_LUMINANCE, 64, 64, 0, GLES20.GL_LUMINANCE, GLES20.GL_UNSIGNED_BYTE, nb)
+        GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 4)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR); GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+        GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_REPEAT); GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_REPEAT)
     }
     override fun onSurfaceChanged(width: Int, height: Int) {
         val m = min(width, height).toFloat().coerceAtLeast(1f); halfW = .5f * width / m; halfH = .5f * height / m
@@ -362,6 +373,7 @@ class DropScene : Creature {
         GLES20.glEnable(GLES20.GL_BLEND); GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA)
         GLES20.glUseProgram(pDrop)
         GLES20.glActiveTexture(GLES20.GL_TEXTURE0); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, fTex); GLES20.glUniform1i(ud["uField"]!!, 0)
+        GLES20.glActiveTexture(GLES20.GL_TEXTURE1); GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, nTex); GLES20.glUniform1i(ud["uNoise"]!!, 1); GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
         GLES20.glUniform2f(ud["uTexel"]!!, 1f / w, 1f / h); GLES20.glUniform2f(ud["uHalf"]!!, halfW, halfH); GLES20.glUniform2f(ud["uRes"]!!, vp[2].toFloat(), vp[3].toFloat())
         val r = R; for (i in 0 until M) rad[i] = r * (1f + d[i])
         GLES20.glUniform3f(ud["uBody"]!!, x, y, r); GLES20.glUniform1fv(ud["uRad"]!!, M, rad, 0)
@@ -384,6 +396,7 @@ class DropScene : Creature {
     override fun release() {
         for (p in intArrayOf(pField, pDrop)) if (p != 0) GLES20.glDeleteProgram(p)
         if (tri != 0) GLES20.glDeleteBuffers(2, intArrayOf(tri, qVbo), 0)
+        if (nTex != 0) GLES20.glDeleteTextures(1, intArrayOf(nTex), 0); nTex = 0
         if (fTex != 0) { GLES20.glDeleteTextures(1, intArrayOf(fTex), 0); GLES20.glDeleteFramebuffers(1, intArrayOf(fFbo), 0) }
         pField = 0; pDrop = 0; tri = 0; qVbo = 0; fTex = 0; fFbo = 0; fw = 0; fh = 0
     }
@@ -412,8 +425,10 @@ uniform float uFloor; uniform float uBass;
 uniform vec4 uIcon;          // battery icon: centre x, y, size, alpha
 uniform vec2 uSlosh;         // its liquid tilt and wave
 float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+// value noise from a small tiling random texture (bilinear): smooth on every GPU, also where the shader math runs
+// at reduced precision (computed hashes there turned lava and honey into squares)
+uniform sampler2D uNoise;
+float noise(vec2 p){ return texture2D(uNoise, (p + 0.5) / 64.0).r; }
 float fbm(vec2 p){ float n = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { n += a * noise(p); p = p * 2.03 + 1.7; a *= 0.5; } return n; }
 float bodyR(float a){
   float s = 0.0, w = 0.0;

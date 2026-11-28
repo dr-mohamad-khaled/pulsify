@@ -18,8 +18,10 @@ uniform float uFloor; uniform float uBass;
 uniform vec4 uIcon;          // battery icon: centre x, y, size, alpha
 uniform vec2 uSlosh;         // its liquid tilt and wave
 float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
-float noise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y); }
+// value noise from a small tiling random texture (bilinear): smooth on every GPU, also where the shader math runs
+// at reduced precision (computed hashes there turned lava and honey into squares)
+uniform sampler2D uNoise;
+float noise(vec2 p){ return texture2D(uNoise, (p + 0.5) / 64.0).r; }
 float fbm(vec2 p){ float n = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { n += a * noise(p); p = p * 2.03 + 1.7; a *= 0.5; } return n; }
 float bodyR(float a){
   float s = 0.0, w = 0.0;

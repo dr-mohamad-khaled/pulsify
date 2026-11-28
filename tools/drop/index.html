@@ -52,6 +52,11 @@ function resize() {
 addEventListener('resize', resize); resize();
 const halfW = () => .5 * W / Math.min(W, H), halfH = () => .5 * H / Math.min(W, H);
 const rad = new Float32Array(16);
+// 64 x 64 random bytes, linear + repeat = value noise for the shader
+const ntex = gl.createTexture(); { const n = new Uint8Array(64 * 64); let sd = 9; for (let i = 0; i < n.length; i++) { sd = (sd * 16807) % 2147483647; n[i] = sd & 255; }
+  gl.bindTexture(gl.TEXTURE_2D, ntex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 64, 64, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, n);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT); }
 let t0 = performance.now();
 function draw() {
   const hw = halfW(), hh = halfH();
@@ -74,7 +79,7 @@ function draw() {
   gl.disable(gl.BLEND); gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
   gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
   gl.useProgram(pDrop); const U = x => gl.getUniformLocation(pDrop, x);
-  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, ftex); gl.uniform1i(U('uField'), 0);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, ftex); gl.uniform1i(U('uField'), 0); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, ntex); gl.uniform1i(U('uNoise'), 1); gl.activeTexture(gl.TEXTURE0);
   gl.uniform2f(U('uTexel'), 1 / fw, 1 / fh); gl.uniform2f(U('uHalf'), hw, hh); gl.uniform2f(U('uRes'), cv.width, cv.height);
   drop.radii(rad); gl.uniform3f(U('uBody'), drop.x, drop.y, drop.R); gl.uniform1fv(U('uRad[0]'), rad);
   gl.uniform1f(U('uLiq'), drop.liq); gl.uniform1f(U('uFaceKind'), drop.face); gl.uniform1f(U('uTime'), (performance.now() - t0) / 1000 % 1000);
