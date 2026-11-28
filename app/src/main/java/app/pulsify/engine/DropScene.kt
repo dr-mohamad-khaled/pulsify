@@ -62,7 +62,7 @@ class DropScene : Creature {
     private var act: String? = null; private var actT = 0f; private var nextAct = 4f; private var rainT = 0f; private var pctT = -9f
     private var bass = 0f; private var sndT = 0f; private var squash = 0f
     // the battery icon over its head (uv), on a spring, and the tilt of the liquid inside
-    private var ix = 0f; private var iy = .5f; private var ivx = 0f; private var ivy = 0f; private var tilt = 0f; private var iconSet = false
+    private var ix = 0f; private var iy = .5f; private var ivx = 0f; private var ivy = 0f; private var tilt = 0f; private var iconSet = false; private var iconA = 0f
     private fun rnd() = Random.nextFloat()
     private fun clamp(v: Float, a: Float, b: Float) = if (v < a) a else if (v > b) b else v
     private fun sm(v: Float): Float { val c = clamp(v, 0f, 1f); return c * c * (3 - 2 * c) }
@@ -283,6 +283,8 @@ class DropScene : Creature {
             val ax2 = (tx - ix) * 40f - ivx * 9f; val ay2 = (ty - iy) * 40f - ivy * 9f
             ivx += ax2 * dt; ivy += ay2 * dt; ix += ivx * dt; iy += ivy * dt
             tilt += (clamp(-ax2 * .03f, -1f, 1f) - tilt) * min(1f, dt * 6f)
+            // only shown while charging: it fades in on the plug, out when unplugged
+            iconA += ((if (charging) 1f else 0f) - iconA) * min(1f, dt * 4f)
         }
         // tricks (at least three a minute)
         if (act != null) { actT += dt; if (actT > 1.6f) act = null }
@@ -372,7 +374,7 @@ class DropScene : Creature {
         GLES20.glUniform4f(ud["uExpr"]!!, if (expr == "happy") 1f else 0f, if (expr == "squish") 1f else 0f, smile, if (expr == "surprised") 1f else 0f)
         val pu = t - pctT; val pa = if (pu < 3.5f) min(1f, pu / .3f) * min(1f, (3.5f - pu) / .4f) else 0f
         GLES20.glUniform2f(ud["uPct"]!!, (battery * 100f).roundToInt().toFloat(), pa)
-        GLES20.glUniform4f(ud["uIcon"]!!, ix, iy, .1f, 1f); GLES20.glUniform2f(ud["uSlosh"]!!, tilt, min(1f, hypot(ivx, ivy) * 2f))
+        GLES20.glUniform4f(ud["uIcon"]!!, ix, iy, .1f, iconA); GLES20.glUniform2f(ud["uSlosh"]!!, tilt, min(1f, hypot(ivx, ivy) * 2f))
         GLES20.glUniform1f(ud["uFloor"]!!, floor); GLES20.glUniform1f(ud["uBass"]!!, bass)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, tri); GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)

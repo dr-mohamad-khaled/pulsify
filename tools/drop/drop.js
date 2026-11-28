@@ -212,7 +212,8 @@ const DROP = (() => {
         if (this.t < .05) { this.ix = tx; this.iy = ty; }
         const ax2 = (tx - this.ix) * 40 - this.ivx * 9, ay2 = (ty - this.iy) * 40 - this.ivy * 9;
         this.ivx += ax2 * dt; this.ivy += ay2 * dt; this.ix += this.ivx * dt; this.iy += this.ivy * dt;
-        this.tilt += (clamp(-ax2 * .03, -1, 1) - this.tilt) * Math.min(1, dt * 6); }
+        this.tilt += (clamp(-ax2 * .03, -1, 1) - this.tilt) * Math.min(1, dt * 6);
+        this.iconA = (this.iconA || 0) + ((this.charging ? 1 : 0) - (this.iconA || 0)) * Math.min(1, dt * 4); }
       // tricks (at least three a minute)
       if (this.act) { this.actT += dt; if (this.actT > 1.6) this.act = null; }
       this.nextAct -= dt;
