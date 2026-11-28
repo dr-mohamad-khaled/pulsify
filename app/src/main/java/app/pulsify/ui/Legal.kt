@@ -33,6 +33,7 @@ enum class LegalDoc(val title: String, val updated: String, val sections: List<P
     PRIVACY(
         "Privacy Policy", "Last updated 22 November 2026",
         listOf(
+            "Who we are" to "Screenpals is made by Neutrogit. In this policy, \"we\" and \"us\" means Neutrogit.",
             "The short version" to "Screenpals works offline. The app has no internet permission, no ads, no analytics and no account. Your wallpaper, settings and creatures stay on your phone.",
             "Music reaction" to "When you turn on \"React to my music\", Android asks for the microphone permission because the Visualizer that reads what your phone is playing sits behind it. Screenpals only reads the loudness of the bass, mids and highs, frame by frame, to move the wallpaper. Nothing is recorded, saved or sent anywhere. You can turn it off in Settings at any time.",
             "What stays on your phone" to "Your chosen creature, style, world, colours and settings are kept in the app's private storage so the wallpaper looks the same after a restart. If something crashes, a short technical log is kept on the phone; it only leaves the phone if you copy it yourself with \"Copy diagnostics\".",
@@ -46,6 +47,7 @@ enum class LegalDoc(val title: String, val updated: String, val sections: List<P
     TERMS(
         "Terms of Service", "Last updated 22 November 2026",
         listOf(
+            "Who we are" to "Screenpals is made and published by Neutrogit. In these terms, \"we\" and \"us\" means Neutrogit.",
             "Agreement" to "By installing or using Screenpals you agree to these terms. If you are under the age of majority where you live, ask a parent or guardian before buying anything.",
             "Your license" to "You may use Screenpals on your own devices for personal, non-commercial use. The creatures, statues, artwork, animations, sounds and code belong to us or our licensors; please don't copy, resell, extract or reverse-engineer them. Screenshots and recordings of your own home screen are fine.",
             "Purchases" to "Payments go through Google Play. Subscriptions renew until you cancel in Google Play, and you keep Pro until the end of the period you paid for. Free trials become paid unless cancelled before they end. Lifetime purchases and packs stay yours on the same Google account. Credits for Create your own are used when a model is generated; a failure on our side gives the credit back. Refunds follow Google Play's policy.",
