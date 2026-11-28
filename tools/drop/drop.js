@@ -31,7 +31,7 @@ const DROP = (() => {
       this.lookX = 0; this.lookY = 0; this.tlx = 0; this.tly = 0; this.lookT = 0;
       this.blink = 0; this.nextBlink = 2; this.expr = 'normal'; this.exprT = 0;
       this.act = null; this.actT = 0; this.nextAct = 4; this.rainT = 0; this.pctT = -9;
-      this.ix = 0; this.iy = .5; this.ivx = 0; this.ivy = 0; this.tilt = 0; this.bass = 0; this.music = 0; this.sndT = 0; this.beat = 0; this.squash = 0; this.wob = 0;
+      this.ix = 0; this.iy = .5; this.ivx = 0; this.ivy = 0; this.tilt = 0; this.bass = 0; this.mid = 0; this.treb = 0; this.beatIn = 0; this.beatN = 0; this.ringT = 9; this.blissT = 0; this.music = 0; this.sndT = 0; this.beat = 0; this.squash = 0; this.wob = 0;
     }
     get L() { return LIQ[this.liq]; }
     // total liquid (area units): from the battery, 0% = a small bead, 100% = a big drop
@@ -96,6 +96,10 @@ const DROP = (() => {
       this.wasCharging = this.charging;
       this.bonus *= Math.exp(-dt * .7);
       this.bass += (inp.bass - this.bass) * Math.min(1, dt * 12);
+      this.mid += ((inp.mid || 0) - this.mid) * Math.min(1, dt * 8); this.treb += ((inp.treble || 0) - this.treb) * Math.min(1, dt * 14);
+      // a beat: the beat pulse jumps up (or, without one, the bass does)
+      const bIn = inp.beat !== undefined ? inp.beat : inp.bass; const onBeat = inp.music && bIn > .75 && this.beatIn < .5; this.beatIn = bIn;
+      this.ringT += dt; this.blissT -= dt;
       // sound: look up for the first 3 s, dance after 4 s
       if (inp.music) { this.sndT += dt; } else this.sndT = 0;
       const dancing = this.sndT > 4;
@@ -109,7 +113,22 @@ const DROP = (() => {
         this.vy += ((this.fy - this.y) * kx - this.vy * dmp) * dt;
       } else {
         this.vy -= L.g * dt;
-        if (dancing) { this.beat += dt * 2.2; if (this.y - R * .85 <= fl + .002 && this.bass > .45 && this.vy <= 0) { this.vy = .9 + this.bass * .8; this.squash = .6; } }
+        if (dancing) {
+          // four dance moves, eight beats each: bounce, sway, fountain, twirl
+          const move = Math.floor(this.beatN / 8) % 4, onFloor = this.y - R * .85 <= fl + .004;
+          if (onBeat) {
+            this.beatN++; this.ringT = 0; this.blissT = .22; this.squash = Math.max(this.squash, .45 + this.bass * .3);
+            if (move === 0 && onFloor) { this.vy = .9 + this.bass * .9; }
+            if (move === 1) { const dir = Math.abs(this.x) > this.halfW * .3 ? -Math.sign(this.x) : (this.beatN % 2 ? 1 : -1); this.vx += dir * (.55 + this.bass * .3); if (onFloor) this.vy = .5; }
+            if (move === 2) { // a fountain: little drops shoot out of its top and rain back in
+              const n = 2 + Math.floor(this.bass * 3);
+              for (let k = 0; k < n; k++) this.add(this.x + (rnd() - .5) * R * .5, this.y + R * .8, (rnd() - .5) * 1.4, 1.8 + rnd() * 1.1 + this.bass, this.total * (.008 + rnd() * .012), false);
+              this.expr = 'surprised'; this.exprT = .25;
+            }
+            if (move === 3) { this.vy = onFloor ? .45 : this.vy; }
+          }
+          if (move === 1) this.vx *= Math.pow(.15, dt);
+        }
       }
       this.x += this.vx * dt; this.y += this.vy * dt;
       // edges: floor, walls, ceiling (the body flattens on them)
@@ -125,6 +144,8 @@ const DROP = (() => {
       const squash = this.squash; this.squash *= Math.exp(-dt * 5);
       const wob = this.act === 'wobble' ? Math.sin(this.actT * 18) * .25 * (1 - this.actT / 1.6) : 0;
       const dance = dancing ? this.bass * .18 : 0;
+      const move = Math.floor(this.beatN / 8) % 4;
+      const ripple = this.sndT > 0 ? this.mid * .07 : 0, twirl = dancing && move === 3 ? .11 + this.mid * .08 : 0;
       for (let i = 0; i < M; i++) {
         const a = i / M * TAU, cx = Math.cos(a), cy = Math.sin(a);
         const lap = this.d[(i + 1) % M] + this.d[(i + M - 1) % M] - 2 * this.d[i];
@@ -134,7 +155,8 @@ const DROP = (() => {
         const al = cx * ux + cy * uy, st = clamp(sp * .09, 0, .32);
         const flow = st * (al * al - .5) + st * .9 * Math.pow(Math.max(0, -al), 3) - st * .35 * Math.pow(Math.max(0, al), 3)
           + .05 * Math.min(1, sp) * Math.sin(3 * a + this.t * 9) + .035 * Math.min(1, sp) * Math.sin(5 * a - this.t * 13);
-        const tgt = squash * .35 * (cx * cx - cy * cy) + wob * Math.cos(2 * a + this.t * 3) + dance * cy * cy + flow;
+        const tgt = squash * .35 * (cx * cx - cy * cy) + wob * Math.cos(2 * a + this.t * 3) + dance * cy * cy + flow
+          + ripple * Math.sin(4 * a + this.t * 7) + twirl * Math.cos(5 * a - this.t * 7);
         const acc = L.k * (tgt - this.d[i]) - L.damp * this.dv[i] + L.k * .6 * lap + inert * L.k;
         this.dv[i] += acc * dt;
       }
@@ -205,7 +227,7 @@ const DROP = (() => {
       this.nextBlink -= dt; if (this.nextBlink <= 0) { this.blink = 1; this.nextBlink = 2 + rnd() * 3; }
       this.blink = Math.max(0, this.blink - dt * 7);
       this.exprT -= dt;
-      if (this.exprT <= 0) this.expr = dancing ? 'happy' : (this.battery < .15 && !this.charging) ? 'sleepy' : Math.hypot(this.vx, this.vy) > 1.6 ? 'surprised' : 'normal';
+      if (this.exprT <= 0) this.expr = dancing ? (this.blissT > 0 || Math.floor(this.beatN / 4) % 2 ? 'happy' : 'normal') : (this.battery < .15 && !this.charging) ? 'sleepy' : Math.hypot(this.vx, this.vy) > 1.6 ? 'surprised' : 'normal';
 
       // the battery icon floats above its head on a soft spring; the liquid inside tilts as it swings
       { const tx = clamp(this.x - .03, -hw + .16, hw - .3), ty = Math.min(this.y + this.R * 1.2 + .14, hh - .14);
