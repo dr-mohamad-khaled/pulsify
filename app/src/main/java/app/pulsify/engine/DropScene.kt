@@ -45,7 +45,7 @@ val LIQUIDS = listOf(
 class DropScene : Creature {
     override var listener: SceneListener? = null
     override var bottomInset = 0f
-    override val busy: Boolean get() = held || drops.isNotEmpty() || abs(vx) + abs(vy) > .02f || charging || act != null || bass > .02f
+    override val busy: Boolean get() = held || drops.isNotEmpty() || abs(vx) + abs(vy) > .02f || charging || act != null || dT > 0f
 
     private class Bead(var x: Float, var y: Float, var vx: Float, var vy: Float, var m: Float, var rain: Boolean) { var age = 0f }
 
@@ -60,9 +60,9 @@ class DropScene : Creature {
     private var lookX = 0f; private var lookY = 0f; private var tlx = 0f; private var tly = 0f; private var lookT = 0f
     private var blink = 0f; private var nextBlink = 2f; private var expr = "normal"; private var exprT = 0f
     private var act: String? = null; private var actT = 0f; private var nextAct = 4f; private var rainT = 0f; private var pctT = -9f
-    private var bass = 0f; private var sndT = 0f; private var squash = 0f
-    // music: mids, highs, the last beat pulse, beats danced, the floor ring's age, a blissful blink on the beat
-    private var mid = 0f; private var treb = 0f; private var beatIn = 0f; private var beatN = 0; private var ringT = 9f; private var blissT = 0f
+    private var sndT = 0f; private var squash = 0f
+    // dancing: seconds into the dance, the last count, where it started
+    private var dT = 0f; private var lastCi = -1; private var danceX = 0f
     // the battery icon over its head (uv), on a spring, and the tilt of the liquid inside
     private var ix = 0f; private var iy = .5f; private var ivx = 0f; private var ivy = 0f; private var tilt = 0f; private var iconSet = false; private var iconA = 0f
     private fun rnd() = Random.nextFloat()
@@ -164,14 +164,13 @@ class DropScene : Creature {
         wasCharging = charging
         bonus *= exp(-dt * .7f)
         val music = input.audio.active
-        bass += ((if (music) input.audio.bass else 0f) - bass) * min(1f, dt * 12f)
         // a sound: look up for the first 3 s, dance after 4 s
         if (music) sndT += dt else sndT = 0f
         val dancing = sndT > 4f
-        mid += ((if (music) input.audio.mid else 0f) - mid) * min(1f, dt * 8f); treb += ((if (music) input.audio.treble else 0f) - treb) * min(1f, dt * 14f)
-        val bIn = if (music) max(input.audio.beat, 0f) else 0f
-        val onBeat = music && bIn > .75f && beatIn < .5f; beatIn = bIn
-        ringT += dt; blissT -= dt
+        // the dance runs on its own rhythm: a live wallpaper only learns THAT music is playing, not how it sounds
+        if (dancing && !held) { if (dT == 0f) { danceX = x; lastCi = -1 }; dT += dt } else dT = 0f
+        val cnt = dT / BEAT; val ci = cnt.toInt(); val ph = cnt - ci; val mv = (ci / 8) % 6
+        val onCount = dT > 0f && ci != lastCi; if (dT > 0f) lastCi = ci
 
         val r = R; val fl = floor; val hw = halfW; val hh = halfH
         val ox = vx; val oy = vy
@@ -180,23 +179,16 @@ class DropScene : Creature {
             vx += ((fx - x) * 55f - vx * 11f) * dt; vy += ((fy - y) * 55f - vy * 11f) * dt
         } else {
             vy -= L.g * dt
-            if (dancing) {
-                // four dance moves, eight beats each: bounce, sway, fountain, twirl
-                val move = (beatN / 8) % 4; val onFloor = y - r * .85f <= fl + .004f
-                if (onBeat) {
-                    beatN++; ringT = 0f; blissT = .22f; squash = max(squash, .45f + bass * .3f)
-                    when (move) {
-                        0 -> if (onFloor) vy = .9f + bass * .9f
-                        1 -> { val dir = if (abs(x) > hw * .3f) -sign(x) else if (beatN % 2 == 1) 1f else -1f; vx += dir * (.55f + bass * .3f); if (onFloor) vy = .5f }
-                        2 -> {   // a fountain: little drops shoot out of its top and rain back in
-                            val n = 2 + (bass * 3f).toInt()
-                            repeat(n) { add(x + (rnd() - .5f) * r * .5f, y + r * .8f, (rnd() - .5f) * 1.4f, 1.8f + rnd() * 1.1f + bass, total * (.008f + rnd() * .012f), false) }
-                            expr = "surprised"; exprT = .25f
-                        }
-                        else -> if (onFloor) vy = .45f
-                    }
+            if (dT > 0f) {
+                val onFloor = y - r * .85f <= fl + .004f
+                if (mv == 0 && onCount && onFloor) { vy = .75f; squash = .4f }                                  // bounce
+                if (mv == 1) { val tx = clamp(danceX + (if (ci % 2 == 1) .09f else -.09f), -hw + r, hw - r)        // sway
+                    vx += ((tx - x) * 25f - vx * 7f) * dt }
+                if (mv == 2 && onCount) squash = .25f                                                           // shimmy
+                if (mv == 3 && onCount && ci % 2 == 0) {                                                        // fountain
+                    for (kk in 0..1) { val s = if (kk == 1) 1f else -1f; add(x + s * r * .25f, y + r * .8f, s * (.35f + rnd() * .4f), 2f + rnd() * .6f, total * (.012f + rnd() * .01f), false) }
                 }
-                if (move == 1) vx *= .15f.pow(dt)
+                if (mv == 5 && onCount && ci % 8 == 7 && onFloor) { vy = 1.3f; squash = .5f }                    // the big finish
             }
         }
         x += vx * dt; y += vy * dt
@@ -210,9 +202,10 @@ class DropScene : Creature {
         // outline: springs, surface tension between neighbours, inertia; the edges flatten it
         val sq = squash; squash *= exp(-dt * 5f)
         val wob = if (act == "wobble") sin(actT * 18f) * .25f * (1f - actT / 1.6f) else 0f
-        val dance = if (dancing) bass * .18f else 0f
-        val move = (beatN / 8) % 4
-        val ripple = if (sndT > 0f) mid * .07f else 0f; val twirl = if (dancing && move == 3) .11f + mid * .08f else 0f
+        val dd = dT > 0f; val side = if (ci % 2 == 1) 1f else -1f
+        val lean = if (dd && mv == 1) side * .16f * sin(ph * PI_F) else 0f
+        val shimmy = if (dd && mv == 2) .085f else 0f; val twirl = if (dd && mv == 4) .13f else 0f
+        val stretch = if (dd && mv == 5) (if (ci % 8 < 4) 1f else -.7f) * .2f * sin(ph * PI_F) else 0f
         for (i in 0 until M) {
             val a = i.toFloat() / M * TAU; val cx = cos(a); val cy = sin(a)
             val lap = d[(i + 1) % M] + d[(i + M - 1) % M] - 2f * d[i]
@@ -222,8 +215,8 @@ class DropScene : Creature {
             val al = cx * ux + cy * uy; val st = clamp(sp * .09f, 0f, .32f)
             val flow = st * (al * al - .5f) + st * .9f * max(0f, -al).pow(3) - st * .35f * max(0f, al).pow(3) +
                 .05f * min(1f, sp) * sin(3f * a + t * 9f) + .035f * min(1f, sp) * sin(5f * a - t * 13f)
-            val tgt = sq * .35f * (cx * cx - cy * cy) + wob * cos(2f * a + t * 3f) + dance * cy * cy + flow +
-                ripple * sin(4f * a + t * 7f) + twirl * cos(5f * a - t * 7f)
+            val tgt = sq * .35f * (cx * cx - cy * cy) + wob * cos(2f * a + t * 3f) + flow +
+                lean * cx + shimmy * sin(3f * a + t * 14f) + twirl * cos(5f * a - t * 5f) + stretch * (cy * cy - cx * cx)
             dv[i] += (L.k * (tgt - d[i]) - L.damp * dv[i] + L.k * .6f * lap + inert * L.k) * dt
         }
         var mean = 0f
@@ -300,7 +293,7 @@ class DropScene : Creature {
         nextBlink -= dt; if (nextBlink <= 0f) { blink = 1f; nextBlink = 2f + rnd() * 3f }
         blink = max(0f, blink - dt * 7f)
         exprT -= dt
-        if (exprT <= 0f) expr = if (dancing) (if (blissT > 0f || (beatN / 4) % 2 == 1) "happy" else "normal") else if (battery < .15f && !charging) "sleepy" else if (hypot(vx, vy) > 1.6f) "surprised" else "normal"
+        if (exprT <= 0f) expr = if (dancing) (if (ci % 2 == 1) "happy" else "normal") else if (battery < .15f && !charging) "sleepy" else if (hypot(vx, vy) > 1.6f) "surprised" else "normal"
 
         // the battery icon floats above its head on a soft spring; the liquid inside tilts as it swings
         run {
@@ -333,7 +326,7 @@ class DropScene : Creature {
     override fun onSurfaceCreated() {
         pField = Gl.program(FIELD_VS, FIELD_FS); pDrop = Gl.program(VS, FS)
         uf["uHalf"] = GLES20.glGetUniformLocation(pField, "uHalf")
-        for (n in listOf("uField", "uTexel", "uHalf", "uRes", "uBody", "uRad", "uLiq", "uFaceKind", "uTime", "uEye", "uExpr", "uPct", "uFloor", "uBass", "uIcon", "uSlosh", "uNoise", "uGroove"))
+        for (n in listOf("uField", "uTexel", "uHalf", "uRes", "uBody", "uRad", "uLiq", "uFaceKind", "uTime", "uEye", "uExpr", "uPct", "uFloor", "uBass", "uIcon", "uSlosh", "uNoise"))
             ud[n] = GLES20.glGetUniformLocation(pDrop, if (n == "uRad") "uRad[0]" else n)
         val ids = IntArray(2); GLES20.glGenBuffers(2, ids, 0); tri = ids[0]; qVbo = ids[1]
         val tb = ByteBuffer.allocateDirect(24).order(ByteOrder.nativeOrder()).asFloatBuffer().put(floatArrayOf(-1f, -1f, 3f, -1f, -1f, 3f)); tb.position(0)
@@ -413,8 +406,7 @@ class DropScene : Creature {
         val pu = t - pctT; val pa = if (pu < 3.5f) min(1f, pu / .3f) * min(1f, (3.5f - pu) / .4f) else 0f
         GLES20.glUniform2f(ud["uPct"]!!, (battery * 100f).roundToInt().toFloat(), pa)
         GLES20.glUniform4f(ud["uIcon"]!!, ix, iy, .1f, iconA); GLES20.glUniform2f(ud["uSlosh"]!!, tilt, min(1f, hypot(ivx, ivy) * 2f))
-        GLES20.glUniform3f(ud["uGroove"]!!, mid, treb, ringT)
-        GLES20.glUniform1f(ud["uFloor"]!!, floor); GLES20.glUniform1f(ud["uBass"]!!, bass)
+        GLES20.glUniform1f(ud["uFloor"]!!, floor); GLES20.glUniform1f(ud["uBass"]!!, 0f)
         GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, tri); GLES20.glEnableVertexAttribArray(0); GLES20.glVertexAttribPointer(0, 2, GLES20.GL_FLOAT, false, 0, 0)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3)
         GLES20.glDisableVertexAttribArray(0); GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0); GLES20.glDisable(GLES20.GL_BLEND)
@@ -430,6 +422,8 @@ class DropScene : Creature {
 
     companion object {
         private const val M = 16
+        private const val BEAT = 60f / 116f      // its own dance tempo
+        private const val PI_F = Math.PI.toFloat()
         private const val MAX = 64
         private const val TAU = (Math.PI * 2).toFloat()
         private val QX = floatArrayOf(-1f, 1f, -1f, -1f, 1f, 1f)
@@ -450,8 +444,7 @@ uniform vec4 uExpr;           // happy, squish, smile, mouth O
 uniform vec2 uPct;            // percent, alpha
 uniform float uFloor; uniform float uBass;
 uniform vec4 uIcon;          // battery icon: centre x, y, size, alpha
-uniform vec2 uSlosh;
-uniform vec3 uGroove;        // mids, highs, ring age (s)         // its liquid tilt and wave
+uniform vec2 uSlosh;         // its liquid tilt and wave
 float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 // value noise from a small tiling random texture (bilinear): smooth on every GPU, also where the shader math runs
 // at reduced precision (computed hashes there turned lava and honey into squares)
@@ -545,9 +538,6 @@ vec4 liquid(vec2 p, vec2 uv, float mirror){
     col += vec3(0.6, 0.4, 1.0) * fres * 0.6; alpha = 0.95;
   }
   col += vec3(1.0) * (spec * (L == 4 ? 0.6 : 1.1) + spec2);
-  // music: the bass makes it glow from inside, the highs sparkle on its skin
-  col *= 1.0 + uBass * 0.3 * s;
-  col += vec3(1.0, 0.97, 0.9) * smoothstep(0.82, 0.95, noise(lq * 13.0 + vec2(uTime * 2.3, -uTime * 1.7))) * uGroove.y * 1.4 * (0.3 + fres) * h;
   // reflection of the room: a bright window up and to the left, a soft horizon band; stronger at the rim
   { vec3 rv = reflect(-V, N);
     float win = smoothstep(0.1, 0.0, abs(rv.x + 0.35) - 0.16) * smoothstep(0.1, 0.0, abs(rv.y - 0.45) - 0.12);
@@ -661,14 +651,6 @@ void main(){
     vec4 r = liquid(m, m / (2.0 * uHalf) + 0.5, 1.0);
     float k = 0.32 * exp(-(uFloor - p.y) / (uBody.z * 0.9));
     c += r * k * (1.0 - c.a);
-  }
-  // on each beat a ring of light spreads over the floor from under it
-  if (uGroove.z < 1.2) {
-    float u = uGroove.z / 1.2; vec2 rq = (p - vec2(uBody.x, uFloor)) / vec2(1.0, 0.18);
-    float rr = uBody.z * (0.9 + u * 3.0); float ring = exp(-pow((length(rq) - rr) / (uBody.z * 0.12), 2.0)) * (1.0 - u) * (1.0 - u);
-    int L2 = int(uLiq + 0.5);
-    vec3 rc = L2 == 0 ? vec3(0.4, 0.8, 1.0) : L2 == 1 ? vec3(1.0, 0.75, 0.3) : L2 == 2 ? vec3(1.0, 0.4, 0.1) : L2 == 3 ? vec3(0.5, 1.0, 0.4) : L2 == 4 ? vec3(0.9, 0.95, 1.0) : vec3(0.7, 0.4, 1.0);
-    c.rgb += rc * ring * 0.6 * (1.0 - c.a);
   }
   vec4 ic = batteryIcon(p);
   c = ic + c * (1.0 - ic.a);

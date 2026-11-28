@@ -16,8 +16,7 @@ uniform vec4 uExpr;           // happy, squish, smile, mouth O
 uniform vec2 uPct;            // percent, alpha
 uniform float uFloor; uniform float uBass;
 uniform vec4 uIcon;          // battery icon: centre x, y, size, alpha
-uniform vec2 uSlosh;
-uniform vec3 uGroove;        // mids, highs, ring age (s)         // its liquid tilt and wave
+uniform vec2 uSlosh;         // its liquid tilt and wave
 float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 // value noise from a small tiling random texture (bilinear): smooth on every GPU, also where the shader math runs
 // at reduced precision (computed hashes there turned lava and honey into squares)
@@ -111,9 +110,6 @@ vec4 liquid(vec2 p, vec2 uv, float mirror){
     col += vec3(0.6, 0.4, 1.0) * fres * 0.6; alpha = 0.95;
   }
   col += vec3(1.0) * (spec * (L == 4 ? 0.6 : 1.1) + spec2);
-  // music: the bass makes it glow from inside, the highs sparkle on its skin
-  col *= 1.0 + uBass * 0.3 * s;
-  col += vec3(1.0, 0.97, 0.9) * smoothstep(0.82, 0.95, noise(lq * 13.0 + vec2(uTime * 2.3, -uTime * 1.7))) * uGroove.y * 1.4 * (0.3 + fres) * h;
   // reflection of the room: a bright window up and to the left, a soft horizon band; stronger at the rim
   { vec3 rv = reflect(-V, N);
     float win = smoothstep(0.1, 0.0, abs(rv.x + 0.35) - 0.16) * smoothstep(0.1, 0.0, abs(rv.y - 0.45) - 0.12);
@@ -227,14 +223,6 @@ void main(){
     vec4 r = liquid(m, m / (2.0 * uHalf) + 0.5, 1.0);
     float k = 0.32 * exp(-(uFloor - p.y) / (uBody.z * 0.9));
     c += r * k * (1.0 - c.a);
-  }
-  // on each beat a ring of light spreads over the floor from under it
-  if (uGroove.z < 1.2) {
-    float u = uGroove.z / 1.2; vec2 rq = (p - vec2(uBody.x, uFloor)) / vec2(1.0, 0.18);
-    float rr = uBody.z * (0.9 + u * 3.0); float ring = exp(-pow((length(rq) - rr) / (uBody.z * 0.12), 2.0)) * (1.0 - u) * (1.0 - u);
-    int L2 = int(uLiq + 0.5);
-    vec3 rc = L2 == 0 ? vec3(0.4, 0.8, 1.0) : L2 == 1 ? vec3(1.0, 0.75, 0.3) : L2 == 2 ? vec3(1.0, 0.4, 0.1) : L2 == 3 ? vec3(0.5, 1.0, 0.4) : L2 == 4 ? vec3(0.9, 0.95, 1.0) : vec3(0.7, 0.4, 1.0);
-    c.rgb += rc * ring * 0.6 * (1.0 - c.a);
   }
   vec4 ic = batteryIcon(p);
   c = ic + c * (1.0 - ic.a);
